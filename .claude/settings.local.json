@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); py --list)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); cd \"D:\\\\claude ai_20260610\\\\backend\"; $env:ANTHROPIC_API_KEY = \\(\\(Get-Content .env -Raw\\) -split \"`n\" | Where-Object { $_ -match \"ANTHROPIC_API_KEY\" }\\) -replace \"ANTHROPIC_API_KEY=\",\"\" -replace \"`r\",\"\"; .\\\\venv\\\\Scripts\\\\python.exe -c \"from main import app; print\\('OK'\\)\" 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); $url = \"https://github.com/cli/cli/releases/download/v2.71.0/gh_2.71.0_windows_amd64.msi\"; $dest = \"$env:TEMP\\\\gh_setup.msi\"; Write-Host \"下載 GitHub CLI...\"; Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; Write-Host \"下載完成，開始安裝...\"; Start-Process msiexec.exe -ArgumentList \"/i `\"$dest`\" /quiet /norestart\" -Wait; Write-Host \"安裝完成\")",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); $url = \"https://github.com/cli/cli/releases/download/v2.71.0/gh_2.71.0_windows_amd64.zip\"; $dest = \"$env:TEMP\\\\gh_cli.zip\"; $extract = \"C:\\\\Users\\\\chiaweiwang\\\\AppData\\\\Local\\\\gh-cli\"; Write-Host \"下載 ZIP...\"; Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; Write-Host \"解壓縮...\"; Expand-Archive -Path $dest -DestinationPath $extract -Force; $ghExe = Get-ChildItem $extract -Recurse -Filter \"gh.exe\" | Select-Object -First 1; Write-Host \"gh.exe 位置：$\\($ghExe.FullName\\)\"; & $ghExe.FullName --version)"
+    ]
+  }
+}

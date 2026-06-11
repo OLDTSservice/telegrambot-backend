@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "D:\\claude ai_20260610\\frontend\\start-vite.cmd",
+      "runtimeArgs": [],
+      "cwd": "D:\\claude ai_20260610\\frontend",
+      "port": 5173
+    }
+  ]
+}

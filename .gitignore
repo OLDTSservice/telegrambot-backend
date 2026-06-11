@@ -1,0 +1,30 @@
+# 環境變數（含 API Key，絕對不可上傳）
+.env
+.env.local
+.env.*.local
+
+# Python 虛擬環境
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+*.pyo
+
+# 資料庫
+backend/*.db
+backend/chroma_db/
+
+# 上傳的文件
+backend/uploads/
+
+# Node.js 套件
+frontend/node_modules/
+frontend/dist/
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
