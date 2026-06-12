@@ -3,8 +3,8 @@ services:
     name: tg-admin-backend
     runtime: python
     pythonVersion: "3.11.9"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt && python -c "from main import app; print('Import OK')"
+    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT --log-level debug
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
