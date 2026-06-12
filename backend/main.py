@@ -108,7 +108,7 @@ def debug_ai():
 
 @app.post("/api/debug/reset-admin")
 def reset_admin():
-    """緊急重設 admin 密碼（部署後請移除此端點）"""
+    """緊急重設 admin 密碼"""
     from auth import hash_password
     db = SessionLocal()
     try:
@@ -118,5 +118,63 @@ def reset_admin():
             db.commit()
             return {"message": "admin 密碼已重設為 admin123"}
         return {"message": "admin 帳號不存在"}
+    finally:
+        db.close()
+
+
+@app.get("/api/debug/knowledge")
+def debug_knowledge():
+    """診斷知識庫狀態"""
+    db = SessionLocal()
+    try:
+        docs = db.query(models.KnowledgeDoc).all()
+        result = []
+        for doc in docs:
+            item = {
+                "id": doc.id,
+                "bot_id": doc.bot_id,
+                "filename": doc.original_filename,
+                "is_enabled": doc.is_enabled,
+                "chroma_collection": doc.chroma_collection,
+                "collection_set": bool(doc.chroma_collection),
+            }
+            # 嘗試查詢 chroma collection 是否存在
+            if doc.chroma_collection:
+                try:
+                    from services.ai_service import get_chroma_client, _CHROMA_AVAILABLE
+                    from chromadb.utils import embedding_functions
+                    if _CHROMA_AVAILABLE:
+                        client = get_chroma_client()
+                        col = client.get_collection(
+                            name=doc.chroma_collection,
+                            embedding_function=embedding_functions.DefaultEmbeddingFunction()
+                        )
+                        item["chroma_doc_count"] = col.count()
+                        item["chroma_status"] = "ok"
+                    else:
+                        item["chroma_status"] = "chromadb not available"
+                except Exception as e:
+                    item["chroma_status"] = f"error: {e}"
+            else:
+                item["chroma_status"] = "no collection name"
+            result.append(item)
+        return {"docs": result}
+    finally:
+        db.close()
+
+
+@app.post("/api/debug/test-knowledge")
+async def test_knowledge(bot_id: int, question: str):
+    """直接測試知識庫 AI 查詢"""
+    from services.ai_service import query_knowledge
+    db = SessionLocal()
+    try:
+        result = query_knowledge(bot_id, question, db)
+        if result:
+            reply, input_tokens, output_tokens = result
+            return {"answer": reply, "input_tokens": input_tokens, "output_tokens": output_tokens}
+        return {"answer": None, "reason": "沒有找到相關知識庫內容或知識庫為空"}
+    except Exception as e:
+        return {"error": str(e)}
     finally:
         db.close()
