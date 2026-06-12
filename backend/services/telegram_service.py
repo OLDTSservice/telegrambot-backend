@@ -56,6 +56,12 @@ class BotManager:
             db = SessionLocal()
             try:
                 await self._process_message(bot_id, update, text, db)
+            except Exception as e:
+                logger.error(f"Bot {bot_id} 處理訊息時發生例外：{e}", exc_info=True)
+                try:
+                    await update.message.reply_text(f"⚠️ 處理訊息時發生錯誤，請稍後再試。")
+                except Exception:
+                    pass
             finally:
                 db.close()
 
@@ -108,11 +114,19 @@ class BotManager:
                 return
 
         # 2. 嘗試知識庫 AI 回覆
-        result = query_knowledge(bot_id, text, db)
+        try:
+            result = await asyncio.to_thread(query_knowledge, bot_id, text, db)
+        except Exception as e:
+            logger.error(f"Bot {bot_id} query_knowledge 發生例外：{e}", exc_info=True)
+            result = None
+
         if result:
             reply, input_tokens, output_tokens = result
             await update.message.reply_text(reply)
             record_usage(bot_id, input_tokens, output_tokens, db)
+        else:
+            # 3. 沒有關鍵字規則也沒有知識庫結果時，回傳備用訊息
+            await update.message.reply_text("抱歉，我目前無法回答這個問題，請換個方式詢問或聯繫客服。")
 
 
 bot_manager = BotManager()

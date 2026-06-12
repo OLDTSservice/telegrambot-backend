@@ -110,7 +110,9 @@ def delete_document_vectors(collection_name: str):
 
 def query_knowledge(bot_id: int, question: str, db) -> Optional[str]:
     """查詢知識庫並用 Claude 生成回覆，回傳 None 若無知識庫或不相關"""
+    logger.info(f"Bot {bot_id} query_knowledge 開始，_CHROMA_AVAILABLE={_CHROMA_AVAILABLE}")
     if not _CHROMA_AVAILABLE:
+        logger.warning(f"Bot {bot_id} chromadb/anthropic 不可用，跳過知識庫查詢")
         return None
     import models as m
     docs = db.query(m.KnowledgeDoc).filter(
@@ -131,15 +133,19 @@ def query_knowledge(bot_id: int, question: str, db) -> Optional[str]:
             results = collection.query(query_texts=[question], n_results=3)
             if results["documents"]:
                 all_results.extend(results["documents"][0])
-        except Exception:
+                logger.info(f"Bot {bot_id} 從 {doc.chroma_collection} 找到 {len(results['documents'][0])} 段落")
+        except Exception as e:
+            logger.error(f"Bot {bot_id} 查詢 collection {doc.chroma_collection} 失敗：{e}", exc_info=True)
             continue
 
     if not all_results:
+        logger.warning(f"Bot {bot_id} 查詢「{question}」未找到相關段落")
         return None
 
     context = "\n\n".join(all_results[:5])
     anthropic_client = get_anthropic_client()
 
+    logger.info(f"Bot {bot_id} 呼叫 Claude API，問題：「{question[:50]}」，context 長度：{len(context)}")
     message = anthropic_client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
@@ -148,7 +154,7 @@ def query_knowledge(bot_id: int, question: str, db) -> Optional[str]:
             "content": f"請根據以下知識庫內容回答問題。若知識庫中沒有相關資訊，請回覆「抱歉，我找不到相關資訊。」\n\n知識庫內容：\n{context}\n\n問題：{question}"
         }]
     )
-
+    logger.info(f"Bot {bot_id} Claude API 回覆成功，tokens: in={message.usage.input_tokens}, out={message.usage.output_tokens}")
     return message.content[0].text, message.usage.input_tokens, message.usage.output_tokens
 
 
