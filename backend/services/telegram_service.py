@@ -41,7 +41,12 @@ class BotManager:
 
     async def _run_bot(self, bot_id: int, token: str):
         from database import SessionLocal
-        app = Application.builder().token(token).build()
+        try:
+            app = Application.builder().token(token).build()
+        except Exception as e:
+            logger.error(f"Bot {bot_id} 建立失敗（Token 可能無效）：{e}")
+            return
+
         self._apps[bot_id] = app
 
         async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,18 +61,28 @@ class BotManager:
 
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling(drop_pending_updates=True)
+        try:
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling(drop_pending_updates=True)
+            logger.info(f"Bot {bot_id} polling 已啟動，等待訊息中...")
+        except Exception as e:
+            logger.error(f"Bot {bot_id} polling 啟動失敗：{e}")
+            if bot_id in self._apps:
+                del self._apps[bot_id]
+            return
 
         # 保持運行直到被停止
         try:
             while bot_id in self._apps:
                 await asyncio.sleep(1)
         finally:
-            await app.updater.stop()
-            await app.stop()
-            await app.shutdown()
+            try:
+                await app.updater.stop()
+                await app.stop()
+                await app.shutdown()
+            except Exception:
+                pass
 
     async def _process_message(self, bot_id: int, update: Update, text: str, db):
         import models
