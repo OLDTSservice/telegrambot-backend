@@ -8,7 +8,8 @@ import models, schemas
 from auth import require_editor, require_viewer
 from services.ai_service import process_document, delete_document_vectors
 
-UPLOAD_DIR = "uploads"
+_base_dir = "/data" if os.path.isdir("/data") else "."
+UPLOAD_DIR = os.path.join(_base_dir, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv"}

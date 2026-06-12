@@ -7,7 +7,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CHROMA_PATH = "./chroma_db"
+_base_dir = "/data" if os.path.isdir("/data") else "."
+CHROMA_PATH = os.path.join(_base_dir, "chroma_db")
 
 _chroma_client = None
 _anthropic_client = None
