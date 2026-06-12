@@ -1,10 +1,10 @@
 import os
 import asyncio
+import logging
 from datetime import date
 from typing import Optional
-import anthropic
-import chromadb
-from chromadb.utils import embedding_functions
+
+logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CHROMA_PATH = "./chroma_db"
@@ -12,18 +12,32 @@ CHROMA_PATH = "./chroma_db"
 _chroma_client = None
 _anthropic_client = None
 
+# 延遲載入，避免 import 時就崩潰
+try:
+    import anthropic as _anthropic_module
+    import chromadb as _chromadb_module
+    from chromadb.utils import embedding_functions as _ef_module
+    _CHROMA_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"chromadb/anthropic 載入失敗，知識庫 AI 功能暫不可用：{e}")
+    _CHROMA_AVAILABLE = False
+
 
 def get_chroma_client():
     global _chroma_client
+    if not _CHROMA_AVAILABLE:
+        raise RuntimeError("chromadb 不可用")
     if _chroma_client is None:
-        _chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+        _chroma_client = _chromadb_module.PersistentClient(path=CHROMA_PATH)
     return _chroma_client
 
 
 def get_anthropic_client():
     global _anthropic_client
+    if not _CHROMA_AVAILABLE:
+        raise RuntimeError("anthropic 不可用")
     if _anthropic_client is None:
-        _anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        _anthropic_client = _anthropic_module.Anthropic(api_key=ANTHROPIC_API_KEY)
     return _anthropic_client
 
 
@@ -70,13 +84,15 @@ def _chunk_text(text: str, chunk_size: int = 500, overlap: int = 50):
 
 
 async def process_document(file_path: str, ext: str, collection_name: str):
+    if not _CHROMA_AVAILABLE:
+        raise RuntimeError("知識庫功能不可用（chromadb 未載入）")
     text = await asyncio.to_thread(_extract_text, file_path, ext)
     if not text.strip():
         raise ValueError("無法從文件中提取文字")
 
     chunks = _chunk_text(text)
     client = get_chroma_client()
-    ef = embedding_functions.DefaultEmbeddingFunction()
+    ef = _ef_module.DefaultEmbeddingFunction()
     collection = client.get_or_create_collection(name=collection_name, embedding_function=ef)
 
     ids = [f"chunk_{i}" for i in range(len(chunks))]
@@ -93,6 +109,8 @@ def delete_document_vectors(collection_name: str):
 
 def query_knowledge(bot_id: int, question: str, db) -> Optional[str]:
     """查詢知識庫並用 Claude 生成回覆，回傳 None 若無知識庫或不相關"""
+    if not _CHROMA_AVAILABLE:
+        return None
     import models as m
     docs = db.query(m.KnowledgeDoc).filter(
         m.KnowledgeDoc.bot_id == bot_id,
@@ -103,7 +121,7 @@ def query_knowledge(bot_id: int, question: str, db) -> Optional[str]:
         return None
 
     client = get_chroma_client()
-    ef = embedding_functions.DefaultEmbeddingFunction()
+    ef = _ef_module.DefaultEmbeddingFunction()
 
     all_results = []
     for doc in docs:
