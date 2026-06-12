@@ -1,0 +1,15 @@
+[[redirects]]
+  from = "/api/*"
+  to = "https://tg-admin-backend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[build]
+  base = "frontend"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
