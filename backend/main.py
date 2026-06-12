@@ -76,4 +76,47 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    from database import SQLALCHEMY_DATABASE_URL
+    return {"status": "ok", "db": SQLALCHEMY_DATABASE_URL}
+
+
+@app.get("/api/debug/ai")
+def debug_ai():
+    """診斷 AI 知識庫功能是否正常（無需登入）"""
+    result = {}
+    try:
+        import chromadb
+        result["chromadb"] = "ok"
+    except Exception as e:
+        result["chromadb"] = f"error: {e}"
+    try:
+        import anthropic
+        key = os.getenv("ANTHROPIC_API_KEY", "")
+        result["anthropic_key"] = "set" if key else "missing"
+    except Exception as e:
+        result["anthropic"] = f"error: {e}"
+    try:
+        from chromadb.utils import embedding_functions
+        ef = embedding_functions.DefaultEmbeddingFunction()
+        result["embedding_function"] = "ok"
+    except Exception as e:
+        result["embedding_function"] = f"error: {e}"
+    result["chroma_path"] = os.getenv("CHROMA_PATH", "/data/chroma_db if /data exists else ./chroma_db")
+    result["/data exists"] = os.path.isdir("/data")
+    return result
+
+
+@app.post("/api/debug/reset-admin")
+def reset_admin():
+    """緊急重設 admin 密碼（部署後請移除此端點）"""
+    from auth import hash_password
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.username == "admin").first()
+        if user:
+            user.hashed_password = hash_password("admin123")
+            db.commit()
+            return {"message": "admin 密碼已重設為 admin123"}
+        return {"message": "admin 帳號不存在"}
+    finally:
+        db.close()
