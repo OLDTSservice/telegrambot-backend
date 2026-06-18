@@ -136,3 +136,83 @@ class StatsSummary(BaseModel):
     total_requests_month: int
     daily: List[DailyStatOut]
     by_bot: List[BotStatOut]
+
+
+# ── TeamsBot ───────────────────────────────────────
+class TeamsBotBase(BaseModel):
+    name: str
+    app_id: str
+    app_password: str
+    tenant_id: Optional[str] = None
+
+
+class TeamsBotCreate(TeamsBotBase):
+    pass
+
+
+class TeamsBotUpdate(BaseModel):
+    name: Optional[str] = None
+    app_id: Optional[str] = None
+    app_password: Optional[str] = None
+    tenant_id: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class TeamsBotOut(BaseModel):
+    id: int
+    name: str
+    app_id: str
+    tenant_id: Optional[str]
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── TeamsKeywordRule ───────────────────────────────
+class TeamsRuleBase(BaseModel):
+    bot_id: int
+    keyword: str
+    reply_message: str
+
+
+class TeamsRuleCreate(TeamsRuleBase):
+    pass
+
+
+class TeamsRuleUpdate(BaseModel):
+    bot_id: Optional[int] = None
+    keyword: Optional[str] = None
+    reply_message: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class TeamsRuleOut(TeamsRuleBase):
+    id: int
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── TeamsKnowledgeDoc ──────────────────────────────
+class TeamsDocOut(BaseModel):
+    id: int
+    bot_id: int
+    original_filename: str
+    file_type: Optional[str]
+    file_size: Optional[int]
+    is_enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeamsDocUpdate(BaseModel):
+    bot_id: Optional[int] = None
+    is_enabled: Optional[bool] = None

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Avatar, Dropdown, Typography, message } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Typography, theme } from 'antd'
 import {
   RobotOutlined, KeyOutlined, BookOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  SendOutlined, TeamOutlined,
 } from '@ant-design/icons'
 import { getMe } from './api'
 import LoginPage from './pages/LoginPage'
@@ -12,6 +13,9 @@ import RulesPage from './pages/RulesPage'
 import KnowledgePage from './pages/KnowledgePage'
 import StatsPage from './pages/StatsPage'
 import UsersPage from './pages/UsersPage'
+import TeamsBotsPage from './pages/TeamsBotsPage'
+import TeamsRulesPage from './pages/TeamsRulesPage'
+import TeamsKnowledgePage from './pages/TeamsKnowledgePage'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
@@ -35,7 +39,7 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData)
-    navigate('/bots')
+    navigate('/telegram/bots')
   }
 
   const handleLogout = () => {
@@ -53,12 +57,39 @@ export default function App() {
   }
 
   const menuItems = [
-    { key: '/bots', icon: <RobotOutlined />, label: '機器人管理' },
-    { key: '/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
-    { key: '/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+    {
+      key: 'telegram',
+      icon: <SendOutlined />,
+      label: 'Telegram 機器人',
+      children: [
+        { key: '/telegram/bots', icon: <RobotOutlined />, label: '機器人管理' },
+        { key: '/telegram/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
+        { key: '/telegram/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+      ],
+    },
+    {
+      key: 'teams',
+      icon: <TeamOutlined />,
+      label: 'Teams 機器人',
+      children: [
+        { key: '/teams/bots', icon: <RobotOutlined />, label: '機器人管理' },
+        { key: '/teams/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
+        { key: '/teams/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+      ],
+    },
     { key: '/stats', icon: <BarChartOutlined />, label: '使用量統計' },
-    ...(user?.role === 'superadmin' ? [{ key: '/users', icon: <UserOutlined />, label: '帳號管理' }] : []),
+    ...(user?.role === 'superadmin'
+      ? [{ key: '/users', icon: <UserOutlined />, label: '帳號管理' }]
+      : []),
   ]
+
+  // 判斷目前選中的 menu key 和展開的 submenu
+  const selectedKey = location.pathname
+  const openKeys = location.pathname.startsWith('/telegram')
+    ? ['telegram']
+    : location.pathname.startsWith('/teams')
+    ? ['teams']
+    : []
 
   const userMenu = {
     items: [
@@ -83,17 +114,22 @@ export default function App() {
         }}>
           <RobotOutlined style={{ color: '#1677ff', fontSize: 22 }} />
           {!collapsed && (
-            <Text style={{ color: '#fff', marginLeft: 10, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap' }}>
-              TG 後台管理
+            <Text style={{ color: '#fff', marginLeft: 10, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              機器人後台管理
             </Text>
           )}
         </div>
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
+          defaultOpenKeys={['telegram']}
+          openKeys={collapsed ? [] : openKeys.length ? openKeys : ['telegram']}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => {
+            if (!key.startsWith('/')) return
+            navigate(key)
+          }}
           style={{ marginTop: 8 }}
         />
       </Sider>
@@ -128,12 +164,15 @@ export default function App() {
 
         <Content style={{ padding: 24 }}>
           <Routes>
-            <Route path="/bots" element={<BotsPage user={user} />} />
-            <Route path="/rules" element={<RulesPage user={user} />} />
-            <Route path="/knowledge" element={<KnowledgePage user={user} />} />
+            <Route path="/telegram/bots" element={<BotsPage user={user} />} />
+            <Route path="/telegram/rules" element={<RulesPage user={user} />} />
+            <Route path="/telegram/knowledge" element={<KnowledgePage user={user} />} />
+            <Route path="/teams/bots" element={<TeamsBotsPage user={user} />} />
+            <Route path="/teams/rules" element={<TeamsRulesPage user={user} />} />
+            <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/users" element={<UsersPage user={user} />} />
-            <Route path="*" element={<Navigate to="/bots" replace />} />
+            <Route path="*" element={<Navigate to="/telegram/bots" replace />} />
           </Routes>
         </Content>
       </Layout>
