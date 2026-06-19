@@ -31,7 +31,7 @@ export default function LoginPage({ onLogin }) {
       <Card style={{ width: 380, boxShadow: '0 4px 20px rgba(0,0,0,.08)', borderRadius: 12 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <RobotOutlined style={{ fontSize: 40, color: '#1677ff' }} />
-          <Title level={4} style={{ margin: '12px 0 4px' }}>Telegram 機器人後台</Title>
+          <Title level={4} style={{ margin: '12px 0 4px' }}>機器人管理後台</Title>
           <Text type="secondary" style={{ fontSize: 13 }}>請登入以繼續使用</Text>
         </div>
 
