@@ -74,3 +74,15 @@ export const getTeamsDocs = () => api.get('/teams-knowledge')
 export const uploadTeamsDoc = formData => api.post('/teams-knowledge', formData)
 export const updateTeamsDoc = (id, d) => api.put(`/teams-knowledge/${id}`, d)
 export const deleteTeamsDoc = id => api.delete(`/teams-knowledge/${id}`)
+
+// ── Telegram Ignore ────────────────────────────
+export const getTelegramIgnores = () => api.get('/telegram-ignores')
+export const createTelegramIgnore = d => api.post('/telegram-ignores', d)
+export const updateTelegramIgnore = (id, d) => api.put(`/telegram-ignores/${id}`, d)
+export const deleteTelegramIgnore = id => api.delete(`/telegram-ignores/${id}`)
+
+// ── Teams Ignore ───────────────────────────────
+export const getTeamsIgnores = () => api.get('/teams-ignores')
+export const createTeamsIgnore = d => api.post('/teams-ignores', d)
+export const updateTeamsIgnore = (id, d) => api.put(`/teams-ignores/${id}`, d)
+export const deleteTeamsIgnore = id => api.delete(`/teams-ignores/${id}`)

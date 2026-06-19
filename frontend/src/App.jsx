@@ -4,7 +4,7 @@ import { Layout, Menu, Avatar, Dropdown, Typography, theme } from 'antd'
 import {
   RobotOutlined, KeyOutlined, BookOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  SendOutlined, TeamOutlined,
+  SendOutlined, TeamOutlined, StopOutlined,
 } from '@ant-design/icons'
 import { getMe } from './api'
 import LoginPage from './pages/LoginPage'
@@ -16,6 +16,8 @@ import UsersPage from './pages/UsersPage'
 import TeamsBotsPage from './pages/TeamsBotsPage'
 import TeamsRulesPage from './pages/TeamsRulesPage'
 import TeamsKnowledgePage from './pages/TeamsKnowledgePage'
+import TelegramIgnorePage from './pages/TelegramIgnorePage'
+import TeamsIgnorePage from './pages/TeamsIgnorePage'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
@@ -25,6 +27,7 @@ const ROLE_LABEL = { superadmin: '超級管理員', editor: '編輯員', viewer:
 export default function App() {
   const [user, setUser] = useState(null)
   const [collapsed, setCollapsed] = useState(false)
+  const [openKeys, setOpenKeys] = useState(['telegram'])
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -65,6 +68,7 @@ export default function App() {
         { key: '/telegram/bots', icon: <RobotOutlined />, label: '機器人管理' },
         { key: '/telegram/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
         { key: '/telegram/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+        { key: '/telegram/ignores', icon: <StopOutlined />, label: '忽略名單' },
       ],
     },
     {
@@ -75,6 +79,7 @@ export default function App() {
         { key: '/teams/bots', icon: <RobotOutlined />, label: '機器人管理' },
         { key: '/teams/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
         { key: '/teams/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+        { key: '/teams/ignores', icon: <StopOutlined />, label: '忽略名單' },
       ],
     },
     { key: '/stats', icon: <BarChartOutlined />, label: '使用量統計' },
@@ -83,13 +88,7 @@ export default function App() {
       : []),
   ]
 
-  // 判斷目前選中的 menu key 和展開的 submenu
   const selectedKey = location.pathname
-  const openKeys = location.pathname.startsWith('/telegram')
-    ? ['telegram']
-    : location.pathname.startsWith('/teams')
-    ? ['teams']
-    : []
 
   const userMenu = {
     items: [
@@ -123,8 +122,8 @@ export default function App() {
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
-          defaultOpenKeys={['telegram']}
-          openKeys={collapsed ? [] : openKeys.length ? openKeys : ['telegram']}
+          openKeys={collapsed ? [] : openKeys}
+          onOpenChange={keys => setOpenKeys(keys)}
           items={menuItems}
           onClick={({ key }) => {
             if (!key.startsWith('/')) return
@@ -170,6 +169,8 @@ export default function App() {
             <Route path="/teams/bots" element={<TeamsBotsPage user={user} />} />
             <Route path="/teams/rules" element={<TeamsRulesPage user={user} />} />
             <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />
+            <Route path="/telegram/ignores" element={<TelegramIgnorePage user={user} />} />
+            <Route path="/teams/ignores" element={<TeamsIgnorePage user={user} />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/users" element={<UsersPage user={user} />} />
             <Route path="*" element={<Navigate to="/telegram/bots" replace />} />

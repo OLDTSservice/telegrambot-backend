@@ -141,6 +141,23 @@ async def process_teams_activity(bot, body: bytes, auth_header: str, db):
 
     logger.info(f"Teams Bot {bot.id} 收到訊息：「{text[:60]}」")
 
+    # 0. 忽略名單檢查
+    sender = activity.get("from", {})
+    sender_id = sender.get("aadObjectId", "") or sender.get("id", "")
+    sender_email = (sender.get("email") or "").lower()
+    sender_name = (sender.get("name") or "").lower()
+    if sender_id or sender_email:
+        import models as _m
+        ignores = db.query(_m.TeamsIgnore).filter(
+            _m.TeamsIgnore.bot_id == bot.id,
+            _m.TeamsIgnore.is_enabled == True
+        ).all()
+        for ig in ignores:
+            val = ig.identifier.lower()
+            if val in (sender_id.lower(), sender_email, sender_name):
+                logger.info(f"Teams Bot {bot.id} 忽略來自 {ig.identifier} 的訊息")
+                return
+
     # 1. 關鍵字規則
     import models as m
     rules = db.query(m.TeamsKeywordRule).filter(

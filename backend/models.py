@@ -29,6 +29,7 @@ class TelegramBot(Base):
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("UsageStat", back_populates="bot", cascade="all, delete-orphan")
+    ignores = relationship("TelegramIgnore", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -77,6 +78,20 @@ class UsageStat(Base):
     bot = relationship("TelegramBot", back_populates="usage_stats")
 
 
+# ── Telegram Ignore List ───────────────────────────────────────────────────
+class TelegramIgnore(Base):
+    __tablename__ = "telegram_ignores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    identifier = Column(String(255), nullable=False)   # Telegram user_id 或 @username
+    note = Column(String(500), nullable=True)           # 備註說明
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="ignores")
+
+
 # ── Teams Bot ──────────────────────────────────────────────────────────────
 class TeamsBot(Base):
     __tablename__ = "teams_bots"
@@ -93,6 +108,7 @@ class TeamsBot(Base):
     keyword_rules = relationship("TeamsKeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("TeamsKnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("TeamsUsageStat", back_populates="bot", cascade="all, delete-orphan")
+    ignores = relationship("TeamsIgnore", back_populates="bot", cascade="all, delete-orphan")
 
 
 class TeamsKeywordRule(Base):
@@ -139,3 +155,17 @@ class TeamsUsageStat(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="usage_stats")
+
+
+# ── Teams Ignore List ──────────────────────────────────────────────────────
+class TeamsIgnore(Base):
+    __tablename__ = "teams_ignores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    identifier = Column(String(255), nullable=False)   # Teams 使用者 email 或 AAD Object ID
+    note = Column(String(500), nullable=True)
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TeamsBot", back_populates="ignores")

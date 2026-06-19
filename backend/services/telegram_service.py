@@ -102,6 +102,20 @@ class BotManager:
         if not bot_record:
             return
 
+        # 0. 忽略名單檢查
+        sender_id = str(update.message.from_user.id) if update.message.from_user else None
+        sender_username = (update.message.from_user.username or "").lower() if update.message.from_user else ""
+        if sender_id or sender_username:
+            ignores = db.query(models.TelegramIgnore).filter(
+                models.TelegramIgnore.bot_id == bot_id,
+                models.TelegramIgnore.is_enabled == True
+            ).all()
+            for ig in ignores:
+                val = ig.identifier.lstrip("@").lower()
+                if sender_id == val or sender_username == val:
+                    logger.info(f"Bot {bot_id} 忽略來自 {ig.identifier} 的訊息")
+                    return
+
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
             models.KeywordRule.bot_id == bot_id,

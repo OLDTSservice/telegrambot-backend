@@ -216,3 +216,53 @@ class TeamsDocOut(BaseModel):
 class TeamsDocUpdate(BaseModel):
     bot_id: Optional[int] = None
     is_enabled: Optional[bool] = None
+
+
+# ── TelegramIgnore ─────────────────────────────────
+class TelegramIgnoreCreate(BaseModel):
+    bot_id: int
+    identifier: str
+    note: Optional[str] = None
+
+
+class TelegramIgnoreUpdate(BaseModel):
+    identifier: Optional[str] = None
+    note: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class TelegramIgnoreOut(BaseModel):
+    id: int
+    bot_id: int
+    identifier: str
+    note: Optional[str]
+    is_enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── TeamsIgnore ────────────────────────────────────
+class TeamsIgnoreCreate(BaseModel):
+    bot_id: int
+    identifier: str
+    note: Optional[str] = None
+
+
+class TeamsIgnoreUpdate(BaseModel):
+    identifier: Optional[str] = None
+    note: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class TeamsIgnoreOut(BaseModel):
+    id: int
+    bot_id: int
+    identifier: str
+    note: Optional[str]
+    is_enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
