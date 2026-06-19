@@ -30,6 +30,7 @@ class TelegramBot(Base):
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("UsageStat", back_populates="bot", cascade="all, delete-orphan")
     ignores = relationship("TelegramIgnore", back_populates="bot", cascade="all, delete-orphan")
+    group_stats = relationship("TelegramGroupStat", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -109,6 +110,7 @@ class TeamsBot(Base):
     knowledge_docs = relationship("TeamsKnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("TeamsUsageStat", back_populates="bot", cascade="all, delete-orphan")
     ignores = relationship("TeamsIgnore", back_populates="bot", cascade="all, delete-orphan")
+    group_stats = relationship("TeamsGroupStat", back_populates="bot", cascade="all, delete-orphan")
 
 
 class TeamsKeywordRule(Base):
@@ -169,3 +171,34 @@ class TeamsIgnore(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="ignores")
+
+
+# ── Telegram Group Reply Stats ─────────────────────────────────────────────
+class TelegramGroupStat(Base):
+    __tablename__ = "telegram_group_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(50), nullable=False)       # Telegram chat ID（群組為負數）
+    chat_name = Column(String(255), nullable=False)    # 群組或私聊名稱
+    chat_type = Column(String(30), nullable=True)      # private / group / supergroup / channel
+    date = Column(String(10), nullable=False)           # YYYY-MM-DD
+    reply_count = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="group_stats")
+
+
+# ── Teams Group Reply Stats ────────────────────────────────────────────────
+class TeamsGroupStat(Base):
+    __tablename__ = "teams_group_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    conversation_id = Column(String(500), nullable=False)
+    conversation_name = Column(String(255), nullable=False)
+    date = Column(String(10), nullable=False)           # YYYY-MM-DD
+    reply_count = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("TeamsBot", back_populates="group_stats")

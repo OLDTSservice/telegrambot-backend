@@ -94,6 +94,31 @@ def _query_teams_knowledge(bot_id: int, question: str, db) -> tuple | None:
     return message.content[0].text, message.usage.input_tokens, message.usage.output_tokens
 
 
+def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, db):
+    import models as m
+    from datetime import date
+    today = date.today().isoformat()
+    stat = db.query(m.TeamsGroupStat).filter(
+        m.TeamsGroupStat.bot_id == bot_id,
+        m.TeamsGroupStat.conversation_id == conversation_id,
+        m.TeamsGroupStat.date == today,
+    ).first()
+    if stat:
+        stat.reply_count += 1
+        stat.conversation_name = conv_name
+    else:
+        stat = m.TeamsGroupStat(
+            bot_id=bot_id, conversation_id=conversation_id,
+            conversation_name=conv_name, date=today, reply_count=1,
+        )
+        db.add(stat)
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"記錄 Teams 群組統計失敗：{e}")
+        db.rollback()
+
+
 def _record_teams_usage(bot_id: int, input_tokens: int, output_tokens: int, db):
     import models as m
     today = date.today().isoformat()
@@ -158,6 +183,10 @@ async def process_teams_activity(bot, body: bytes, auth_header: str, db):
                 logger.info(f"Teams Bot {bot.id} 忽略來自 {ig.identifier} 的訊息")
                 return
 
+    # 取得對話名稱
+    conversation = activity.get("conversation", {})
+    conv_name = conversation.get("name") or conversation.get("id", "")[:30] or "未知對話"
+
     # 1. 關鍵字規則
     import models as m
     rules = db.query(m.TeamsKeywordRule).filter(
@@ -169,6 +198,7 @@ async def process_teams_activity(bot, body: bytes, auth_header: str, db):
         if rule.keyword.lower() in text.lower():
             await _send_reply(service_url, conversation_id, activity_id,
                               rule.reply_message, bot.app_id, bot.app_password)
+            _record_teams_group_stat(bot.id, conversation_id, conv_name, db)
             return
 
     # 2. 知識庫 AI
@@ -183,7 +213,9 @@ async def process_teams_activity(bot, body: bytes, auth_header: str, db):
         await _send_reply(service_url, conversation_id, activity_id,
                           reply, bot.app_id, bot.app_password)
         _record_teams_usage(bot.id, in_tok, out_tok, db)
+        _record_teams_group_stat(bot.id, conversation_id, conv_name, db)
     else:
         await _send_reply(service_url, conversation_id, activity_id,
                           "抱歉，我目前無法回答這個問題，請換個方式詢問或聯繫客服。",
                           bot.app_id, bot.app_password)
+        _record_teams_group_stat(bot.id, conversation_id, conv_name, db)

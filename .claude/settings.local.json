@@ -7,7 +7,8 @@
       "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); $url = \"https://github.com/cli/cli/releases/download/v2.71.0/gh_2.71.0_windows_amd64.zip\"; $dest = \"$env:TEMP\\\\gh_cli.zip\"; $extract = \"C:\\\\Users\\\\chiaweiwang\\\\AppData\\\\Local\\\\gh-cli\"; Write-Host \"下載 ZIP...\"; Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; Write-Host \"解壓縮...\"; Expand-Archive -Path $dest -DestinationPath $extract -Force; $ghExe = Get-ChildItem $extract -Recurse -Filter \"gh.exe\" | Select-Object -First 1; Write-Host \"gh.exe 位置：$\\($ghExe.FullName\\)\"; & $ghExe.FullName --version)",
       "PowerShell($env:NETLIFY_AUTH_TOKEN=\"nfp_8w89GZGjSc6hB8JdrE18eLciNYRFygsKda08\"; Set-Location \"D:\\\\claude ai_20260610\"; netlify deploy --prod --dir=frontend/dist 2>&1 | Select-Object -Last 10)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

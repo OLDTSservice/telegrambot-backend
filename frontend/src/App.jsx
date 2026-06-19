@@ -4,7 +4,7 @@ import { Layout, Menu, Avatar, Dropdown, Typography, theme } from 'antd'
 import {
   RobotOutlined, KeyOutlined, BookOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  SendOutlined, TeamOutlined, StopOutlined,
+  SendOutlined, TeamOutlined, StopOutlined, LineChartOutlined,
 } from '@ant-design/icons'
 import { getMe } from './api'
 import LoginPage from './pages/LoginPage'
@@ -18,6 +18,8 @@ import TeamsRulesPage from './pages/TeamsRulesPage'
 import TeamsKnowledgePage from './pages/TeamsKnowledgePage'
 import TelegramIgnorePage from './pages/TelegramIgnorePage'
 import TeamsIgnorePage from './pages/TeamsIgnorePage'
+import TelegramReplyStatsPage from './pages/TelegramReplyStatsPage'
+import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
@@ -69,6 +71,7 @@ export default function App() {
         { key: '/telegram/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
         { key: '/telegram/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
         { key: '/telegram/ignores', icon: <StopOutlined />, label: '忽略名單' },
+        { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
       ],
     },
     {
@@ -80,6 +83,7 @@ export default function App() {
         { key: '/teams/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
         { key: '/teams/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
         { key: '/teams/ignores', icon: <StopOutlined />, label: '忽略名單' },
+        { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
       ],
     },
     { key: '/stats', icon: <BarChartOutlined />, label: '使用量統計' },
@@ -170,7 +174,9 @@ export default function App() {
             <Route path="/teams/rules" element={<TeamsRulesPage user={user} />} />
             <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />
             <Route path="/telegram/ignores" element={<TelegramIgnorePage user={user} />} />
+            <Route path="/telegram/reply-stats" element={<TelegramReplyStatsPage />} />
             <Route path="/teams/ignores" element={<TeamsIgnorePage user={user} />} />
+            <Route path="/teams/reply-stats" element={<TeamsReplyStatsPage />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/users" element={<UsersPage user={user} />} />
             <Route path="*" element={<Navigate to="/telegram/bots" replace />} />

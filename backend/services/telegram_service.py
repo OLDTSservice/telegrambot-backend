@@ -116,6 +116,12 @@ class BotManager:
                     logger.info(f"Bot {bot_id} 忽略來自 {ig.identifier} 的訊息")
                     return
 
+        # 取得聊天室資訊（供統計使用）
+        chat = update.message.chat
+        chat_id = str(chat.id)
+        chat_name = chat.title or chat.full_name or chat.username or f"Chat {chat.id}"
+        chat_type = chat.type or "unknown"
+
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
             models.KeywordRule.bot_id == bot_id,
@@ -125,6 +131,7 @@ class BotManager:
         for rule in rules:
             if rule.keyword.lower() in text.lower():
                 await update.message.reply_text(rule.reply_message)
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
                 return
 
         # 2. 嘗試知識庫 AI 回覆
@@ -138,9 +145,36 @@ class BotManager:
             reply, input_tokens, output_tokens = result
             await update.message.reply_text(reply)
             record_usage(bot_id, input_tokens, output_tokens, db)
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
         else:
             # 3. 沒有關鍵字規則也沒有知識庫結果時，回傳備用訊息
             await update.message.reply_text("抱歉，我目前無法回答這個問題，請換個方式詢問或聯繫客服。")
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+
+
+def _record_group_stat(bot_id: int, chat_id: str, chat_name: str, chat_type: str, db):
+    from datetime import date
+    import models
+    today = date.today().isoformat()
+    stat = db.query(models.TelegramGroupStat).filter(
+        models.TelegramGroupStat.bot_id == bot_id,
+        models.TelegramGroupStat.chat_id == chat_id,
+        models.TelegramGroupStat.date == today,
+    ).first()
+    if stat:
+        stat.reply_count += 1
+        stat.chat_name = chat_name  # 更新最新名稱
+    else:
+        stat = models.TelegramGroupStat(
+            bot_id=bot_id, chat_id=chat_id, chat_name=chat_name,
+            chat_type=chat_type, date=today, reply_count=1,
+        )
+        db.add(stat)
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"記錄群組統計失敗：{e}")
+        db.rollback()
 
 
 bot_manager = BotManager()

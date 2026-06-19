@@ -86,3 +86,13 @@ export const getTeamsIgnores = () => api.get('/teams-ignores')
 export const createTeamsIgnore = d => api.post('/teams-ignores', d)
 export const updateTeamsIgnore = (id, d) => api.put(`/teams-ignores/${id}`, d)
 export const deleteTeamsIgnore = id => api.delete(`/teams-ignores/${id}`)
+
+// ── Group Stats ────────────────────────────────
+export const getTelegramGroupStats = (period, value, botId) =>
+  api.get('/group-stats/telegram', { params: { period, value, bot_id: botId || undefined } })
+export const getTelegramTrend = (period, value, botId) =>
+  api.get('/group-stats/telegram/trend', { params: { period, value, bot_id: botId || undefined } })
+export const getTeamsGroupStats = (period, value, botId) =>
+  api.get('/group-stats/teams', { params: { period, value, bot_id: botId || undefined } })
+export const getTeamsTrend = (period, value, botId) =>
+  api.get('/group-stats/teams/trend', { params: { period, value, bot_id: botId || undefined } })
