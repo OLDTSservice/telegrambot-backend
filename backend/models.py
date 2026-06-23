@@ -61,6 +61,20 @@ class KnowledgeDoc(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="knowledge_docs")
+    chunks = relationship("KnowledgeChunk", back_populates="doc", cascade="all, delete-orphan")
+
+
+class KnowledgeChunk(Base):
+    """文件段落（取代 ChromaDB，直接存 SQLite）"""
+    __tablename__ = "knowledge_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doc_id = Column(Integer, ForeignKey("knowledge_docs.id"), nullable=False)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    chunk_index = Column(Integer, default=0)
+
+    doc = relationship("KnowledgeDoc", back_populates="chunks")
 
 
 class UsageStat(Base):
@@ -141,6 +155,20 @@ class TeamsKnowledgeDoc(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="knowledge_docs")
+    chunks = relationship("TeamsKnowledgeChunk", back_populates="doc", cascade="all, delete-orphan")
+
+
+class TeamsKnowledgeChunk(Base):
+    """Teams 文件段落（取代 ChromaDB）"""
+    __tablename__ = "teams_knowledge_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doc_id = Column(Integer, ForeignKey("teams_knowledge_docs.id"), nullable=False)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    chunk_index = Column(Integer, default=0)
+
+    doc = relationship("TeamsKnowledgeDoc", back_populates="chunks")
 
 
 class TeamsUsageStat(Base):

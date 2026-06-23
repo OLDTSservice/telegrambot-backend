@@ -44,24 +44,26 @@ async def upload_teams_doc(
     with open(file_path, "wb") as f:
         f.write(content)
 
-    collection_name = f"teams_{bot_id}_{uuid.uuid4().hex[:8]}"
-    try:
-        await process_document(file_path, ext, collection_name)
-    except Exception as e:
-        os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"文件處理失敗：{str(e)}")
-
     doc = models.TeamsKnowledgeDoc(
         bot_id=bot_id,
         filename=saved_filename,
         original_filename=file.filename,
         file_type=ext.lstrip("."),
         file_size=len(content),
-        chroma_collection=collection_name,
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
+    try:
+        await process_document(file_path, ext, collection_name="",
+                               doc_id=doc.id, bot_id=bot_id, db=db, platform="teams")
+    except Exception as e:
+        db.delete(doc)
+        db.commit()
+        os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"文件處理失敗：{str(e)}")
+
     return doc
 
 

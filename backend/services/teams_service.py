@@ -47,51 +47,8 @@ async def _send_reply(service_url: str, conversation_id: str, activity_id: str,
 
 
 def _query_teams_knowledge(bot_id: int, question: str, db) -> tuple | None:
-    """從 Teams 知識庫查詢（同步，供 asyncio.to_thread 使用）"""
-    from services.ai_service import _CHROMA_AVAILABLE, get_chroma_client, get_anthropic_client
-    from services.ai_service import _ef_module
-    import models as m
-
-    if not _CHROMA_AVAILABLE:
-        logger.warning(f"Teams Bot {bot_id} chromadb 不可用")
-        return None
-
-    docs = db.query(m.TeamsKnowledgeDoc).filter(
-        m.TeamsKnowledgeDoc.bot_id == bot_id,
-        m.TeamsKnowledgeDoc.is_enabled == True
-    ).all()
-
-    if not docs:
-        return None
-
-    client = get_chroma_client()
-    ef = _ef_module.DefaultEmbeddingFunction()
-
-    all_results = []
-    for doc in docs:
-        try:
-            collection = client.get_collection(name=doc.chroma_collection, embedding_function=ef)
-            results = collection.query(query_texts=[question], n_results=3)
-            if results["documents"]:
-                all_results.extend(results["documents"][0])
-        except Exception as e:
-            logger.error(f"Teams Bot {bot_id} 查詢 collection {doc.chroma_collection} 失敗：{e}")
-            continue
-
-    if not all_results:
-        return None
-
-    context = "\n\n".join(all_results[:5])
-    anthropic_client = get_anthropic_client()
-    message = anthropic_client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        messages=[{
-            "role": "user",
-            "content": f"你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，不要加入任何額外補充、說明或開場白。若知識庫中沒有相關資訊，只需回覆「抱歉，我找不到相關資訊。」\n\n知識庫內容：\n{context}\n\n問題：{question}\n\n答案："
-        }]
-    )
-    return message.content[0].text, message.usage.input_tokens, message.usage.output_tokens
+    from services.ai_service import query_teams_knowledge
+    return query_teams_knowledge(bot_id, question, db)
 
 
 def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, db):

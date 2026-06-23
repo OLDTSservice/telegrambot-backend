@@ -8,7 +8,9 @@
       "PowerShell($env:NETLIFY_AUTH_TOKEN=\"nfp_8w89GZGjSc6hB8JdrE18eLciNYRFygsKda08\"; Set-Location \"D:\\\\claude ai_20260610\"; netlify deploy --prod --dir=frontend/dist 2>&1 | Select-Object -Last 10)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "WebFetch(domain:tg-admin-backend-rm99.onrender.com)"
     ]
   }
 }
