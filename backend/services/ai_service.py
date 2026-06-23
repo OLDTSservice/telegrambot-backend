@@ -151,7 +151,7 @@ def query_knowledge(bot_id: int, question: str, db) -> Optional[str]:
         max_tokens=1024,
         messages=[{
             "role": "user",
-            "content": f"請根據以下知識庫內容回答問題。若知識庫中沒有相關資訊，請回覆「抱歉，我找不到相關資訊。」\n\n知識庫內容：\n{context}\n\n問題：{question}"
+            "content": f"你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，不要加入任何額外補充、說明或開場白。若知識庫中沒有相關資訊，只需回覆「抱歉，我找不到相關資訊。」\n\n知識庫內容：\n{context}\n\n問題：{question}\n\n答案："
         }]
     )
     logger.info(f"Bot {bot_id} Claude API 回覆成功，tokens: in={message.usage.input_tokens}, out={message.usage.output_tokens}")
