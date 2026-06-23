@@ -150,56 +150,80 @@ def _score_chunks(question: str, chunks) -> list[str]:
 
 # ── 知識庫查詢（Telegram）────────────────────────────────────────────────────
 
-def query_knowledge(bot_id: int, question: str, db) -> Optional[tuple]:
+def query_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple]:
+    """
+    db 參數保留供除錯端點直接呼叫；
+    從 asyncio.to_thread 呼叫時請不要傳 db，函式會自行建立 session。
+    """
     import models
-    logger.info(f"Telegram Bot {bot_id} 開始知識庫查詢：「{question[:50]}」")
+    from database import SessionLocal
 
-    docs = db.query(models.KnowledgeDoc).filter(
-        models.KnowledgeDoc.bot_id == bot_id,
-        models.KnowledgeDoc.is_enabled == True
-    ).all()
+    own_db = db is None
+    if own_db:
+        db = SessionLocal()
 
-    if not docs:
-        logger.info(f"Bot {bot_id} 無啟用的知識庫文件")
-        return None
+    try:
+        logger.info(f"Telegram Bot {bot_id} 開始知識庫查詢：「{question[:50]}」")
 
-    doc_ids = [d.id for d in docs]
-    all_chunks = db.query(models.KnowledgeChunk).filter(
-        models.KnowledgeChunk.doc_id.in_(doc_ids)
-    ).all()
+        docs = db.query(models.KnowledgeDoc).filter(
+            models.KnowledgeDoc.bot_id == bot_id,
+            models.KnowledgeDoc.is_enabled == True
+        ).all()
 
-    if not all_chunks:
-        logger.warning(f"Bot {bot_id} 知識庫文件無段落資料（可能需重新上傳）")
-        return None
+        if not docs:
+            logger.info(f"Bot {bot_id} 無啟用的知識庫文件")
+            return None
 
-    top_chunks = _score_chunks(question, all_chunks)
-    return _call_claude(question, top_chunks, bot_id)
+        doc_ids = [d.id for d in docs]
+        all_chunks = db.query(models.KnowledgeChunk).filter(
+            models.KnowledgeChunk.doc_id.in_(doc_ids)
+        ).all()
+
+        if not all_chunks:
+            logger.warning(f"Bot {bot_id} 知識庫文件無段落資料（可能需重新上傳）")
+            return None
+
+        top_chunks = _score_chunks(question, all_chunks)
+        return _call_claude(question, top_chunks, bot_id)
+    finally:
+        if own_db:
+            db.close()
 
 
 # ── 知識庫查詢（Teams）───────────────────────────────────────────────────────
 
-def query_teams_knowledge(bot_id: int, question: str, db) -> Optional[tuple]:
+def query_teams_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple]:
     import models
-    logger.info(f"Teams Bot {bot_id} 開始知識庫查詢：「{question[:50]}」")
+    from database import SessionLocal
 
-    docs = db.query(models.TeamsKnowledgeDoc).filter(
-        models.TeamsKnowledgeDoc.bot_id == bot_id,
-        models.TeamsKnowledgeDoc.is_enabled == True
-    ).all()
+    own_db = db is None
+    if own_db:
+        db = SessionLocal()
 
-    if not docs:
-        return None
+    try:
+        logger.info(f"Teams Bot {bot_id} 開始知識庫查詢：「{question[:50]}」")
 
-    doc_ids = [d.id for d in docs]
-    all_chunks = db.query(models.TeamsKnowledgeChunk).filter(
-        models.TeamsKnowledgeChunk.doc_id.in_(doc_ids)
-    ).all()
+        docs = db.query(models.TeamsKnowledgeDoc).filter(
+            models.TeamsKnowledgeDoc.bot_id == bot_id,
+            models.TeamsKnowledgeDoc.is_enabled == True
+        ).all()
 
-    if not all_chunks:
-        return None
+        if not docs:
+            return None
 
-    top_chunks = _score_chunks(question, all_chunks)
-    return _call_claude(question, top_chunks, bot_id)
+        doc_ids = [d.id for d in docs]
+        all_chunks = db.query(models.TeamsKnowledgeChunk).filter(
+            models.TeamsKnowledgeChunk.doc_id.in_(doc_ids)
+        ).all()
+
+        if not all_chunks:
+            return None
+
+        top_chunks = _score_chunks(question, all_chunks)
+        return _call_claude(question, top_chunks, bot_id)
+    finally:
+        if own_db:
+            db.close()
 
 
 # ── 呼叫 Claude ──────────────────────────────────────────────────────────────

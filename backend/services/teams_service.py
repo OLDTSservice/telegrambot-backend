@@ -46,9 +46,9 @@ async def _send_reply(service_url: str, conversation_id: str, activity_id: str,
         logger.error(f"Teams 回覆失敗：{e}", exc_info=True)
 
 
-def _query_teams_knowledge(bot_id: int, question: str, db) -> tuple | None:
+def _query_teams_knowledge(bot_id: int, question: str, db=None) -> tuple | None:
     from services.ai_service import query_teams_knowledge
-    return query_teams_knowledge(bot_id, question, db)
+    return query_teams_knowledge(bot_id, question)
 
 
 def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, db):

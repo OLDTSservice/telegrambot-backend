@@ -136,7 +136,7 @@ class BotManager:
 
         # 2. 嘗試知識庫 AI 回覆
         try:
-            result = await asyncio.to_thread(query_knowledge, bot_id, text, db)
+            result = await asyncio.to_thread(query_knowledge, bot_id, text)
         except Exception as e:
             logger.error(f"Bot {bot_id} query_knowledge 發生例外：{e}", exc_info=True)
             result = None
