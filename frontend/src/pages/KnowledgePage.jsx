@@ -207,7 +207,7 @@ export default function KnowledgePage({ user }) {
             <Upload
               beforeUpload={file => { setPendingFile(file); return false }}
               maxCount={1}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.md"
               onRemove={() => setPendingFile(null)}
               style={{ marginTop: 6 }}
             >

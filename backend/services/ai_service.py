@@ -66,7 +66,7 @@ def _extract_text(file_path: str, ext: str) -> str:
                 lines.append("\t".join(str(c) if c is not None else "" for c in row))
         return "\n".join(lines)
 
-    elif ext in (".txt", ".csv"):
+    elif ext in (".txt", ".csv", ".md"):
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 

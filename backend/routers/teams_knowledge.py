@@ -12,7 +12,7 @@ _base_dir = "/data" if os.path.isdir("/data") else "."
 UPLOAD_DIR = os.path.join(_base_dir, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv"}
+ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv", ".md"}
 
 router = APIRouter(prefix="/api/teams-knowledge", tags=["Teams知識庫"])
 

@@ -134,7 +134,7 @@ export default function TeamsKnowledgePage({ user }) {
           <div>
             <Text strong>選擇文件</Text>
             <Upload beforeUpload={file => { setPendingFile(file); return false }}
-              maxCount={1} accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+              maxCount={1} accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.md"
               onRemove={() => setPendingFile(null)}>
               <Button icon={<UploadOutlined />} style={{ marginTop: 6 }}>選擇文件</Button>
             </Upload>
