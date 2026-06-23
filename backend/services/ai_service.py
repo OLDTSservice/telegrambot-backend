@@ -58,13 +58,26 @@ def _extract_text(file_path: str, ext: str) -> str:
     return ""
 
 
+def _is_cjk(text: str) -> bool:
+    cjk = sum(1 for c in text if '一' <= c <= '鿿')
+    return len(text) > 0 and cjk / len(text) > 0.2
+
+
 def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 40):
-    words = text.split()
-    chunks, i = [], 0
-    while i < len(words):
-        chunks.append(" ".join(words[i:i + chunk_size]))
-        i += chunk_size - overlap
-    return chunks
+    if _is_cjk(text):
+        # 中文按字元數分段
+        char_size, char_overlap = 800, 100
+        chunks, i = [], 0
+        while i < len(text):
+            chunks.append(text[i:i + char_size])
+            i += char_size - char_overlap
+    else:
+        words = text.split()
+        chunks, i = [], 0
+        while i < len(words):
+            chunks.append(" ".join(words[i:i + chunk_size]))
+            i += chunk_size - overlap
+    return [c for c in chunks if c.strip()]
 
 
 # ── 文件處理（上傳時呼叫）──────────────────────────────────────────────────
@@ -99,16 +112,39 @@ def delete_document_vectors(collection_name: str):
 
 # ── 關鍵字評分搜尋 ──────────────────────────────────────────────────────────
 
+def _ngrams(text: str, n: int = 2):
+    """產生 n-gram 集合（適用中英文）"""
+    t = text.lower().replace(" ", "")
+    return {t[i:i+n] for i in range(len(t) - n + 1)} if len(t) >= n else set()
+
+
 def _score_chunks(question: str, chunks) -> list[str]:
-    """對段落以關鍵字出現次數評分，回傳前 5 名的文字"""
-    words = [w.lower() for w in question.split() if len(w) > 1]
+    """
+    以 bigram + 單字評分找出最相關段落，支援中英文。
+    - 中文：每個漢字和相鄰字組合都是搜尋單元
+    - 英文：空白分詞 + bigram
+    """
+    q = question.strip()
+    # 建立搜尋 token：中英文 bigram + 英文空白詞
+    tokens: set[str] = set()
+    tokens.update(_ngrams(q, 2))          # bigrams（中英通用）
+    tokens.update(w.lower() for w in q.split() if len(w) > 1)  # 英文詞
+    # 對長問題加入 trigram 提升精準度
+    if len(q) > 4:
+        tokens.update(_ngrams(q, 3))
+
+    if not tokens:
+        # 問題太短，回傳所有段落前 5 個
+        return [c.chunk_text for c in chunks[:5]]
+
     scored = []
     for chunk in chunks:
         text_lower = chunk.chunk_text.lower()
-        score = sum(text_lower.count(w) for w in words)
-        if score > 0:
-            scored.append((score, chunk.chunk_text))
+        score = sum(text_lower.count(t) for t in tokens)
+        scored.append((score, chunk.chunk_text))
+
     scored.sort(key=lambda x: x[0], reverse=True)
+    # 即使分數為 0 也回傳前 5（確保有內容給 Claude 判斷）
     return [t for _, t in scored[:5]]
 
 
@@ -137,10 +173,6 @@ def query_knowledge(bot_id: int, question: str, db) -> Optional[tuple]:
         return None
 
     top_chunks = _score_chunks(question, all_chunks)
-    if not top_chunks:
-        logger.info(f"Bot {bot_id} 未找到相關段落")
-        return None
-
     return _call_claude(question, top_chunks, bot_id)
 
 
@@ -167,9 +199,6 @@ def query_teams_knowledge(bot_id: int, question: str, db) -> Optional[tuple]:
         return None
 
     top_chunks = _score_chunks(question, all_chunks)
-    if not top_chunks:
-        return None
-
     return _call_claude(question, top_chunks, bot_id)
 
 

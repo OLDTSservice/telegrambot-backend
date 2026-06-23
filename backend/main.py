@@ -130,41 +130,25 @@ def reset_admin():
 
 @app.get("/api/debug/knowledge")
 def debug_knowledge():
-    """診斷知識庫狀態"""
+    """診斷知識庫狀態（SQLite 段落數量）"""
     db = SessionLocal()
     try:
         docs = db.query(models.KnowledgeDoc).all()
         result = []
         for doc in docs:
-            item = {
+            chunk_count = db.query(models.KnowledgeChunk).filter(
+                models.KnowledgeChunk.doc_id == doc.id
+            ).count()
+            result.append({
                 "id": doc.id,
                 "bot_id": doc.bot_id,
                 "filename": doc.original_filename,
                 "is_enabled": doc.is_enabled,
-                "chroma_collection": doc.chroma_collection,
-                "collection_set": bool(doc.chroma_collection),
-            }
-            # 嘗試查詢 chroma collection 是否存在
-            if doc.chroma_collection:
-                try:
-                    from services.ai_service import get_chroma_client, _CHROMA_AVAILABLE
-                    from chromadb.utils import embedding_functions
-                    if _CHROMA_AVAILABLE:
-                        client = get_chroma_client()
-                        col = client.get_collection(
-                            name=doc.chroma_collection,
-                            embedding_function=embedding_functions.DefaultEmbeddingFunction()
-                        )
-                        item["chroma_doc_count"] = col.count()
-                        item["chroma_status"] = "ok"
-                    else:
-                        item["chroma_status"] = "chromadb not available"
-                except Exception as e:
-                    item["chroma_status"] = f"error: {e}"
-            else:
-                item["chroma_status"] = "no collection name"
-            result.append(item)
-        return {"docs": result}
+                "chunk_count": chunk_count,
+                "status": "ok" if chunk_count > 0 else "no_chunks（請重新上傳）",
+            })
+        total_chunks = db.query(models.KnowledgeChunk).count()
+        return {"docs": result, "total_chunks": total_chunks}
     finally:
         db.close()
 
