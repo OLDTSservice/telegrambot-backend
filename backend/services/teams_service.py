@@ -173,6 +173,6 @@ async def process_teams_activity(bot, body: bytes, auth_header: str, db):
         _record_teams_group_stat(bot.id, conversation_id, conv_name, db)
     else:
         await _send_reply(service_url, conversation_id, activity_id,
-                          "抱歉，我目前無法回答這個問題，請換個方式詢問或聯繫客服。",
+                          "您好，人員將會協助確認，請稍後",
                           bot.app_id, bot.app_password)
         _record_teams_group_stat(bot.id, conversation_id, conv_name, db)

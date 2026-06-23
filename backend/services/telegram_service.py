@@ -148,7 +148,7 @@ class BotManager:
             _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
         else:
             # 3. 沒有關鍵字規則也沒有知識庫結果時，回傳備用訊息
-            await update.message.reply_text("抱歉，我目前無法回答這個問題，請換個方式詢問或聯繫客服。")
+            await update.message.reply_text("您好，人員將會協助確認，請稍後")
             _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
 
 
