@@ -112,29 +112,35 @@ def delete_document_vectors(collection_name: str):
 
 # ── 關鍵字評分搜尋 ──────────────────────────────────────────────────────────
 
-def _ngrams(text: str, n: int = 2):
-    """產生 n-gram 集合（適用中英文）"""
-    t = text.lower().replace(" ", "")
-    return {t[i:i+n] for i in range(len(t) - n + 1)} if len(t) >= n else set()
+def _extract_tokens(text: str) -> set[str]:
+    """
+    從問題中提取搜尋 token：
+    - 英文：空白分詞（完整單字，最有效）
+    - 中文：連續漢字序列拆成 2~4 字片段（小數點、支援、位數…）
+    """
+    import re
+    tokens: set[str] = set()
+
+    # 英文空白分詞
+    for w in text.lower().split():
+        w = re.sub(r'[^\w]', '', w)
+        if len(w) > 1:
+            tokens.add(w)
+
+    # 提取連續漢字序列，拆成 2~4 字片段
+    cjk_seqs = re.findall(r'[一-鿿]+', text)
+    for seq in cjk_seqs:
+        for n in range(2, min(5, len(seq) + 1)):
+            for i in range(len(seq) - n + 1):
+                tokens.add(seq[i:i + n])
+
+    return tokens
 
 
 def _score_chunks(question: str, chunks) -> list[str]:
-    """
-    以 bigram + 單字評分找出最相關段落，支援中英文。
-    - 中文：每個漢字和相鄰字組合都是搜尋單元
-    - 英文：空白分詞 + bigram
-    """
-    q = question.strip()
-    # 建立搜尋 token：中英文 bigram + 英文空白詞
-    tokens: set[str] = set()
-    tokens.update(_ngrams(q, 2))          # bigrams（中英通用）
-    tokens.update(w.lower() for w in q.split() if len(w) > 1)  # 英文詞
-    # 對長問題加入 trigram 提升精準度
-    if len(q) > 4:
-        tokens.update(_ngrams(q, 3))
+    tokens = _extract_tokens(question)
 
     if not tokens:
-        # 問題太短，回傳所有段落前 5 個
         return [c.chunk_text for c in chunks[:5]]
 
     scored = []
@@ -144,7 +150,6 @@ def _score_chunks(question: str, chunks) -> list[str]:
         scored.append((score, chunk.chunk_text))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    # 即使分數為 0 也回傳前 5（確保有內容給 Claude 判斷）
     return [t for _, t in scored[:5]]
 
 
