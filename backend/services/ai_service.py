@@ -64,8 +64,16 @@ def _is_cjk(text: str) -> bool:
 
 
 def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 40):
+    import re
+
+    # 偵測 Q&A 格式（以 --- 分隔線分段），每組 Q&A 保留完整
+    if re.search(r'\n-{10,}\n', text):
+        blocks = re.split(r'\n-{10,}\n', text)
+        chunks = [b.strip() for b in blocks if b.strip()]
+        logger.info(f"偵測到 Q&A 格式，共 {len(chunks)} 個問答段落")
+        return chunks
+
     if _is_cjk(text):
-        # 中文按字元數分段（較小段落提升搜尋精準度）
         char_size, char_overlap = 400, 50
         chunks, i = [], 0
         while i < len(text):
