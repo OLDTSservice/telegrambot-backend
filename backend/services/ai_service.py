@@ -123,7 +123,7 @@ def delete_document_vectors(collection_name: str):
 def _extract_tokens(text: str) -> set[str]:
     """
     從問題中提取搜尋 token：
-    - 英文：空白分詞（完整單字，最有效）
+    - 英文：空白分詞；若為長度 >4 的連寫詞（如 APIURL）再拆 3-4 字子串
     - 中文：連續漢字序列拆成 2~4 字片段（小數點、支援、位數…）
     """
     import re
@@ -132,8 +132,14 @@ def _extract_tokens(text: str) -> set[str]:
     # 英文空白分詞
     for w in text.lower().split():
         w = re.sub(r'[^\w]', '', w)
-        if len(w) > 1:
-            tokens.add(w)
+        if len(w) <= 1:
+            continue
+        tokens.add(w)
+        # 長連寫詞（如 apiurl）也拆成 3-4 字子串，讓 api、url 各別匹配
+        if len(w) > 4:
+            for n in (3, 4):
+                for i in range(len(w) - n + 1):
+                    tokens.add(w[i:i + n])
 
     # 提取連續漢字序列，拆成 2~4 字片段
     cjk_seqs = re.findall(r'[一-鿿]+', text)
