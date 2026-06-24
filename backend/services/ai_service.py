@@ -65,8 +65,8 @@ def _is_cjk(text: str) -> bool:
 
 def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 40):
     if _is_cjk(text):
-        # 中文按字元數分段
-        char_size, char_overlap = 800, 100
+        # 中文按字元數分段（較小段落提升搜尋精準度）
+        char_size, char_overlap = 400, 50
         chunks, i = [], 0
         while i < len(text):
             chunks.append(text[i:i + char_size])
@@ -247,8 +247,13 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
                 )
             }]
         )
-        reply = message.content[0].text
+        reply = message.content[0].text.strip()
         logger.info(f"Bot {bot_id} Claude 回覆成功，tokens: in={message.usage.input_tokens}")
+        # 若 Claude 判斷找不到答案，回傳 None 讓上層送自訂 fallback 訊息
+        NO_ANSWER_SIGNALS = ["找不到相關資訊", "無法回答", "沒有相關", "I cannot find", "no relevant"]
+        if any(s in reply for s in NO_ANSWER_SIGNALS):
+            logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")
+            return None
         return reply, message.usage.input_tokens, message.usage.output_tokens
     except Exception as e:
         logger.error(f"Bot {bot_id} Claude API 失敗：{e}", exc_info=True)
