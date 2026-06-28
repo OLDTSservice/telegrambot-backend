@@ -20,6 +20,10 @@ import TelegramIgnorePage from './pages/TelegramIgnorePage'
 import TeamsIgnorePage from './pages/TeamsIgnorePage'
 import TelegramReplyStatsPage from './pages/TelegramReplyStatsPage'
 import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
+import CopilotBotsPage from './pages/CopilotBotsPage'
+import CopilotRulesPage from './pages/CopilotRulesPage'
+import CopilotKnowledgePage from './pages/CopilotKnowledgePage'
+import CopilotReplyStatsPage from './pages/CopilotReplyStatsPage'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
@@ -86,6 +90,17 @@ export default function App() {
         { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
       ],
     },
+    {
+      key: 'copilot',
+      icon: <RobotOutlined style={{ color: '#7c3aed' }} />,
+      label: 'Teams Copilot 機器人',
+      children: [
+        { key: '/copilot/bots', icon: <RobotOutlined />, label: '機器人管理' },
+        { key: '/copilot/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
+        { key: '/copilot/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+        { key: '/copilot/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
+      ],
+    },
     { key: '/stats', icon: <BarChartOutlined />, label: '使用量統計' },
     ...(user?.role === 'superadmin'
       ? [{ key: '/users', icon: <UserOutlined />, label: '帳號管理' }]
@@ -103,13 +118,7 @@ export default function App() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        trigger={null}
-        width={220}
-        style={{ background: '#001529' }}
-      >
+      <Sider collapsible collapsed={collapsed} trigger={null} width={220} style={{ background: '#001529' }}>
         <div style={{
           height: 56, display: 'flex', alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'flex-start',
@@ -129,10 +138,7 @@ export default function App() {
           openKeys={collapsed ? [] : openKeys}
           onOpenChange={keys => setOpenKeys(keys)}
           items={menuItems}
-          onClick={({ key }) => {
-            if (!key.startsWith('/')) return
-            navigate(key)
-          }}
+          onClick={({ key }) => { if (key.startsWith('/')) navigate(key) }}
           style={{ marginTop: 8 }}
         />
       </Sider>
@@ -143,22 +149,16 @@ export default function App() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           borderBottom: '1px solid #f0f0f0', height: 56,
         }}>
-          <div
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ cursor: 'pointer', fontSize: 18, color: '#555' }}
-          >
+          <div onClick={() => setCollapsed(!collapsed)} style={{ cursor: 'pointer', fontSize: 18, color: '#555' }}>
             {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </div>
-
           <Dropdown menu={userMenu} placement="bottomRight">
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Avatar size={32} icon={<UserOutlined />} style={{ background: '#1677ff' }} />
               {user && (
                 <span style={{ fontSize: 13 }}>
                   {user.username}
-                  <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
-                    {ROLE_LABEL[user.role]}
-                  </Text>
+                  <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>{ROLE_LABEL[user.role]}</Text>
                 </span>
               )}
             </div>
@@ -177,6 +177,10 @@ export default function App() {
             <Route path="/telegram/reply-stats" element={<TelegramReplyStatsPage />} />
             <Route path="/teams/ignores" element={<TeamsIgnorePage user={user} />} />
             <Route path="/teams/reply-stats" element={<TeamsReplyStatsPage />} />
+            <Route path="/copilot/bots" element={<CopilotBotsPage user={user} />} />
+            <Route path="/copilot/rules" element={<CopilotRulesPage user={user} />} />
+            <Route path="/copilot/knowledge" element={<CopilotKnowledgePage user={user} />} />
+            <Route path="/copilot/reply-stats" element={<CopilotReplyStatsPage />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/users" element={<UsersPage user={user} />} />
             <Route path="*" element={<Navigate to="/telegram/bots" replace />} />

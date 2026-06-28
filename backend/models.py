@@ -230,3 +230,75 @@ class TeamsGroupStat(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="group_stats")
+
+
+# ── Copilot Bot (Copilot Studio 整合) ─────────────────────────────────────
+class CopilotBot(Base):
+    __tablename__ = "copilot_bots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    keyword_rules = relationship("CopilotKeywordRule", back_populates="bot", cascade="all, delete-orphan")
+    knowledge_docs = relationship("CopilotKnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
+    group_stats = relationship("CopilotGroupStat", back_populates="bot", cascade="all, delete-orphan")
+
+
+class CopilotKeywordRule(Base):
+    __tablename__ = "copilot_keyword_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("copilot_bots.id"), nullable=False)
+    keyword = Column(String(500), nullable=False)
+    reply_message = Column(Text, nullable=False)
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("CopilotBot", back_populates="keyword_rules")
+
+
+class CopilotKnowledgeDoc(Base):
+    __tablename__ = "copilot_knowledge_docs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("copilot_bots.id"), nullable=False)
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_type = Column(String(50))
+    file_size = Column(Integer)
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("CopilotBot", back_populates="knowledge_docs")
+    chunks = relationship("CopilotKnowledgeChunk", back_populates="doc", cascade="all, delete-orphan")
+
+
+class CopilotKnowledgeChunk(Base):
+    __tablename__ = "copilot_knowledge_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doc_id = Column(Integer, ForeignKey("copilot_knowledge_docs.id"), nullable=False)
+    bot_id = Column(Integer, ForeignKey("copilot_bots.id"), nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    chunk_index = Column(Integer, default=0)
+
+    doc = relationship("CopilotKnowledgeDoc", back_populates="chunks")
+
+
+class CopilotGroupStat(Base):
+    __tablename__ = "copilot_group_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("copilot_bots.id"), nullable=False)
+    conversation_id = Column(String(500), nullable=False)
+    conversation_name = Column(String(255), nullable=False)
+    date = Column(String(10), nullable=False)
+    reply_count = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("CopilotBot", back_populates="group_stats")

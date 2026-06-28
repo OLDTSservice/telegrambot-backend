@@ -1,0 +1,91 @@
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy.orm import Session
+from typing import List
+from database import get_db
+import models, schemas
+from auth import require_editor, require_viewer
+from services.ai_service import process_document
+
+_base_dir = "/data" if os.path.isdir("/data") else "."
+UPLOAD_DIR = os.path.join(_base_dir, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv", ".md"}
+
+router = APIRouter(prefix="/api/copilot-knowledge", tags=["Copilot知識庫"])
+
+
+@router.get("", response_model=List[schemas.CopilotDocOut])
+def list_docs(db: Session = Depends(get_db), _=Depends(require_viewer)):
+    return db.query(models.CopilotKnowledgeDoc).all()
+
+
+@router.post("", response_model=schemas.CopilotDocOut)
+async def upload_doc(
+    bot_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _=Depends(require_editor),
+):
+    bot = db.query(models.CopilotBot).filter(models.CopilotBot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="機器人不存在")
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支援的檔案格式，允許：{', '.join(ALLOWED_EXTENSIONS)}")
+
+    saved_filename = f"copilot_{uuid.uuid4().hex}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, saved_filename)
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    doc = models.CopilotKnowledgeDoc(
+        bot_id=bot_id,
+        filename=saved_filename,
+        original_filename=file.filename,
+        file_type=ext.lstrip("."),
+        file_size=len(content),
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    try:
+        await process_document(file_path, ext, collection_name="",
+                               doc_id=doc.id, bot_id=bot_id, db=db, platform="copilot")
+    except Exception as e:
+        db.delete(doc)
+        db.commit()
+        os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"文件處理失敗：{str(e)}")
+
+    return doc
+
+
+@router.put("/{doc_id}", response_model=schemas.CopilotDocOut)
+def update_doc(doc_id: int, payload: schemas.CopilotDocUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+    doc = db.query(models.CopilotKnowledgeDoc).filter(models.CopilotKnowledgeDoc.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(doc, k, v)
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+@router.delete("/{doc_id}")
+def delete_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+    doc = db.query(models.CopilotKnowledgeDoc).filter(models.CopilotKnowledgeDoc.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    file_path = os.path.join(UPLOAD_DIR, doc.filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    db.delete(doc)
+    db.commit()
+    return {"message": "已刪除"}

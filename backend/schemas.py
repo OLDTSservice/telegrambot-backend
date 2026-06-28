@@ -266,3 +266,79 @@ class TeamsIgnoreOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── CopilotBot ─────────────────────────────────────
+class CopilotBotCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class CopilotBotUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class CopilotBotOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── CopilotKeywordRule ─────────────────────────────
+class CopilotRuleCreate(BaseModel):
+    bot_id: int
+    keyword: str
+    reply_message: str
+
+
+class CopilotRuleUpdate(BaseModel):
+    keyword: Optional[str] = None
+    reply_message: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class CopilotRuleOut(BaseModel):
+    id: int
+    bot_id: int
+    keyword: str
+    reply_message: str
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── CopilotKnowledgeDoc ────────────────────────────
+class CopilotDocOut(BaseModel):
+    id: int
+    bot_id: int
+    original_filename: str
+    file_type: Optional[str]
+    file_size: Optional[int]
+    is_enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CopilotDocUpdate(BaseModel):
+    is_enabled: Optional[bool] = None
+
+
+# ── CopilotQuery ───────────────────────────────────
+class CopilotQueryRequest(BaseModel):
+    bot_id: int
+    question: str
+    conversation_id: str = "unknown"
+    conversation_name: str = "未知對話"

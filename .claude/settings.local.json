@@ -10,7 +10,11 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(git commit *)",
-      "WebFetch(domain:tg-admin-backend-rm99.onrender.com)"
+      "WebFetch(domain:tg-admin-backend-rm99.onrender.com)",
+      "Bash(python -c ' *)",
+      "PowerShell(Get-Command python3 -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command python -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command py -ErrorAction SilentlyContinue)"
     ]
   }
 }

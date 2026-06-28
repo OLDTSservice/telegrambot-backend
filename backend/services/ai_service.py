@@ -105,7 +105,12 @@ async def process_document(file_path: str, ext: str, collection_name: str,
 
     if db is not None and doc_id is not None and bot_id is not None:
         import models
-        ChunkModel = models.TeamsKnowledgeChunk if platform == "teams" else models.KnowledgeChunk
+        if platform == "teams":
+            ChunkModel = models.TeamsKnowledgeChunk
+        elif platform == "copilot":
+            ChunkModel = models.CopilotKnowledgeChunk
+        else:
+            ChunkModel = models.KnowledgeChunk
         for i, chunk in enumerate(chunks):
             db.add(ChunkModel(doc_id=doc_id, bot_id=bot_id,
                               chunk_text=chunk, chunk_index=i))

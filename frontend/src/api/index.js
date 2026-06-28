@@ -87,6 +87,30 @@ export const createTeamsIgnore = d => api.post('/teams-ignores', d)
 export const updateTeamsIgnore = (id, d) => api.put(`/teams-ignores/${id}`, d)
 export const deleteTeamsIgnore = id => api.delete(`/teams-ignores/${id}`)
 
+// ── Copilot Bots ───────────────────────────────
+export const getCopilotBots = () => api.get('/copilot-bots')
+export const createCopilotBot = d => api.post('/copilot-bots', d)
+export const updateCopilotBot = (id, d) => api.put(`/copilot-bots/${id}`, d)
+export const deleteCopilotBot = id => api.delete(`/copilot-bots/${id}`)
+
+// ── Copilot Rules ──────────────────────────────
+export const getCopilotRules = () => api.get('/copilot-rules')
+export const createCopilotRule = d => api.post('/copilot-rules', d)
+export const updateCopilotRule = (id, d) => api.put(`/copilot-rules/${id}`, d)
+export const deleteCopilotRule = id => api.delete(`/copilot-rules/${id}`)
+
+// ── Copilot Knowledge ──────────────────────────
+export const getCopilotDocs = () => api.get('/copilot-knowledge')
+export const uploadCopilotDoc = formData => api.post('/copilot-knowledge', formData)
+export const updateCopilotDoc = (id, d) => api.put(`/copilot-knowledge/${id}`, d)
+export const deleteCopilotDoc = id => api.delete(`/copilot-knowledge/${id}`)
+
+// ── Copilot Stats ──────────────────────────────
+export const getCopilotGroupStats = (period, value, botId) =>
+  api.get('/copilot-stats/groups', { params: { period, value, bot_id: botId || undefined } })
+export const getCopilotTrend = (period, value, botId) =>
+  api.get('/copilot-stats/trend', { params: { period, value, bot_id: botId || undefined } })
+
 // ── Group Stats ────────────────────────────────
 export const getTelegramGroupStats = (period, value, botId) =>
   api.get('/group-stats/telegram', { params: { period, value, bot_id: botId || undefined } })
