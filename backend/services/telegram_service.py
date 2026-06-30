@@ -1,11 +1,17 @@
 import asyncio
 import threading
 import logging
+import time
 from typing import Dict
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 logger = logging.getLogger(__name__)
+
+# ── 每人冷卻記錄（bot_id + user_id → 上次「無匹配」回應的時間戳）──────────
+_no_match_ts: Dict[str, float] = {}
+_COOLDOWN_SECS = 6        # 無匹配冷卻秒數
+_MIN_TEXT_LEN  = 10       # 無匹配時最短回應字元數
 
 
 class BotManager:
@@ -134,6 +140,16 @@ class BotManager:
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
                 return
 
+        # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過
+        if len(text.strip()) < _MIN_TEXT_LEN:
+            logger.debug(f"Bot {bot_id} 訊息長度 {len(text.strip())} < {_MIN_TEXT_LEN}，略過")
+            return
+
+        # 功能二：同一使用者的無匹配冷卻（6 秒內不重複 fallback）
+        cooldown_key = f"{bot_id}:{sender_id or chat_id}"
+        now = time.monotonic()
+        last_ts = _no_match_ts.get(cooldown_key, 0)
+
         # 2. 嘗試知識庫 AI 回覆
         try:
             result = await asyncio.to_thread(query_knowledge, bot_id, text)
@@ -147,7 +163,11 @@ class BotManager:
             record_usage(bot_id, input_tokens, output_tokens, db)
             _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
         else:
-            # 3. 沒有關鍵字規則也沒有知識庫結果時，回傳備用訊息
+            # 3. 沒有關鍵字規則也沒有知識庫結果
+            if now - last_ts < _COOLDOWN_SECS:
+                logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
+                return
+            _no_match_ts[cooldown_key] = now
             await update.message.reply_text("您好，人員將會協助確認，請稍後")
             _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
 
