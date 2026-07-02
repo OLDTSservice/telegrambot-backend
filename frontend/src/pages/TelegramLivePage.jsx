@@ -79,6 +79,15 @@ function MessageBubble({ msg, onSendPending, onDiscardPending, onEditPending }) 
             <RobotOutlined style={{ color: '#faad14' }} />
             <Tag color="gold" style={{ margin: 0 }}>待發送回覆</Tag>
           </div>
+          {/* 引用原始問題 */}
+          <div style={{
+            borderLeft: '3px solid #faad14', paddingLeft: 8, marginBottom: 8,
+            color: '#888', fontSize: 12, whiteSpace: 'pre-wrap',
+            overflow: 'hidden', maxHeight: 48,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+          }}>
+            ↩ {msg.sender_name || '使用者'}：{msg.text}
+          </div>
           {editMode ? (
             <>
               <TextArea rows={3} value={editText} onChange={e => setEditText(e.target.value)} style={{ marginBottom: 6 }} />
