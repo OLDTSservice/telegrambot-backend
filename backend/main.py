@@ -17,6 +17,7 @@ def _migrate_columns():
     """為既有資料表補齊新增欄位（SQLite 不支援 ALTER TABLE … IF NOT EXISTS，用 try/except）"""
     migrations = [
         "ALTER TABLE telegram_bots ADD COLUMN is_managed BOOLEAN DEFAULT 0",
+        "ALTER TABLE telegram_messages ADD COLUMN telegram_message_id INTEGER",
     ]
     with engine.connect() as conn:
         for sql in migrations:

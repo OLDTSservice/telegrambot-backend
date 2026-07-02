@@ -150,18 +150,21 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(requi
     if not pending:
         raise HTTPException(status_code=404, detail="找不到待發送回覆")
 
+    # 取得對應的原始訊息（含 telegram_message_id 供引用回覆）
+    last_msg = db.query(models.TelegramMessage).filter(
+        models.TelegramMessage.id == pending.message_id
+    ).first()
+
     try:
-        bot_manager.send_message(pending.bot_id, pending.chat_id, pending.reply_text)
+        bot_manager.send_message(
+            pending.bot_id, pending.chat_id, pending.reply_text,
+            reply_to_message_id=last_msg.telegram_message_id if last_msg else None,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     pending.status = "sent"
     pending.sent_at = datetime.utcnow()
-
-    # 記錄為後台發送的訊息
-    last_msg = db.query(models.TelegramMessage).filter(
-        models.TelegramMessage.id == pending.message_id
-    ).first()
     admin_msg = models.TelegramMessage(
         bot_id=pending.bot_id,
         chat_id=pending.chat_id,

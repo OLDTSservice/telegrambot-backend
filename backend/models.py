@@ -124,6 +124,7 @@ class TelegramMessage(Base):
     sender_id = Column(String(64), nullable=True)
     sender_name = Column(String(255), nullable=True)
     text = Column(Text, nullable=False)
+    telegram_message_id = Column(Integer, nullable=True)  # Telegram 原生訊息 ID（用於引用回覆）
     is_read = Column(Boolean, default=False)
     is_from_admin = Column(Boolean, default=False)   # True = 後台手動發送
     created_at = Column(DateTime, default=datetime.utcnow)

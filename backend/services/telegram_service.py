@@ -45,14 +45,17 @@ class BotManager:
             del self._apps[bot_id]
         logger.info(f"Bot {bot_id} 已停止")
 
-    def send_message(self, bot_id: int, chat_id: str, text: str):
-        """從後台主動向指定聊天室發送訊息（同步呼叫）"""
+    def send_message(self, bot_id: int, chat_id: str, text: str, reply_to_message_id: int = None):
+        """從後台主動向指定聊天室發送訊息（同步呼叫），可帶 reply_to_message_id 引用原訊息"""
         if bot_id not in self._apps or bot_id not in self._loops:
             raise ValueError(f"Bot {bot_id} 未在運行中")
         loop = self._loops[bot_id]
         app = self._apps[bot_id]
+        kwargs = {"chat_id": int(chat_id), "text": text}
+        if reply_to_message_id:
+            kwargs["reply_to_message_id"] = reply_to_message_id
         future = asyncio.run_coroutine_threadsafe(
-            app.bot.send_message(chat_id=int(chat_id), text=text),
+            app.bot.send_message(**kwargs),
             loop
         )
         future.result(timeout=10)
@@ -149,12 +152,15 @@ class BotManager:
             models.KeywordRule.is_enabled == True
         ).all()
 
+        tg_msg_id = update.message.message_id  # Telegram 原生訊息 ID
+
         for rule in rules:
             if rule.keyword.lower() in text.lower():
                 if is_managed:
                     # 管控模式：記錄訊息 + 建立待發送回覆
                     msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
-                                             sender_id, sender_name, text, db)
+                                             sender_id, sender_name, text, db,
+                                             telegram_message_id=tg_msg_id)
                     _save_pending_reply(bot_id, chat_id, msg.id, rule.reply_message, db)
                 else:
                     await update.message.reply_text(rule.reply_message)
@@ -183,7 +189,8 @@ class BotManager:
             if is_managed:
                 # 管控模式：記錄訊息 + 建立待發送回覆
                 msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
-                                         sender_id, sender_name, text, db)
+                                         sender_id, sender_name, text, db,
+                                         telegram_message_id=tg_msg_id)
                 _save_pending_reply(bot_id, chat_id, msg.id, reply, db)
             else:
                 await update.message.reply_text(reply)
@@ -200,11 +207,12 @@ class BotManager:
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
 
 
-def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_name, text, db):
+def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_name, text, db, telegram_message_id=None):
     import models
     msg = models.TelegramMessage(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, chat_type=chat_type,
         sender_id=sender_id, sender_name=sender_name, text=text, is_read=False,
+        telegram_message_id=telegram_message_id,
     )
     db.add(msg)
     db.commit()
