@@ -13,9 +13,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _migrate_columns():
+    """為既有資料表補齊新增欄位（SQLite 不支援 ALTER TABLE … IF NOT EXISTS，用 try/except）"""
+    migrations = [
+        "ALTER TABLE telegram_bots ADD COLUMN is_managed BOOLEAN DEFAULT 0",
+    ]
+    with engine.connect() as conn:
+        for sql in migrations:
+            try:
+                from sqlalchemy import text as sa_text
+                conn.execute(sa_text(sql))
+                conn.commit()
+                logger.info(f"Migration OK: {sql[:60]}")
+            except Exception:
+                pass  # 欄位已存在時 SQLite 會拋例外，直接略過
+
+
 def init_db():
     try:
         models.Base.metadata.create_all(bind=engine)
+        _migrate_columns()
         db = SessionLocal()
         try:
             if not db.query(models.User).filter(models.User.username == "admin").first():
