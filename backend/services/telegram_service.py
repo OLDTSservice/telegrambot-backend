@@ -45,6 +45,18 @@ class BotManager:
             del self._apps[bot_id]
         logger.info(f"Bot {bot_id} 已停止")
 
+    def send_message(self, bot_id: int, chat_id: str, text: str):
+        """從後台主動向指定聊天室發送訊息（同步呼叫）"""
+        if bot_id not in self._apps or bot_id not in self._loops:
+            raise ValueError(f"Bot {bot_id} 未在運行中")
+        loop = self._loops[bot_id]
+        app = self._apps[bot_id]
+        future = asyncio.run_coroutine_threadsafe(
+            app.bot.send_message(chat_id=int(chat_id), text=text),
+            loop
+        )
+        future.result(timeout=10)
+
     async def _run_bot(self, bot_id: int, token: str):
         from database import SessionLocal
         try:
@@ -127,6 +139,9 @@ class BotManager:
         chat_id = str(chat.id)
         chat_name = chat.title or chat.full_name or chat.username or f"Chat {chat.id}"
         chat_type = chat.type or "unknown"
+        sender_name = update.message.from_user.full_name if update.message.from_user else None
+
+        is_managed = bool(bot_record.is_managed)
 
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
@@ -136,8 +151,14 @@ class BotManager:
 
         for rule in rules:
             if rule.keyword.lower() in text.lower():
-                await update.message.reply_text(rule.reply_message)
-                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                if is_managed:
+                    # 管控模式：記錄訊息 + 建立待發送回覆
+                    msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
+                                             sender_id, sender_name, text, db)
+                    _save_pending_reply(bot_id, chat_id, msg.id, rule.reply_message, db)
+                else:
+                    await update.message.reply_text(rule.reply_message)
+                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
                 return
 
         # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過
@@ -159,17 +180,46 @@ class BotManager:
 
         if result:
             reply, input_tokens, output_tokens = result
-            await update.message.reply_text(reply)
-            record_usage(bot_id, input_tokens, output_tokens, db)
-            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            if is_managed:
+                # 管控模式：記錄訊息 + 建立待發送回覆
+                msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
+                                         sender_id, sender_name, text, db)
+                _save_pending_reply(bot_id, chat_id, msg.id, reply, db)
+            else:
+                await update.message.reply_text(reply)
+                record_usage(bot_id, input_tokens, output_tokens, db)
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
         else:
             # 3. 沒有關鍵字規則也沒有知識庫結果
             if now - last_ts < _COOLDOWN_SECS:
                 logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
                 return
             _no_match_ts[cooldown_key] = now
-            await update.message.reply_text("您好，人員將會協助確認，請稍後")
-            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            if not is_managed:
+                await update.message.reply_text("您好，人員將會協助確認，請稍後")
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+
+
+def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_name, text, db):
+    import models
+    msg = models.TelegramMessage(
+        bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, chat_type=chat_type,
+        sender_id=sender_id, sender_name=sender_name, text=text, is_read=False,
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return msg
+
+
+def _save_pending_reply(bot_id, chat_id, message_id, reply_text, db):
+    import models
+    pending = models.TelegramPendingReply(
+        bot_id=bot_id, chat_id=chat_id, message_id=message_id,
+        reply_text=reply_text, status="pending",
+    )
+    db.add(pending)
+    db.commit()
 
 
 def _record_group_stat(bot_id: int, chat_id: str, chat_name: str, chat_type: str, db):

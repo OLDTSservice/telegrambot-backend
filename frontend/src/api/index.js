@@ -120,3 +120,12 @@ export const getTeamsGroupStats = (period, value, botId) =>
   api.get('/group-stats/teams', { params: { period, value, bot_id: botId || undefined } })
 export const getTeamsTrend = (period, value, botId) =>
   api.get('/group-stats/teams/trend', { params: { period, value, bot_id: botId || undefined } })
+
+// ── Telegram Live 即時對話管控 ─────────────────
+export const getLiveGroups = (botId) => api.get('/telegram-live/groups', { params: { bot_id: botId } })
+export const getLiveMessages = (botId, chatId) => api.get('/telegram-live/messages', { params: { bot_id: botId, chat_id: chatId } })
+export const markLiveRead = (botId, chatId) => api.put('/telegram-live/read', null, { params: { bot_id: botId, chat_id: chatId } })
+export const liveSendMessage = (d) => api.post('/telegram-live/send', d)
+export const updatePendingReply = (id, d) => api.put(`/telegram-live/pending/${id}`, d)
+export const sendPendingReply = (id) => api.post(`/telegram-live/pending/${id}/send`)
+export const discardPendingReply = (id) => api.delete(`/telegram-live/pending/${id}`)

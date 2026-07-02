@@ -54,16 +54,66 @@ class BotUpdate(BaseModel):
     name: Optional[str] = None
     token: Optional[str] = None
     is_enabled: Optional[bool] = None
+    is_managed: Optional[bool] = None
 
 
 class BotOut(BotBase):
     id: int
     is_enabled: bool
+    is_managed: bool = False
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+# ── Telegram Live ──────────────────────────────────
+class TelegramPendingReplyOut(BaseModel):
+    id: int
+    reply_text: str
+    status: str
+    created_at: datetime
+    sent_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TelegramMessageOut(BaseModel):
+    id: int
+    chat_id: str
+    chat_name: str
+    chat_type: str
+    sender_id: Optional[str] = None
+    sender_name: Optional[str] = None
+    text: str
+    is_read: bool
+    is_from_admin: bool
+    created_at: datetime
+    pending_reply: Optional[TelegramPendingReplyOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ChatGroupOut(BaseModel):
+    chat_id: str
+    chat_name: str
+    chat_type: str
+    last_message_at: datetime
+    unread_count: int
+    pending_count: int
+
+
+class LiveSendRequest(BaseModel):
+    bot_id: int
+    chat_id: str
+    text: str
+
+
+class PendingReplyUpdate(BaseModel):
+    reply_text: str
 
 
 # ── KeywordRule ────────────────────────────────────

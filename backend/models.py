@@ -26,11 +26,14 @@ class TelegramBot(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    is_managed = Column(Boolean, default=False)  # 即時對話管控總開關
+
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("UsageStat", back_populates="bot", cascade="all, delete-orphan")
     ignores = relationship("TelegramIgnore", back_populates="bot", cascade="all, delete-orphan")
     group_stats = relationship("TelegramGroupStat", back_populates="bot", cascade="all, delete-orphan")
+    live_messages = relationship("TelegramMessage", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -105,6 +108,43 @@ class TelegramIgnore(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="ignores")
+
+
+# ── Telegram Live Messages ────────────────────────────────────────────────
+class TelegramMessage(Base):
+    """即時對話管控：記錄機器人有匹配的訊息（關鍵字或知識庫命中）"""
+    __tablename__ = "telegram_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    chat_type = Column(String(32), nullable=False)
+    sender_id = Column(String(64), nullable=True)
+    sender_name = Column(String(255), nullable=True)
+    text = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    is_from_admin = Column(Boolean, default=False)   # True = 後台手動發送
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="live_messages")
+    pending_reply = relationship("TelegramPendingReply", back_populates="message", uselist=False, cascade="all, delete-orphan")
+
+
+class TelegramPendingReply(Base):
+    """即時對話管控：管控模式下暫留的機器人回覆"""
+    __tablename__ = "telegram_pending_replies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    message_id = Column(Integer, ForeignKey("telegram_messages.id"), nullable=False)
+    reply_text = Column(Text, nullable=False)
+    status = Column(String(16), default="pending")   # pending / sent / discarded
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)
+
+    message = relationship("TelegramMessage", back_populates="pending_reply")
 
 
 # ── Teams Bot ──────────────────────────────────────────────────────────────
