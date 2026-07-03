@@ -273,15 +273,16 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
         )
         reply = message.content[0].text.strip()
         logger.info(f"Bot {bot_id} Claude 回覆成功，tokens: in={message.usage.input_tokens}")
-        # 若 Claude 判斷找不到答案，回傳 None 讓上層送自訂 fallback 訊息
+        in_tok, out_tok = message.usage.input_tokens, message.usage.output_tokens
+        # 若 Claude 判斷找不到答案，回傳 (None, tokens) 讓上層仍能記錄用量
         NO_ANSWER_SIGNALS = ["找不到相關資訊", "無法回答", "沒有相關", "I cannot find", "no relevant"]
         if any(s in reply for s in NO_ANSWER_SIGNALS):
             logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")
-            return None
-        return reply, message.usage.input_tokens, message.usage.output_tokens
+            return None, in_tok, out_tok
+        return reply, in_tok, out_tok
     except Exception as e:
         logger.error(f"Bot {bot_id} Claude API 失敗：{e}", exc_info=True)
-        return None
+        return None, 0, 0
 
 
 # ── 使用量記錄 ────────────────────────────────────────────────────────────────

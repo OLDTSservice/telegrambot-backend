@@ -165,14 +165,17 @@ async def process_teams_activity(bot, body: bytes, auth_header: str, db):
         logger.error(f"Teams Bot {bot.id} 知識庫查詢失敗：{e}", exc_info=True)
         result = None
 
-    if result:
-        reply, in_tok, out_tok = result
+    reply, in_tok, out_tok = result if result else (None, 0, 0)
+
+    if reply:
         await _send_reply(service_url, conversation_id, activity_id,
                           reply, bot.app_id, bot.app_password)
-        _record_teams_usage(bot.id, in_tok, out_tok, db)
         _record_teams_group_stat(bot.id, conversation_id, conv_name, db)
     else:
         await _send_reply(service_url, conversation_id, activity_id,
                           "您好，人員將會協助確認，請稍後",
                           bot.app_id, bot.app_password)
         _record_teams_group_stat(bot.id, conversation_id, conv_name, db)
+    # Claude 已消耗 token，無論是否找到答案都記錄
+    if in_tok:
+        _record_teams_usage(bot.id, in_tok, out_tok, db)

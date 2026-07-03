@@ -184,8 +184,10 @@ class BotManager:
             logger.error(f"Bot {bot_id} query_knowledge 發生例外：{e}", exc_info=True)
             result = None
 
-        if result:
-            reply, input_tokens, output_tokens = result
+        # result = (reply, in_tok, out_tok)，reply 為 None 代表 Claude 找不到答案
+        reply, input_tokens, output_tokens = result if result else (None, 0, 0)
+
+        if reply:
             if is_managed:
                 # 管控模式：記錄訊息 + 建立待發送回覆
                 msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
@@ -194,9 +196,14 @@ class BotManager:
                 _save_pending_reply(bot_id, chat_id, msg.id, reply, db)
             else:
                 await update.message.reply_text(reply)
-                record_usage(bot_id, input_tokens, output_tokens, db)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            # 無論管控與否，Claude 已消耗 token，一律記錄
+            if input_tokens:
+                record_usage(bot_id, input_tokens, output_tokens, db)
         else:
+            # Claude 呼叫了但找不到答案，仍記錄 token
+            if input_tokens:
+                record_usage(bot_id, input_tokens, output_tokens, db)
             # 3. 沒有關鍵字規則也沒有知識庫結果
             if now - last_ts < _COOLDOWN_SECS:
                 logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
