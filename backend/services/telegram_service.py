@@ -187,29 +187,29 @@ class BotManager:
         # result = (reply, in_tok, out_tok)，reply 為 None 代表 Claude 找不到答案
         reply, input_tokens, output_tokens = result if result else (None, 0, 0)
 
-        if reply:
-            if is_managed:
-                # 管控模式：記錄訊息 + 建立待發送回覆
-                msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
-                                         sender_id, sender_name, text, db,
-                                         telegram_message_id=tg_msg_id)
+        if input_tokens:
+            record_usage(bot_id, input_tokens, output_tokens, db)
+
+        if is_managed:
+            # 管控模式：無論 KB 是否找到答案，都記錄訊息讓管理員處理
+            msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
+                                     sender_id, sender_name, text, db,
+                                     telegram_message_id=tg_msg_id)
+            if reply:
                 _save_pending_reply(bot_id, chat_id, msg.id, reply, db)
+                logger.info(f"Bot {bot_id} 管控模式：已儲存訊息 + 待發回覆")
             else:
+                logger.info(f"Bot {bot_id} 管控模式：已儲存訊息（無 KB 答案，等待管理員手動回覆）")
+        else:
+            if reply:
                 await update.message.reply_text(reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-            # 無論管控與否，Claude 已消耗 token，一律記錄
-            if input_tokens:
-                record_usage(bot_id, input_tokens, output_tokens, db)
-        else:
-            # Claude 呼叫了但找不到答案，仍記錄 token
-            if input_tokens:
-                record_usage(bot_id, input_tokens, output_tokens, db)
-            # 3. 沒有關鍵字規則也沒有知識庫結果
-            if now - last_ts < _COOLDOWN_SECS:
-                logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
-                return
-            _no_match_ts[cooldown_key] = now
-            if not is_managed:
+            else:
+                # 沒有關鍵字規則也沒有知識庫結果 → fallback（含冷卻）
+                if now - last_ts < _COOLDOWN_SECS:
+                    logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
+                    return
+                _no_match_ts[cooldown_key] = now
                 await update.message.reply_text("您好，人員將會協助確認，請稍後")
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
 

@@ -177,6 +177,29 @@ def debug_knowledge():
         db.close()
 
 
+@app.get("/api/debug/managed-status")
+def debug_managed_status():
+    """確認各 Telegram 機器人的 is_managed 設定值"""
+    db = SessionLocal()
+    try:
+        bots = db.query(models.TelegramBot).all()
+        result = []
+        for b in bots:
+            msg_count = db.query(models.TelegramMessage).filter(
+                models.TelegramMessage.bot_id == b.id
+            ).count()
+            result.append({
+                "id": b.id,
+                "name": b.name,
+                "is_managed": b.is_managed,
+                "is_enabled": b.is_enabled,
+                "live_message_count": msg_count,
+            })
+        return {"bots": result}
+    finally:
+        db.close()
+
+
 @app.post("/api/debug/test-knowledge")
 async def test_knowledge(bot_id: int, question: str):
     """直接測試知識庫 AI 查詢"""
