@@ -124,12 +124,15 @@ export default function TelegramLivePage({ user }) {
   const [isManaged, setIsManaged] = useState(false)
   const [groups, setGroups] = useState([])
   const [selectedChatId, setSelectedChatId] = useState(null)
+  // 同步 ref，讓 setInterval closure 永遠讀到最新值
+  useEffect(() => { selectedChatIdRef.current = selectedChatId }, [selectedChatId])
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [sending, setSending] = useState(false)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const messagesEndRef = useRef(null)
   const pollRef = useRef(null)
+  const selectedChatIdRef = useRef(null)  // 供 setInterval closure 讀取最新值
 
   // 載入機器人列表
   useEffect(() => {
@@ -163,35 +166,43 @@ export default function TelegramLivePage({ user }) {
     }
   }
 
-  // 輪詢：更新群組列表
-  const fetchGroups = async () => {
+  // 輪詢：更新群組列表，並對正在查看的群組即時清除未讀
+  const fetchGroups = async (currentChatId) => {
     if (!selectedBotId) return
     try {
       const r = await getLiveGroups(selectedBotId)
-      setGroups(r.data)
+      const chatId = currentChatId ?? selectedChatId
+      setGroups(r.data.map(g =>
+        g.chat_id === chatId ? { ...g, unread_count: 0 } : g
+      ))
     } catch { /* ignore */ }
   }
 
-  // 輪詢：更新訊息
+  // 輪詢：更新訊息，若正在查看該群組則自動標為已讀
   const fetchMessages = async () => {
     if (!selectedBotId || !selectedChatId) return
     try {
       const r = await getLiveMessages(selectedBotId, selectedChatId)
       setMessages(r.data)
+      // 有未讀訊息時補送一次已讀（清伺服器端未讀計數）
+      if (r.data.some(m => !m.is_read && !m.is_from_admin)) {
+        markLiveRead(selectedBotId, selectedChatId).catch(() => {})
+      }
     } catch { /* ignore */ }
   }
 
-  // 啟動輪詢
+  // 啟動輪詢（dependency 只放 selectedBotId，避免每次選群組都重置 interval）
   useEffect(() => {
     if (!selectedBotId) return
     fetchGroups()
     const id = setInterval(() => {
-      fetchGroups()
-      if (selectedChatId) fetchMessages()
+      const chatId = selectedChatIdRef.current
+      fetchGroups(chatId)   // 傳入當前群組 → 立即把該群組未讀歸零
+      if (chatId) fetchMessages()
     }, POLL_MS)
     pollRef.current = id
     return () => clearInterval(id)
-  }, [selectedBotId, selectedChatId])
+  }, [selectedBotId])
 
   // 選擇群組
   const handleSelectGroup = async (chatId) => {
