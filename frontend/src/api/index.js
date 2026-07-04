@@ -57,6 +57,30 @@ export const deleteDoc = id => api.delete(`/knowledge/${id}`)
 // ── Stats ──────────────────────────────────────
 export const getStats = (days = 30) => api.get(`/stats?days=${days}`)
 
+// ── Teams Bots ─────────────────────────────────
+export const getTeamsBots = () => api.get('/teams-bots')
+export const createTeamsBot = d => api.post('/teams-bots', d)
+export const updateTeamsBot = (id, d) => api.put(`/teams-bots/${id}`, d)
+export const deleteTeamsBot = id => api.delete(`/teams-bots/${id}`)
+
+// ── Teams Rules ────────────────────────────────
+export const getTeamsRules = () => api.get('/teams-rules')
+export const createTeamsRule = d => api.post('/teams-rules', d)
+export const updateTeamsRule = (id, d) => api.put(`/teams-rules/${id}`, d)
+export const deleteTeamsRule = id => api.delete(`/teams-rules/${id}`)
+
+// ── Teams Knowledge ────────────────────────────
+export const getTeamsDocs = () => api.get('/teams-knowledge')
+export const uploadTeamsDoc = formData => api.post('/teams-knowledge', formData)
+export const updateTeamsDoc = (id, d) => api.put(`/teams-knowledge/${id}`, d)
+export const deleteTeamsDoc = id => api.delete(`/teams-knowledge/${id}`)
+
+// ── Teams Ignore ───────────────────────────────
+export const getTeamsIgnores = () => api.get('/teams-ignores')
+export const createTeamsIgnore = d => api.post('/teams-ignores', d)
+export const updateTeamsIgnore = (id, d) => api.put(`/teams-ignores/${id}`, d)
+export const deleteTeamsIgnore = id => api.delete(`/teams-ignores/${id}`)
+
 // ── Telegram Ignore ────────────────────────────
 export const getTelegramIgnores = () => api.get('/telegram-ignores')
 export const createTelegramIgnore = d => api.post('/telegram-ignores', d)
@@ -68,6 +92,10 @@ export const getTelegramGroupStats = (period, value, botId) =>
   api.get('/group-stats/telegram', { params: { period, value, bot_id: botId || undefined } })
 export const getTelegramTrend = (period, value, botId) =>
   api.get('/group-stats/telegram/trend', { params: { period, value, bot_id: botId || undefined } })
+export const getTeamsGroupStats = (period, value, botId) =>
+  api.get('/group-stats/teams', { params: { period, value, bot_id: botId || undefined } })
+export const getTeamsTrend = (period, value, botId) =>
+  api.get('/group-stats/teams/trend', { params: { period, value, bot_id: botId || undefined } })
 
 // ── Telegram Live 即時對話管控 ─────────────────
 export const getLiveGroups = (botId) => api.get('/telegram-live/groups', { params: { bot_id: botId } })

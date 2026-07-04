@@ -4,7 +4,7 @@ import { Layout, Menu, Avatar, Dropdown, Typography, theme } from 'antd'
 import {
   RobotOutlined, KeyOutlined, BookOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  SendOutlined, StopOutlined, LineChartOutlined, MessageOutlined,
+  SendOutlined, TeamOutlined, StopOutlined, LineChartOutlined, MessageOutlined,
 } from '@ant-design/icons'
 import { getMe } from './api'
 import LoginPage from './pages/LoginPage'
@@ -13,9 +13,14 @@ import RulesPage from './pages/RulesPage'
 import KnowledgePage from './pages/KnowledgePage'
 import StatsPage from './pages/StatsPage'
 import UsersPage from './pages/UsersPage'
+import TeamsBotsPage from './pages/TeamsBotsPage'
+import TeamsRulesPage from './pages/TeamsRulesPage'
+import TeamsKnowledgePage from './pages/TeamsKnowledgePage'
 import TelegramIgnorePage from './pages/TelegramIgnorePage'
+import TeamsIgnorePage from './pages/TeamsIgnorePage'
 import TelegramReplyStatsPage from './pages/TelegramReplyStatsPage'
 import TelegramLivePage from './pages/TelegramLivePage'
+import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
@@ -69,6 +74,18 @@ export default function App() {
         { key: '/telegram/ignores', icon: <StopOutlined />, label: '忽略名單' },
         { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
         { key: '/telegram/live', icon: <MessageOutlined />, label: '即時對話管控' },
+      ],
+    },
+    {
+      key: 'teams',
+      icon: <TeamOutlined />,
+      label: 'Teams 機器人',
+      children: [
+        { key: '/teams/bots', icon: <RobotOutlined />, label: '機器人管理' },
+        { key: '/teams/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
+        { key: '/teams/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
+        { key: '/teams/ignores', icon: <StopOutlined />, label: '忽略名單' },
+        { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
       ],
     },
     { key: '/stats', icon: <BarChartOutlined />, label: '使用量統計' },
@@ -143,6 +160,11 @@ export default function App() {
             <Route path="/telegram/ignores" element={<TelegramIgnorePage user={user} />} />
             <Route path="/telegram/reply-stats" element={<TelegramReplyStatsPage />} />
             <Route path="/telegram/live" element={<TelegramLivePage user={user} />} />
+            <Route path="/teams/bots" element={<TeamsBotsPage user={user} />} />
+            <Route path="/teams/rules" element={<TeamsRulesPage user={user} />} />
+            <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />
+            <Route path="/teams/ignores" element={<TeamsIgnorePage user={user} />} />
+            <Route path="/teams/reply-stats" element={<TeamsReplyStatsPage />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/users" element={<UsersPage user={user} />} />
             <Route path="*" element={<Navigate to="/telegram/bots" replace />} />
