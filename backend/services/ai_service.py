@@ -284,7 +284,9 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
                 "content": (
                     "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
                     "不要加入任何額外補充、說明或開場白。"
-                    "若知識庫中沒有相關資訊，只需回覆「抱歉，我找不到相關資訊。」\n\n"
+                    "重要：請使用與問題完全相同的語言回答"
+                    "（問題為繁體中文→繁體中文、英文→英文、簡體中文→簡體中文、其他語言同理）。"
+                    "若知識庫中沒有相關資訊，僅以問題的語言簡短告知找不到相關資訊即可。\n\n"
                     f"知識庫內容：\n{context}\n\n"
                     f"問題：{question}\n\n答案："
                 )
@@ -294,7 +296,11 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
         logger.info(f"Bot {bot_id} Claude 回覆成功，tokens: in={message.usage.input_tokens}")
         in_tok, out_tok = message.usage.input_tokens, message.usage.output_tokens
         # 若 Claude 判斷找不到答案，回傳 (None, tokens) 讓上層仍能記錄用量
-        NO_ANSWER_SIGNALS = ["找不到相關資訊", "無法回答", "沒有相關", "I cannot find", "no relevant"]
+        NO_ANSWER_SIGNALS = [
+            "找不到相關資訊", "無法回答", "沒有相關",
+            "I cannot find", "no relevant", "not found", "no information",
+            "找不到相关", "无法回答",  # 簡體中文
+        ]
         if any(s in reply for s in NO_ANSWER_SIGNALS):
             logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")
             return None, in_tok, out_tok

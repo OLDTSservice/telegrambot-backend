@@ -57,69 +57,17 @@ export const deleteDoc = id => api.delete(`/knowledge/${id}`)
 // ── Stats ──────────────────────────────────────
 export const getStats = (days = 30) => api.get(`/stats?days=${days}`)
 
-// ── Teams Bots ─────────────────────────────────
-export const getTeamsBots = () => api.get('/teams-bots')
-export const createTeamsBot = d => api.post('/teams-bots', d)
-export const updateTeamsBot = (id, d) => api.put(`/teams-bots/${id}`, d)
-export const deleteTeamsBot = id => api.delete(`/teams-bots/${id}`)
-
-// ── Teams Rules ────────────────────────────────
-export const getTeamsRules = () => api.get('/teams-rules')
-export const createTeamsRule = d => api.post('/teams-rules', d)
-export const updateTeamsRule = (id, d) => api.put(`/teams-rules/${id}`, d)
-export const deleteTeamsRule = id => api.delete(`/teams-rules/${id}`)
-
-// ── Teams Knowledge ────────────────────────────
-export const getTeamsDocs = () => api.get('/teams-knowledge')
-export const uploadTeamsDoc = formData => api.post('/teams-knowledge', formData)
-export const updateTeamsDoc = (id, d) => api.put(`/teams-knowledge/${id}`, d)
-export const deleteTeamsDoc = id => api.delete(`/teams-knowledge/${id}`)
-
 // ── Telegram Ignore ────────────────────────────
 export const getTelegramIgnores = () => api.get('/telegram-ignores')
 export const createTelegramIgnore = d => api.post('/telegram-ignores', d)
 export const updateTelegramIgnore = (id, d) => api.put(`/telegram-ignores/${id}`, d)
 export const deleteTelegramIgnore = id => api.delete(`/telegram-ignores/${id}`)
 
-// ── Teams Ignore ───────────────────────────────
-export const getTeamsIgnores = () => api.get('/teams-ignores')
-export const createTeamsIgnore = d => api.post('/teams-ignores', d)
-export const updateTeamsIgnore = (id, d) => api.put(`/teams-ignores/${id}`, d)
-export const deleteTeamsIgnore = id => api.delete(`/teams-ignores/${id}`)
-
-// ── Copilot Bots ───────────────────────────────
-export const getCopilotBots = () => api.get('/copilot-bots')
-export const createCopilotBot = d => api.post('/copilot-bots', d)
-export const updateCopilotBot = (id, d) => api.put(`/copilot-bots/${id}`, d)
-export const deleteCopilotBot = id => api.delete(`/copilot-bots/${id}`)
-
-// ── Copilot Rules ──────────────────────────────
-export const getCopilotRules = () => api.get('/copilot-rules')
-export const createCopilotRule = d => api.post('/copilot-rules', d)
-export const updateCopilotRule = (id, d) => api.put(`/copilot-rules/${id}`, d)
-export const deleteCopilotRule = id => api.delete(`/copilot-rules/${id}`)
-
-// ── Copilot Knowledge ──────────────────────────
-export const getCopilotDocs = () => api.get('/copilot-knowledge')
-export const uploadCopilotDoc = formData => api.post('/copilot-knowledge', formData)
-export const updateCopilotDoc = (id, d) => api.put(`/copilot-knowledge/${id}`, d)
-export const deleteCopilotDoc = id => api.delete(`/copilot-knowledge/${id}`)
-
-// ── Copilot Stats ──────────────────────────────
-export const getCopilotGroupStats = (period, value, botId) =>
-  api.get('/copilot-stats/groups', { params: { period, value, bot_id: botId || undefined } })
-export const getCopilotTrend = (period, value, botId) =>
-  api.get('/copilot-stats/trend', { params: { period, value, bot_id: botId || undefined } })
-
 // ── Group Stats ────────────────────────────────
 export const getTelegramGroupStats = (period, value, botId) =>
   api.get('/group-stats/telegram', { params: { period, value, bot_id: botId || undefined } })
 export const getTelegramTrend = (period, value, botId) =>
   api.get('/group-stats/telegram/trend', { params: { period, value, bot_id: botId || undefined } })
-export const getTeamsGroupStats = (period, value, botId) =>
-  api.get('/group-stats/teams', { params: { period, value, bot_id: botId || undefined } })
-export const getTeamsTrend = (period, value, botId) =>
-  api.get('/group-stats/teams/trend', { params: { period, value, bot_id: botId || undefined } })
 
 // ── Telegram Live 即時對話管控 ─────────────────
 export const getLiveGroups = (botId) => api.get('/telegram-live/groups', { params: { bot_id: botId } })
