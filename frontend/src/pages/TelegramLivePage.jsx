@@ -179,14 +179,16 @@ export default function TelegramLivePage({ user }) {
   }
 
   // 輪詢：更新訊息，若正在查看該群組則自動標為已讀
-  const fetchMessages = async () => {
-    if (!selectedBotId || !selectedChatId) return
+  // chatId 可由外部（setInterval closure）傳入，避免 stale closure 問題
+  const fetchMessages = async (chatId) => {
+    const cid = chatId ?? selectedChatId
+    if (!selectedBotId || !cid) return
     try {
-      const r = await getLiveMessages(selectedBotId, selectedChatId)
+      const r = await getLiveMessages(selectedBotId, cid)
       setMessages(r.data)
       // 有未讀訊息時補送一次已讀（清伺服器端未讀計數）
       if (r.data.some(m => !m.is_read && !m.is_from_admin)) {
-        markLiveRead(selectedBotId, selectedChatId).catch(() => {})
+        markLiveRead(selectedBotId, cid).catch(() => {})
       }
     } catch { /* ignore */ }
   }
@@ -198,7 +200,7 @@ export default function TelegramLivePage({ user }) {
     const id = setInterval(() => {
       const chatId = selectedChatIdRef.current
       fetchGroups(chatId)   // 傳入當前群組 → 立即把該群組未讀歸零
-      if (chatId) fetchMessages()
+      if (chatId) fetchMessages(chatId)
     }, POLL_MS)
     pollRef.current = id
     return () => clearInterval(id)
