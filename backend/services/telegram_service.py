@@ -2,6 +2,7 @@ import asyncio
 import threading
 import logging
 import time
+import requests
 from typing import Dict
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
@@ -165,6 +166,7 @@ class BotManager:
                 else:
                     await update.message.reply_text(rule.reply_message)
                     _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, rule.reply_message, chat_name), daemon=True).start()
                 return
 
         # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過
@@ -204,6 +206,7 @@ class BotManager:
             if reply:
                 await update.message.reply_text(reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name), daemon=True).start()
             else:
                 # 沒有關鍵字規則也沒有知識庫結果 → fallback（含冷卻）
                 if now - last_ts < _COOLDOWN_SECS:
@@ -273,3 +276,19 @@ def start_all_enabled_bots(db):
             bot_manager.start_bot(bot.id, bot.token, db)
         except Exception as e:
             logger.error(f"啟動機器人 {bot.id} 失敗：{e}")
+
+
+def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
+    """背景建立 Freshdesk 工單，不阻擋 bot 回覆流程"""
+    try:
+        resp = requests.post(
+            "https://freshdesk-ticket-creation.onrender.com/api/create-ticket-from-bot",
+            json={"question": question, "answer": answer, "group_name": group_name},
+            timeout=30,
+        )
+        if resp.ok:
+            logger.info(f"[Freshdesk] 工單建立成功 ID={resp.json().get('id')} group={group_name}")
+        else:
+            logger.warning(f"[Freshdesk] 建單失敗 {resp.status_code}: {resp.text[:100]}")
+    except Exception as e:
+        logger.error(f"[Freshdesk] 建單例外: {e}")
