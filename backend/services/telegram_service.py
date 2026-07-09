@@ -289,6 +289,6 @@ def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
         if resp.ok:
             logger.info(f"[Freshdesk] 工單建立成功 ID={resp.json().get('id')} group={group_name}")
         else:
-            logger.warning(f"[Freshdesk] 建單失敗 {resp.status_code}: {resp.text[:100]}")
+            logger.warning(f"[Freshdesk] 建單失敗 {resp.status_code}: {resp.text[:500]}")
     except Exception as e:
         logger.error(f"[Freshdesk] 建單例外: {e}")
