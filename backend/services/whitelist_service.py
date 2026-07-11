@@ -86,36 +86,37 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
         # ── Step 2：取廠商清單（WhiteListController init）────
         # POST /controller/WhiteListController action=init
         # 回傳 response.apiIds：{id: {name, ...}, ...}
+        # 正確路徑是相對於 /admin/maintenance/，不是根目錄
         init_r = await client.post(
-            "/controller/WhiteListController",
+            "/admin/maintenance/controller/WhiteListController",
             data={"action": "init"},
             headers={
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": f"{SITE_BASE}/admin/maintenance/white-list-ip-setting",
             },
         )
-        init_json = init_r.json()
-        api_ids = init_json.get("response", {}).get("apiIds", {})
-        logger.info(f"[Whitelist] 廠商清單筆數：{len(api_ids)}，前3筆：{list(api_ids.items())[:3]}")
+        logger.info(f"[Whitelist] WhiteListController status={init_r.status_code}, size={len(init_r.content)}")
 
-        if not api_ids:
-            logger.error(f"[Whitelist] 廠商清單為空，回應：{str(init_json)[:300]}")
+        # 6MB+ JSON，用 regex 直接從文字找廠商，避免一次解析整個 JSON
+        # 格式："id":{"id":N,"name":"廠商名",...}
+        name_re = re.compile(r'"(\d+)":\{[^{}]*?"name":"([^"]*)"')
+        all_vendors = name_re.findall(init_r.text)  # [(id_str, name), ...]
+        logger.info(f"[Whitelist] 解析到廠商數：{len(all_vendors)}，前3筆：{all_vendors[:3]}")
+
+        if not all_vendors:
+            logger.error(f"[Whitelist] 廠商清單解析失敗，前300字：{init_r.text[:300]}")
             return False, None
 
         # ── Step 3：逐段比對廠商名稱 ─────────────────────────
-        # api_ids[id]["name"] = 廠商名稱（如 "eswn"、"TitanTR1_SCFLY"）
         matched_id = None
         matched_name = None
 
         for i in range(1, len(username_parts) + 1):
             prefix = '_'.join(username_parts[:i]).upper()
             candidates = [
-                (api_id, info["name"])
-                for api_id, info in api_ids.items()
-                if isinstance(info, dict) and (
-                    info.get("name", "").upper() == prefix
-                    or info.get("name", "").upper().startswith(prefix + '_')
-                )
+                (api_id, name)
+                for api_id, name in all_vendors
+                if name.upper() == prefix or name.upper().startswith(prefix + '_')
             ]
             logger.info(f"[Whitelist] 前綴 '{prefix}'：找到 {len(candidates)} 筆")
 
@@ -128,7 +129,7 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
                 break
 
         if not matched_id:
-            sample = [(k, v.get("name","")) for k,v in list(api_ids.items())[:10] if isinstance(v,dict)]
+            sample = all_vendors[:10]
             logger.error(f"[Whitelist] 廠商無法確定，前10筆：{sample}")
             return False, None
 
@@ -150,7 +151,7 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
             form_list.append(("form[ip][]", ip))
 
         save_r = await client.post(
-            "/admin/maintenance/white-list-ip-settingForm",
+            "/admin/maintenance/white-list-ip-settingForm",  # 相對於 /admin/maintenance/
             data=form_list,
             headers={"X-Requested-With": "XMLHttpRequest"},
         )
