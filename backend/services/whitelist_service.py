@@ -132,40 +132,42 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
             )
             logger.info("[Whitelist] 類型已設為後台登入白名單IP")
 
-            # ── Step 5：從 #createApiId 取所有選項並逐段比對廠商 ──
+            # ── Step 5：在瀏覽器端逐段比對廠商，只回傳匹配結果 ──
+            # 避免把全部 4374 筆選項傳回 Python（記憶體過載 → Render 重啟）
             # 選項格式：「數字_廠商名稱」，如「2182_eswn」
-            # 比對策略：username 分段後以 _ 拼接前 i 段，在選項名稱（底線後）找含該字串者
-            all_opts = await page.evaluate("""
-                () => Array.from(document.getElementById('createApiId').options)
-                     .filter(o => o.value)
-                     .map(o => ({val: o.value, txt: o.text.trim()}))
-            """)
+            result = await page.evaluate("""
+                (parts) => {
+                    var opts = Array.from(document.getElementById('createApiId').options)
+                        .filter(o => o.value)
+                        .map(o => ({val: o.value, txt: o.text.trim()}));
+                    for (var i = 1; i <= parts.length; i++) {
+                        var prefix = parts.slice(0, i).join('_').toUpperCase();
+                        // 選項名稱去掉「數字_」前綴後，檢查是否以 prefix 開頭
+                        var candidates = opts.filter(o => {
+                            var name = o.txt.toUpperCase().replace(/^\\d+_/, '');
+                            return name === prefix || name.startsWith(prefix + '_');
+                        });
+                        if (candidates.length === 1) return {match: candidates[0], prefix: prefix, count: 1};
+                        if (candidates.length === 0) return {match: null, prefix: prefix, count: 0, sample: opts.slice(0,5).map(o=>o.txt)};
+                    }
+                    // 所有段都用完仍多個匹配
+                    var prefix = parts.join('_').toUpperCase();
+                    var last = opts.filter(o => {
+                        var name = o.txt.toUpperCase().replace(/^\\d+_/, '');
+                        return name === prefix || name.startsWith(prefix + '_');
+                    });
+                    return {match: null, prefix: prefix, count: last.length, sample: last.slice(0,5).map(o=>o.txt)};
+                }
+            """, username_parts)
 
-            matched_value = None
-            matched_text = None
+            logger.info(f"[Whitelist] 廠商比對結果：prefix={result.get('prefix')}, count={result.get('count')}, match={result.get('match')}")
 
-            for i in range(1, len(username_parts) + 1):
-                prefix = '_'.join(username_parts[:i]).upper()
-                # 選項文字格式 "數字_XXX_YYY"，取底線後的部分做比對
-                candidates = [
-                    o for o in all_opts
-                    if ('_' + prefix) in ('_' + o['txt'].upper().split('_', 1)[-1])
-                ]
-                logger.info(f"[Whitelist] 嘗試前綴 '{prefix}'，找到 {len(candidates)} 個候選")
-
-                if len(candidates) == 1:
-                    matched_text = candidates[0]['txt']
-                    matched_value = candidates[0]['val']
-                    logger.info(f"[Whitelist] 唯一匹配廠商：{matched_text}")
-                    break
-                elif len(candidates) == 0:
-                    logger.error(f"[Whitelist] 前綴 '{prefix}' 無任何匹配，中止")
-                    break
-
-            if not matched_value:
-                sample = [o['txt'] for o in all_opts[:20]]
-                logger.error(f"[Whitelist] 廠商名稱無法確定，前20選項樣本：{sample}")
+            if not result.get('match'):
+                logger.error(f"[Whitelist] 廠商名稱無法確定，樣本：{result.get('sample')}")
                 return False, None
+
+            matched_value = result['match']['val']
+            matched_text = result['match']['txt']
 
             # 用 JS 設定廠商選項並觸發 selectpicker 更新
             await page.evaluate(
