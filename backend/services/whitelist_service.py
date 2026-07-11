@@ -64,7 +64,11 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
 
     async with httpx.AsyncClient(base_url=SITE_BASE, follow_redirects=True, timeout=30) as client:
 
-        # ── Step 1：登入（/do-login 不需要 reCAPTCHA）────────
+        # ── Step 1：先 GET 登入頁面取得 session cookie ────────
+        await client.get("/login")
+        logger.info(f"[Whitelist] 已取得 session，cookies={dict(client.cookies)}")
+
+        # ── Step 2：登入（/do-login 不需要 reCAPTCHA）─────────
         login_r = await client.post("/do-login", data={
             "account": SITE_USER,
             "password": SITE_PASS,
@@ -72,6 +76,7 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
         })
         login_json = login_r.json()
         logger.info(f"[Whitelist] 登入回應：{str(login_json)[:200]}")
+        logger.info(f"[Whitelist] 登入後 cookies={dict(client.cookies)}")
 
         if login_json.get("response", {}).get("error", -1) != 0:
             logger.error(f"[Whitelist] 登入失敗：{login_json}")
