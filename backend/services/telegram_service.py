@@ -164,7 +164,7 @@ class BotManager:
                                         log_vendor, "\n".join(ips),
                                         "success" if success else "failed", db)
                     if success:
-                        await update.message.reply_text("已添加完畢")
+                        await update.message.reply_text("Done")
                         threading.Thread(
                             target=_create_freshdesk_ticket_bg,
                             args=(text, "已添加完畢", chat_name), daemon=True
