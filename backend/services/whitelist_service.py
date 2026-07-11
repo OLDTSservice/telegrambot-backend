@@ -98,9 +98,17 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
         logger.info(f"[Whitelist] WhiteListController status={init_r.status_code}, size={len(init_r.content)}")
 
         # 6MB+ JSON，用 regex 直接從文字找廠商，避免一次解析整個 JSON
-        # 格式："id":{"id":N,"name":"廠商名",...}
-        name_re = re.compile(r'"(\d+)":\{[^{}]*?"name":"([^"]*)"')
-        all_vendors = name_re.findall(init_r.text)  # [(id_str, name), ...]
+        # 格式：外層 key 與內層 "id" 相同："2182":{"id":2182,"name":"eswn",...}
+        # 用 backreference \1 確保只匹配頂層廠商 entry，排除巢狀數字 key
+        vendor_start_re = re.compile(r'"(\d+)":\{"id":\1[,}]')
+        name_re = re.compile(r'"name":"([^"]*)"')
+        all_vendors = []
+        text = init_r.text
+        for m in vendor_start_re.finditer(text):
+            segment = text[m.start(): m.start() + 300]
+            nm = name_re.search(segment)
+            if nm:
+                all_vendors.append((m.group(1), nm.group(1)))
         logger.info(f"[Whitelist] 解析到廠商數：{len(all_vendors)}，前3筆：{all_vendors[:3]}")
 
         if not all_vendors:
