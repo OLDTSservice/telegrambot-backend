@@ -83,35 +83,30 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
             return False, None
         logger.info("[Whitelist] 登入成功")
 
-        # ── Step 2：取廠商清單 ───────────────────────────────
-        api_r = await client.get("/admin/user/getNewAPISiteIdMapping")
-        import json as _json
-        raw = api_r.text
-        # 回傳可能是 JSON string 或已解析的 dict
-        try:
-            mapping = _json.loads(raw) if isinstance(raw, str) else raw
-        except Exception:
-            logger.error(f"[Whitelist] 廠商清單解析失敗：{raw[:200]}")
+        # ── Step 2：從白名單頁面 HTML 解析廠商選項 ────────────
+        # #createApiId 的選項是 server-side 靜態渲染，格式：<option value="2182">2182_eswn</option>
+        wl_r = await client.get("/admin/maintenance/white-list-ip-setting")
+        # 用 regex 從 HTML 萃取所有 option，避免解析整個 DOM
+        opt_re = re.compile(r'<option\s+value="(\d+)">(\d+_[^<]+)</option>', re.IGNORECASE)
+        all_opts = opt_re.findall(wl_r.text)  # [(value, text), ...]
+        logger.info(f"[Whitelist] 從 HTML 解析到 {len(all_opts)} 個廠商選項，前3筆：{all_opts[:3]}")
+
+        if not all_opts:
+            logger.error(f"[Whitelist] 找不到廠商選項，HTML 前300字：{wl_r.text[:300]}")
             return False, None
 
-        # mapping 結構：{ "apiId": { "name": "xxx", ... }, ... }
-        # 或直接是 { "apiId": "name" }，需要探測
-        logger.info(f"[Whitelist] 廠商清單原始（前500字）：{raw[:500]}")
-        logger.info(f"[Whitelist] 廠商清單筆數：{len(mapping)}，前3筆 key：{list(mapping.keys())[:3]}")
-
         # ── Step 3：逐段比對廠商名稱 ─────────────────────────
+        # 選項格式 "數字_廠商名"，去掉數字前綴後比對
         matched_id = None
         matched_name = None
 
         for i in range(1, len(username_parts) + 1):
             prefix = '_'.join(username_parts[:i]).upper()
             candidates = []
-            for api_id, val in mapping.items():
-                # val 可能是 dict（含 name）或直接是 name string
-                name = val.get("name", "") if isinstance(val, dict) else str(val)
-                name_upper = name.upper()
-                if name_upper == prefix or name_upper.startswith(prefix + '_'):
-                    candidates.append((api_id, name))
+            for val, txt in all_opts:
+                name = txt.split('_', 1)[-1].upper()  # 去掉 "數字_" 前綴
+                if name == prefix or name.startswith(prefix + '_'):
+                    candidates.append((val, txt))
 
             logger.info(f"[Whitelist] 前綴 '{prefix}'：找到 {len(candidates)} 筆")
 
@@ -124,8 +119,7 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
                 break
 
         if not matched_id:
-            sample = [(k, (v.get("name","") if isinstance(v,dict) else v)) for k,v in list(mapping.items())[:10]]
-            logger.error(f"[Whitelist] 廠商無法確定，前10筆樣本：{sample}")
+            logger.error(f"[Whitelist] 廠商無法確定，前10選項：{all_opts[:10]}")
             return False, None
 
         # ── Step 4：新增白名單 ───────────────────────────────
