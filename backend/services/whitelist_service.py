@@ -99,23 +99,32 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
             logger.info(f"[Whitelist] 開啟登入頁面 {login_url}")
             await page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
 
-            # 登入欄位：type="email" placeholder="Account"
-            await page.locator('input[type="email"], input[placeholder="Account"]').first.fill(SITE_USER)
-            await page.locator('input[type="password"]').first.fill(SITE_PASS)
+            # 登入欄位：用 click+type 觸發框架的 input/change 事件
+            account_input = page.locator('input[type="email"], input[placeholder="Account"]').first
+            await account_input.click()
+            await account_input.type(SITE_USER, delay=50)
 
-            # 點擊前先截圖確認頁面狀態
-            logger.info(f"[Whitelist] 準備點擊登入，當前URL={page.url}, title={await page.title()}")
+            pw_input = page.locator('input[type="password"]').first
+            await pw_input.click()
+            await pw_input.type(SITE_PASS, delay=50)
 
-            await page.locator('button:has-text("Sign In"), button[type="submit"]').first.click()
+            logger.info(f"[Whitelist] 準備送出登入，URL={page.url}")
+
+            # 按 Enter 送出（比 click 更可靠，規避 type=button 的 JS 依賴）
+            await pw_input.press("Enter")
 
             # 等待導航離開 /login 頁面（最多 15 秒）
             try:
                 await page.wait_for_url(lambda u: '/login' not in u, timeout=15000)
             except Exception:
-                # 若仍在 /login，把頁面文字印出來幫助 debug
-                page_text = await page.inner_text('body')
-                logger.error(f"[Whitelist] 登入失敗，頁面內容前200字：{page_text[:200]}")
-                return False, None
+                # 嘗試再點一次 Sign In 按鈕
+                try:
+                    await page.locator('button:has-text("Sign In")').first.click()
+                    await page.wait_for_url(lambda u: '/login' not in u, timeout=10000)
+                except Exception:
+                    page_text = await page.inner_text('body')
+                    logger.error(f"[Whitelist] 登入失敗，頁面內容前300字：{page_text[:300]}")
+                    return False, None
 
             logger.info(f"[Whitelist] 登入成功，URL={page.url}")
 
