@@ -151,25 +151,30 @@ class BotManager:
         if bot_record.whitelist_enabled:
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
             if detect_whitelist_request(text):
-                vendor_code, username_parts, ips = parse_whitelist_request(text)
-                if username_parts and ips:
-                    logger.info(f"Bot {bot_id} 偵測到白名單請求：username_parts={username_parts}, IPs={ips}")
-                    try:
-                        success, matched_vendor = await asyncio.to_thread(run_whitelist_sync, username_parts, ips)
-                    except Exception as e:
-                        logger.error(f"Bot {bot_id} 白名單自動化例外：{e}", exc_info=True)
-                        success, matched_vendor = False, None
-                    log_vendor = matched_vendor or vendor_code or "unknown"
-                    _save_whitelist_log(bot_id, chat_id, chat_name,
-                                        log_vendor, "\n".join(ips),
-                                        "success" if success else "failed", db)
-                    if success:
+                vendor_code, all_parts, ips = parse_whitelist_request(text)
+                if all_parts and ips:
+                    logger.info(f"Bot {bot_id} 偵測到白名單請求：帳號數={len(all_parts)}, IPs={ips}")
+                    all_success = True
+                    for username_parts in all_parts:
+                        logger.info(f"Bot {bot_id} 處理帳號：{username_parts}")
+                        try:
+                            success, matched_vendor = await asyncio.to_thread(run_whitelist_sync, username_parts, ips)
+                        except Exception as e:
+                            logger.error(f"Bot {bot_id} 白名單自動化例外：{e}", exc_info=True)
+                            success, matched_vendor = False, None
+                        log_vendor = matched_vendor or (username_parts[0] if username_parts else "unknown")
+                        _save_whitelist_log(bot_id, chat_id, chat_name,
+                                            log_vendor, "\n".join(ips),
+                                            "success" if success else "failed", db)
+                        if not success:
+                            all_success = False
+                    if all_success:
                         await update.message.reply_text("Done")
                         threading.Thread(
                             target=_create_freshdesk_ticket_bg,
-                            args=(text, "已添加完畢", chat_name), daemon=True
+                            args=(text, "Done", chat_name), daemon=True
                         ).start()
-                    # 失敗時靜默，不回覆、不建工單
+                    # 任一失敗時靜默，不回覆、不建工單
                     return
                 else:
                     logger.warning(f"Bot {bot_id} 白名單請求解析失敗（無法取得廠商或IP）")

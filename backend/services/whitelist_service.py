@@ -31,23 +31,43 @@ def detect_whitelist_request(text: str) -> bool:
     return any(kw in lower for kw in _BO_KEYWORDS) and bool(_IP_RE.search(text))
 
 
-def parse_whitelist_request(text: str) -> tuple[Optional[str], list[str], list[str]]:
-    """回傳 (vendor_code, username_parts, ip_list)"""
-    vendor_code = None
-    username_parts: list[str] = []
-
-    m = re.search(
+def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], list[str]]:
+    """
+    回傳 (vendor_code, list_of_username_parts, ip_list)
+    list_of_username_parts 可能含多組（訊息內多個代理帳號）
+    """
+    _USERNAME_RE = re.compile(
         r'(?:Username|代理[帐账]号|User(?:name)?|后台帐号|帳號|后台账号|ID)\s*[：:]\s*([A-Za-z0-9_\-]+)',
-        text, re.IGNORECASE
+        re.IGNORECASE
     )
-    if m:
-        username = m.group(1).strip()
-        username_parts = [p for p in re.split(r'[_\-]', username) if p]
-        if username_parts:
-            vendor_code = username_parts[0].upper()
+    _TOKEN_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_\-]{3,}$')
 
+    all_usernames: list[str] = []
+
+    m = _USERNAME_RE.search(text)
+    if m:
+        all_usernames.append(m.group(1).strip())
+        # 找 label 之後的行，若像帳號格式（英數底線）也納入
+        rest = text[m.end():]
+        for line in rest.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # 遇到 IP 行或關鍵字行就停止
+            if _IP_RE.search(line):
+                break
+            if _TOKEN_RE.match(line):
+                all_usernames.append(line)
+
+    all_parts = []
+    for u in all_usernames:
+        parts = [p for p in re.split(r'[_\-]', u) if p]
+        if parts:
+            all_parts.append(parts)
+
+    vendor_code = all_parts[0][0].upper() if all_parts else None
     ips = _IP_RE.findall(text)
-    return vendor_code, username_parts, ips
+    return vendor_code, all_parts, ips
 
 
 def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool, Optional[str]]:
