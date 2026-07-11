@@ -94,119 +94,84 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
 
         try:
             # ── Step 1：登入 ────────────────────────────────
-            logger.info("[Whitelist] 開啟登入頁面")
-            await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=30000)
+            base = SITE_URL.rstrip('/').rsplit('/admin', 1)[0]
+            login_url = base + '/admin/index'
+            logger.info(f"[Whitelist] 開啟登入頁面 {login_url}")
+            await page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
 
-            # 填入帳號（嘗試多種 selector）
-            await page.locator(
-                'input[name="username"], input[name="account"], '
-                'input[placeholder*="帳號"], input[placeholder*="账号"], '
-                'input[placeholder*="Username"], input[type="text"]'
-            ).first.fill(SITE_USER)
-
+            # 登入欄位：type="email" placeholder="Account"
+            await page.locator('input[type="email"], input[placeholder="Account"]').first.fill(SITE_USER)
             await page.locator('input[type="password"]').first.fill(SITE_PASS)
-
-            await page.locator(
-                'button[type="submit"], input[type="submit"], '
-                'button:has-text("登入"), button:has-text("登录"), '
-                'button:has-text("Login")'
-            ).first.click()
-
+            await page.locator('button:has-text("Sign In"), button[type="submit"]').first.click()
             await page.wait_for_load_state("networkidle", timeout=15000)
             logger.info(f"[Whitelist] 登入完成，URL={page.url}")
 
-            # ── Step 2：點選主選單「維護」 ──────────────────
-            await page.locator(':text("維護"), :text("维护"), :text("Maintenance")').first.click()
-            await page.wait_for_timeout(600)
-            logger.info("[Whitelist] 已點選「維護」選單")
-
-            # ── Step 3：點選「白名單設定工具」 ─────────────
-            await page.locator(
-                ':text("白名單設定工具"), :text("白名单设置工具"), '
-                ':text("白名单"), :text("白名單")'
-            ).first.click()
-            await page.wait_for_load_state("networkidle", timeout=10000)
+            # ── Step 2：直接導航到白名單設定工具 ────────────
+            wl_url = base + '/admin/maintenance/white-list-ip-setting'
+            await page.goto(wl_url, wait_until="networkidle", timeout=20000)
             logger.info("[Whitelist] 已進入白名單設定工具")
 
-            # ── Step 4：點選右上角「新增」 ──────────────────
-            await page.locator(
-                'button:has-text("新增"), a:has-text("新增"), :text("新增")'
-            ).first.click()
+            # ── Step 3：點選「新增」開啟表單 ─────────────────
+            await page.locator('button:has-text("新增")').first.click()
             await page.wait_for_timeout(800)
             logger.info("[Whitelist] 已開啟新增表單")
 
-            # ── Step 5：選擇類型 = 後台登入白名單IP ─────────
-            # 取得頁面中所有 <select>，第一個通常是類型
-            selects = page.locator('select')
-            count = await selects.count()
-            logger.info(f"[Whitelist] 偵測到 {count} 個 <select> 元素")
+            # ── Step 4：選擇類型 = 後台登入白名單IP（value=10）
+            # 這是 Bootstrap selectpicker，用 JS 設值後觸發 change
+            await page.evaluate(
+                "() => { var s=document.getElementById('createType'); s.value='10'; $(s).selectpicker('refresh'); $(s).trigger('change'); }"
+            )
+            logger.info("[Whitelist] 類型已設為後台登入白名單IP")
 
-            type_select = selects.nth(0)
-            # 嘗試依 label 選取
-            try:
-                await type_select.select_option(label="後台登入白名單IP")
-            except Exception:
-                # 若失敗，嘗試 value 或文字包含
-                options = await type_select.locator('option').all()
-                for opt in options:
-                    t = (await opt.inner_text()).strip()
-                    if "後台" in t or "后台" in t or "BO" in t.upper():
-                        v = await opt.get_attribute('value')
-                        await type_select.select_option(value=v)
-                        logger.info(f"[Whitelist] 類型已選：{t}")
-                        break
-            logger.info("[Whitelist] 類型選擇完成")
-
-            # ── Step 6：選擇廠商名稱（逐段累加比對）─────────
-            # 策略：先用第一段 XX 找，若有多個重複選項則加上 YY 再找，
-            # 直到唯一匹配或所有段都用完；完全找不到則中止。
-            vendor_select = selects.nth(1)
-            all_opts = []
-            for opt in await vendor_select.locator('option').all():
-                t = (await opt.inner_text()).strip()
-                v = await opt.get_attribute('value')
-                if t and v:
-                    all_opts.append((t, v))
+            # ── Step 5：從 #createApiId 取所有選項並逐段比對廠商 ──
+            # 選項格式：「數字_廠商名稱」，如「2182_eswn」
+            # 比對策略：username 分段後以 _ 拼接前 i 段，在選項名稱（底線後）找含該字串者
+            all_opts = await page.evaluate("""
+                () => Array.from(document.getElementById('createApiId').options)
+                     .filter(o => o.value)
+                     .map(o => ({val: o.value, txt: o.text.trim()}))
+            """)
 
             matched_value = None
             matched_text = None
 
             for i in range(1, len(username_parts) + 1):
                 prefix = '_'.join(username_parts[:i]).upper()
-                candidates = [(t, v) for t, v in all_opts if t.upper().startswith(prefix)]
+                # 選項文字格式 "數字_XXX_YYY"，取底線後的部分做比對
+                candidates = [
+                    o for o in all_opts
+                    if ('_' + prefix) in ('_' + o['txt'].upper().split('_', 1)[-1])
+                ]
                 logger.info(f"[Whitelist] 嘗試前綴 '{prefix}'，找到 {len(candidates)} 個候選")
 
                 if len(candidates) == 1:
-                    matched_text, matched_value = candidates[0]
+                    matched_text = candidates[0]['txt']
+                    matched_value = candidates[0]['val']
                     logger.info(f"[Whitelist] 唯一匹配廠商：{matched_text}")
                     break
                 elif len(candidates) == 0:
-                    # 加長後反而消失，代表前一輪多重匹配中找不到更精確結果
                     logger.error(f"[Whitelist] 前綴 '{prefix}' 無任何匹配，中止")
                     break
-                # 多個匹配 → 繼續加下一段
 
             if not matched_value:
-                logger.error(f"[Whitelist] 廠商名稱無法確定，可用選項：")
-                for t, _ in all_opts:
-                    logger.error(f"  - {t}")
+                sample = [o['txt'] for o in all_opts[:20]]
+                logger.error(f"[Whitelist] 廠商名稱無法確定，前20選項樣本：{sample}")
                 return False, None
 
-            await vendor_select.select_option(value=matched_value)
+            # 用 JS 設定廠商選項並觸發 selectpicker 更新
+            await page.evaluate(
+                f"() => {{ var s=document.getElementById('createApiId'); s.value='{matched_value}'; $(s).selectpicker('refresh'); $(s).trigger('change'); }}"
+            )
             logger.info(f"[Whitelist] 廠商已選：{matched_text}")
 
-            # ── Step 7：填入 IP ──────────────────────────────
-            await page.locator('textarea').first.fill(ip_text)
+            # ── Step 6：填入 IP ──────────────────────────────
+            await page.locator('textarea[placeholder*="IP"]').first.fill(ip_text)
             logger.info(f"[Whitelist] IP 已填入：{ips}")
 
-            # ── Step 8：送出 ────────────────────────────────
-            await page.locator(
-                'button:has-text("確認"), button:has-text("送出"), '
-                'button:has-text("確定"), button:has-text("保存"), '
-                'button:has-text("Submit"), button[type="submit"]:not([style*="display:none"])'
-            ).first.click()
+            # ── Step 7：點選「儲存」 ─────────────────────────
+            await page.locator('button:has-text("儲存")').first.click()
             await page.wait_for_load_state("networkidle", timeout=10000)
-            await page.wait_for_timeout(500)
+            await page.wait_for_timeout(800)
             logger.info(f"[Whitelist] 自動化完成：廠商={matched_text}, IPs={ips}")
             return True, matched_text
 
