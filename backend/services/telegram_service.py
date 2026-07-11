@@ -151,19 +151,20 @@ class BotManager:
         if bot_record.whitelist_enabled:
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
             if detect_whitelist_request(text):
-                vendor_code, ips = parse_whitelist_request(text)
-                if vendor_code and ips:
-                    logger.info(f"Bot {bot_id} 偵測到白名單請求：廠商={vendor_code}, IPs={ips}")
+                vendor_code, username_parts, ips = parse_whitelist_request(text)
+                if username_parts and ips:
+                    logger.info(f"Bot {bot_id} 偵測到白名單請求：username_parts={username_parts}, IPs={ips}")
                     try:
-                        success = await asyncio.to_thread(run_whitelist_sync, vendor_code, ips)
+                        success, matched_vendor = await asyncio.to_thread(run_whitelist_sync, username_parts, ips)
                     except Exception as e:
                         logger.error(f"Bot {bot_id} 白名單自動化例外：{e}", exc_info=True)
-                        success = False
+                        success, matched_vendor = False, None
                     reply_wl = "已添加完畢" if success else "自動添加失敗，請手動處理"
                     await update.message.reply_text(reply_wl)
                     # 記錄到白名單 log
+                    log_vendor = matched_vendor or vendor_code or "unknown"
                     _save_whitelist_log(bot_id, chat_id, chat_name,
-                                        vendor_code, "\n".join(ips),
+                                        log_vendor, "\n".join(ips),
                                         "success" if success else "failed", db)
                     # Freshdesk 建單
                     threading.Thread(

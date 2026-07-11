@@ -38,42 +38,48 @@ def detect_whitelist_request(text: str) -> bool:
     return has_bo_kw and has_ip
 
 
-def parse_whitelist_request(text: str) -> tuple[Optional[str], list[str]]:
+def parse_whitelist_request(text: str) -> tuple[Optional[str], list[str], list[str]]:
     """
-    解析訊息，回傳 (vendor_code, ip_list)
-    - vendor_code: Username 第一段（例：JK_ongcuci_MYR → JK）
-    - ip_list: 所有偵測到的 IP
+    解析訊息，回傳 (vendor_code, username_parts, ip_list)
+    - vendor_code:     第一段（供 log 顯示用）
+    - username_parts:  所有分段（供逐段累加比對廠商名稱）
+                       例：JK_ongcuci_MYR → ['JK', 'ongcuci', 'MYR']
+                       例：TitanTR1_SCFLY_bk96_MYR → ['TitanTR1', 'SCFLY', 'bk96', 'MYR']
+    - ip_list:         所有偵測到的 IP
     """
     vendor_code = None
+    username_parts: list[str] = []
+
     username_m = re.search(
         r'(?:Username|代理[帐账]号|User(?:name)?|后台帐号|帳號|后台账号|ID)\s*[：:]\s*([A-Za-z0-9_\-]+)',
         text, re.IGNORECASE
     )
     if username_m:
         username = username_m.group(1).strip()
-        parts = re.split(r'[_\-]', username)
-        if parts and parts[0]:
-            vendor_code = parts[0].upper()
+        username_parts = re.split(r'[_\-]', username)
+        username_parts = [p for p in username_parts if p]
+        if username_parts:
+            vendor_code = username_parts[0].upper()
 
     ips = _IP_RE.findall(text)
-    return vendor_code, ips
+    return vendor_code, username_parts, ips
 
 
-def run_whitelist_sync(vendor_code: str, ips: list[str]) -> bool:
-    """同步包裝，供 asyncio.to_thread 呼叫（在獨立 event loop 執行 Playwright）"""
-    return asyncio.run(_do_add_whitelist(vendor_code, ips))
+def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool, Optional[str]]:
+    """同步包裝，供 asyncio.to_thread 呼叫，回傳 (成功與否, 最終匹配的廠商名稱)"""
+    return asyncio.run(_do_add_whitelist(username_parts, ips))
 
 
-async def _do_add_whitelist(vendor_code: str, ips: list[str]) -> bool:
-    """Playwright 自動化主流程"""
+async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[bool, Optional[str]]:
+    """Playwright 自動化主流程，回傳 (成功與否, 最終匹配到的廠商名稱)"""
     try:
         from playwright.async_api import async_playwright
     except ImportError:
-        logger.error("[Whitelist] playwright 套件未安裝，請執行：playwright install chromium --with-deps")
-        return False
+        logger.error("[Whitelist] playwright 套件未安裝，請執行：playwright install chromium")
+        return False, None
 
     ip_text = "\n".join(ips)
-    logger.info(f"[Whitelist] 開始自動化：廠商={vendor_code}, IPs={ips}")
+    logger.info(f"[Whitelist] 開始自動化：username_parts={username_parts}, IPs={ips}")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -148,25 +154,43 @@ async def _do_add_whitelist(vendor_code: str, ips: list[str]) -> bool:
                         break
             logger.info("[Whitelist] 類型選擇完成")
 
-            # ── Step 6：選擇廠商名稱 ────────────────────────
+            # ── Step 6：選擇廠商名稱（逐段累加比對）─────────
+            # 策略：先用第一段 XX 找，若有多個重複選項則加上 YY 再找，
+            # 直到唯一匹配或所有段都用完；完全找不到則中止。
             vendor_select = selects.nth(1)
-            options = await vendor_select.locator('option').all()
+            all_opts = []
+            for opt in await vendor_select.locator('option').all():
+                t = (await opt.inner_text()).strip()
+                v = await opt.get_attribute('value')
+                if t and v:
+                    all_opts.append((t, v))
+
             matched_value = None
-            for opt in options:
-                opt_text = (await opt.inner_text()).strip()
-                if vendor_code.upper() in opt_text.upper():
-                    matched_value = await opt.get_attribute('value')
-                    logger.info(f"[Whitelist] 找到廠商選項：{opt_text} (value={matched_value})")
+            matched_text = None
+
+            for i in range(1, len(username_parts) + 1):
+                prefix = '_'.join(username_parts[:i]).upper()
+                candidates = [(t, v) for t, v in all_opts if t.upper().startswith(prefix)]
+                logger.info(f"[Whitelist] 嘗試前綴 '{prefix}'，找到 {len(candidates)} 個候選")
+
+                if len(candidates) == 1:
+                    matched_text, matched_value = candidates[0]
+                    logger.info(f"[Whitelist] 唯一匹配廠商：{matched_text}")
                     break
+                elif len(candidates) == 0:
+                    # 加長後反而消失，代表前一輪多重匹配中找不到更精確結果
+                    logger.error(f"[Whitelist] 前綴 '{prefix}' 無任何匹配，中止")
+                    break
+                # 多個匹配 → 繼續加下一段
 
             if not matched_value:
-                logger.error(f"[Whitelist] 找不到廠商 '{vendor_code}' 對應的選項，可用選項：")
-                for opt in options:
-                    logger.error(f"  - {(await opt.inner_text()).strip()}")
-                return False
+                logger.error(f"[Whitelist] 廠商名稱無法確定，可用選項：")
+                for t, _ in all_opts:
+                    logger.error(f"  - {t}")
+                return False, None
 
             await vendor_select.select_option(value=matched_value)
-            logger.info(f"[Whitelist] 廠商已選：{vendor_code}")
+            logger.info(f"[Whitelist] 廠商已選：{matched_text}")
 
             # ── Step 7：填入 IP ──────────────────────────────
             await page.locator('textarea').first.fill(ip_text)
@@ -180,8 +204,8 @@ async def _do_add_whitelist(vendor_code: str, ips: list[str]) -> bool:
             ).first.click()
             await page.wait_for_load_state("networkidle", timeout=10000)
             await page.wait_for_timeout(500)
-            logger.info(f"[Whitelist] 自動化完成：廠商={vendor_code}, IPs={ips}")
-            return True
+            logger.info(f"[Whitelist] 自動化完成：廠商={matched_text}, IPs={ips}")
+            return True, matched_text
 
         except Exception as e:
             logger.error(f"[Whitelist] Playwright 步驟失敗：{e}", exc_info=True)
@@ -190,6 +214,6 @@ async def _do_add_whitelist(vendor_code: str, ips: list[str]) -> bool:
                 logger.info("[Whitelist] 錯誤截圖已儲存至 /tmp/whitelist_error.png")
             except Exception:
                 pass
-            return False
+            return False, None
         finally:
             await browser.close()
