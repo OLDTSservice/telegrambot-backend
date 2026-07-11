@@ -96,6 +96,7 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
 
         # mapping 結構：{ "apiId": { "name": "xxx", ... }, ... }
         # 或直接是 { "apiId": "name" }，需要探測
+        logger.info(f"[Whitelist] 廠商清單原始（前500字）：{raw[:500]}")
         logger.info(f"[Whitelist] 廠商清單筆數：{len(mapping)}，前3筆 key：{list(mapping.keys())[:3]}")
 
         # ── Step 3：逐段比對廠商名稱 ─────────────────────────
