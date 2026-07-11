@@ -127,14 +127,18 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool,
                 return False, None
 
             # ── Step 5：新增白名單 ────────────────────────────
+            import urllib.parse
             form_list = [("form[type][]", "10"), ("form[apiId][]", matched_id)]
             for ip in ips:
                 form_list.append(("form[ip][]", ip))
 
             save_r = client.post(
                 "/admin/maintenance/white-list-ip-settingForm",
-                data=form_list,
-                headers={"X-Requested-With": "XMLHttpRequest"},
+                content=urllib.parse.urlencode(form_list).encode(),
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
             )
             save_json = save_r.json()
             logger.info(f"[Whitelist] 儲存回應：{str(save_json)[:300]}")
