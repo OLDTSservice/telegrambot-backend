@@ -168,8 +168,13 @@ class BotManager:
                                             "success" if success else "failed", db)
                         if success:
                             any_success = True
+                    logger.info(f"Bot {bot_id} 白名單處理完畢，any_success={any_success}")
                     if any_success:
-                        await update.message.reply_text("Done")
+                        try:
+                            await update.message.reply_text("Done")
+                            logger.info(f"Bot {bot_id} 已回覆 Done")
+                        except Exception as e:
+                            logger.error(f"Bot {bot_id} 回覆 Done 失敗：{e}", exc_info=True)
                         threading.Thread(
                             target=_create_freshdesk_ticket_bg,
                             args=(text, "Done", chat_name), daemon=True
