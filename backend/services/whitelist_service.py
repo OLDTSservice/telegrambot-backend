@@ -78,6 +78,9 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
         logger.error("[Whitelist] playwright 套件未安裝，請執行：playwright install chromium")
         return False, None
 
+    import os as _os
+    _os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "/opt/render/project/src/pw-browsers")
+
     ip_text = "\n".join(ips)
     logger.info(f"[Whitelist] 開始自動化：username_parts={username_parts}, IPs={ips}")
 

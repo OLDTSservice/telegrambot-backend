@@ -159,18 +159,17 @@ class BotManager:
                     except Exception as e:
                         logger.error(f"Bot {bot_id} 白名單自動化例外：{e}", exc_info=True)
                         success, matched_vendor = False, None
-                    reply_wl = "已添加完畢" if success else "自動添加失敗，請手動處理"
-                    await update.message.reply_text(reply_wl)
-                    # 記錄到白名單 log
                     log_vendor = matched_vendor or vendor_code or "unknown"
                     _save_whitelist_log(bot_id, chat_id, chat_name,
                                         log_vendor, "\n".join(ips),
                                         "success" if success else "failed", db)
-                    # Freshdesk 建單
-                    threading.Thread(
-                        target=_create_freshdesk_ticket_bg,
-                        args=(text, reply_wl, chat_name), daemon=True
-                    ).start()
+                    if success:
+                        await update.message.reply_text("已添加完畢")
+                        threading.Thread(
+                            target=_create_freshdesk_ticket_bg,
+                            args=(text, "已添加完畢", chat_name), daemon=True
+                        ).start()
+                    # 失敗時靜默，不回覆、不建工單
                     return
                 else:
                     logger.warning(f"Bot {bot_id} 白名單請求解析失敗（無法取得廠商或IP）")
