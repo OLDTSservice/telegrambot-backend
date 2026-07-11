@@ -99,34 +99,21 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
             logger.info(f"[Whitelist] 開啟登入頁面 {login_url}")
             await page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
 
-            # 登入欄位：用 click+type 觸發框架的 input/change 事件
-            account_input = page.locator('input[type="email"], input[placeholder="Account"]').first
-            await account_input.click()
-            await account_input.type(SITE_USER, delay=50)
+            # 登入：直接呼叫 /do-login API（繞過 reCAPTCHA）
+            # 網站登入按鈕需要 reCAPTCHA，但後端 /do-login 本身不驗 token
+            login_api = base + '/do-login'
+            login_resp = await page.request.post(
+                login_api,
+                form={"account": SITE_USER, "password": SITE_PASS, "rememberMe": "0"},
+            )
+            login_json = await login_resp.json()
+            logger.info(f"[Whitelist] 登入 API 回應：{str(login_json)[:200]}")
 
-            pw_input = page.locator('input[type="password"]').first
-            await pw_input.click()
-            await pw_input.type(SITE_PASS, delay=50)
+            if login_json.get("response", {}).get("error", -1) != 0:
+                logger.error(f"[Whitelist] 登入失敗：{login_json}")
+                return False, None
 
-            logger.info(f"[Whitelist] 準備送出登入，URL={page.url}")
-
-            # 按 Enter 送出（比 click 更可靠，規避 type=button 的 JS 依賴）
-            await pw_input.press("Enter")
-
-            # 等待導航離開 /login 頁面（最多 15 秒）
-            try:
-                await page.wait_for_url(lambda u: '/login' not in u, timeout=15000)
-            except Exception:
-                # 嘗試再點一次 Sign In 按鈕
-                try:
-                    await page.locator('button:has-text("Sign In")').first.click()
-                    await page.wait_for_url(lambda u: '/login' not in u, timeout=10000)
-                except Exception:
-                    page_text = await page.inner_text('body')
-                    logger.error(f"[Whitelist] 登入失敗，頁面內容前300字：{page_text[:300]}")
-                    return False, None
-
-            logger.info(f"[Whitelist] 登入成功，URL={page.url}")
+            logger.info("[Whitelist] 登入成功")
 
             # ── Step 2：直接導航到白名單設定工具 ────────────
             wl_url = base + '/admin/maintenance/white-list-ip-setting'
