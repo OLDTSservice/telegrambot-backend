@@ -14,7 +14,23 @@
       "Bash(python -c ' *)",
       "PowerShell(Get-Command python3 -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Command python -ErrorAction SilentlyContinue)",
-      "PowerShell(Get-Command py -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Command py -ErrorAction SilentlyContinue)",
+      "Bash(npm run *)",
+      "Bash(npx netlify-cli *)",
+      "Bash(curl -s -X POST https://api.netlify.com/api/v1/sites/tg-admin-backend.netlify.app/deploys -H 'Authorization: Bearer nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450' -H 'Content-Type: application/json')",
+      "Bash(curl -s https://api.netlify.com/api/v1/sites/55f92e6d-3d2b-48ed-8c6e-60be4e6638ac/deploys?per_page=3 -H 'Authorization: Bearer nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(x['state'], x.get\\('commit_ref',''\\)[:8], x.get\\('deploy_ssl_url',''\\), x.get\\('created_at',''\\)[:19]\\) for x in d]\")",
+      "Bash(curl -s \"https://api.netlify.com/api/v1/sites/55f92e6d-3d2b-48ed-8c6e-60be4e6638ac/deploys?per_page=3\" -H \"Authorization: Bearer nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450\" > C:/Temp/netlify.json 2>&1; type C:/Temp/netlify.json)",
+      "PowerShell($r = Invoke-RestMethod \"https://api.netlify.com/api/v1/sites/55f92e6d-3d2b-48ed-8c6e-60be4e6638ac/deploys?per_page=5\" -Headers @{Authorization=\"Bearer nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450\"}; $r | Select-Object state, commit_ref, created_at, @{n='branch';e={$_.branch}} | Format-Table)",
+      "PowerShell($site = Invoke-RestMethod \"https://api.netlify.com/api/v1/sites/55f92e6d-3d2b-48ed-8c6e-60be4e6638ac\" -Headers @{Authorization=\"Bearer nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450\"}; $site.build_settings | Select-Object repo_branch, provider, repo_path)",
+      "Bash(git ls-remote *)",
+      "Bash(npx netlify *)",
+      "Bash(npm install *)",
+      "Bash(NETLIFY_AUTH_TOKEN=nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450 npx netlify deploy --dir=frontend/dist --site=55f92e6d-3d2b-48ed-8c6e-60be4e6638ac --prod)",
+      "Bash(git commit -m 'fix: 管控模式下所有訊息均顯示於 live monitor（無 KB 答案亦顯示，等待管理員手動回覆） *)",
+      "Bash(NETLIFY_AUTH_TOKEN=nfp_6LfUKq2zKCH1GzWbciFYj1jVCJkp73MTf450 npx netlify deploy --dir=dist --site=55f92e6d-3d2b-48ed-8c6e-60be4e6638ac --prod --no-build)",
+      "WebFetch(domain:freshdesk-ticket-creation.onrender.com)",
+      "Bash(git commit -m 'feat: 整合 Freshdesk 自動建單（關鍵字回覆與 KB 回覆後背景建單） *)"
     ]
   }
 }

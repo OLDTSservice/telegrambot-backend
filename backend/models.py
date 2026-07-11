@@ -27,7 +27,8 @@ class TelegramBot(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    is_managed = Column(Boolean, default=False)  # 即時對話管控總開關
+    is_managed = Column(Boolean, default=False)       # 即時對話管控總開關
+    whitelist_enabled = Column(Boolean, default=False) # 後台白名單自動處理開關
 
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
@@ -35,6 +36,7 @@ class TelegramBot(Base):
     ignores = relationship("TelegramIgnore", back_populates="bot", cascade="all, delete-orphan")
     group_stats = relationship("TelegramGroupStat", back_populates="bot", cascade="all, delete-orphan")
     live_messages = relationship("TelegramMessage", back_populates="bot", cascade="all, delete-orphan")
+    whitelist_logs = relationship("WhitelistLog", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -147,6 +149,23 @@ class TelegramPendingReply(Base):
     sent_at = Column(DateTime, nullable=True)
 
     message = relationship("TelegramMessage", back_populates="pending_reply")
+
+
+# ── Whitelist Log ─────────────────────────────────────────────────────────
+class WhitelistLog(Base):
+    """後台白名單自動處理記錄"""
+    __tablename__ = "whitelist_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    vendor_name = Column(String(64), nullable=False)   # 廠商代碼（從 Username 第一段取得）
+    ip_list = Column(Text, nullable=False)              # 換行分隔的 IP 列表
+    status = Column(String(16), default="success")     # success / failed
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="whitelist_logs")
 
 
 # ── Teams Bot ──────────────────────────────────────────────────────────────

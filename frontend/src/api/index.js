@@ -97,6 +97,10 @@ export const getTeamsGroupStats = (period, value, botId) =>
 export const getTeamsTrend = (period, value, botId) =>
   api.get('/group-stats/teams/trend', { params: { period, value, bot_id: botId || undefined } })
 
+// ── Whitelist 後台白名單處理 ───────────────────
+export const getWhitelistLogs = (botId, limit = 10) =>
+  api.get('/whitelist/logs', { params: { bot_id: botId, limit } })
+
 // ── Telegram Live 即時對話管控 ─────────────────
 export const getLiveGroups = (botId) => api.get('/telegram-live/groups', { params: { bot_id: botId } })
 export const getLiveMessages = (botId, chatId) => api.get('/telegram-live/messages', { params: { bot_id: botId, chat_id: chatId } })

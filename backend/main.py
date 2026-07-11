@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from database import engine, SessionLocal
 import models
 from auth import hash_password
-from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live
+from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live, whitelist
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,6 +17,7 @@ def _migrate_columns():
     """為既有資料表補齊新增欄位（SQLite 不支援 ALTER TABLE … IF NOT EXISTS，用 try/except）"""
     migrations = [
         "ALTER TABLE telegram_bots ADD COLUMN is_managed BOOLEAN DEFAULT 0",
+        "ALTER TABLE telegram_bots ADD COLUMN whitelist_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_messages ADD COLUMN telegram_message_id INTEGER",
     ]
     with engine.connect() as conn:
@@ -94,6 +95,7 @@ app.include_router(telegram_ignores.router)
 app.include_router(teams_ignores.router)
 app.include_router(group_stats.router)
 app.include_router(telegram_live.router)
+app.include_router(whitelist.router)
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

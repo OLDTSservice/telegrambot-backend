@@ -55,12 +55,14 @@ class BotUpdate(BaseModel):
     token: Optional[str] = None
     is_enabled: Optional[bool] = None
     is_managed: Optional[bool] = None
+    whitelist_enabled: Optional[bool] = None
 
 
 class BotOut(BotBase):
     id: int
     is_enabled: bool
     is_managed: bool = False
+    whitelist_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -114,6 +116,19 @@ class LiveSendRequest(BaseModel):
 
 class PendingReplyUpdate(BaseModel):
     reply_text: str
+
+
+# ── WhitelistLog ───────────────────────────────────
+class WhitelistLogOut(BaseModel):
+    id: int
+    chat_name: str
+    vendor_name: str
+    ip_list: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ── KeywordRule ────────────────────────────────────

@@ -147,6 +147,33 @@ class BotManager:
 
         is_managed = bool(bot_record.is_managed)
 
+        # 0.5. 後台白名單自動處理（優先於關鍵字/KB，管控模式下仍執行）
+        if bot_record.whitelist_enabled:
+            from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
+            if detect_whitelist_request(text):
+                vendor_code, ips = parse_whitelist_request(text)
+                if vendor_code and ips:
+                    logger.info(f"Bot {bot_id} 偵測到白名單請求：廠商={vendor_code}, IPs={ips}")
+                    try:
+                        success = await asyncio.to_thread(run_whitelist_sync, vendor_code, ips)
+                    except Exception as e:
+                        logger.error(f"Bot {bot_id} 白名單自動化例外：{e}", exc_info=True)
+                        success = False
+                    reply_wl = "已添加完畢" if success else "自動添加失敗，請手動處理"
+                    await update.message.reply_text(reply_wl)
+                    # 記錄到白名單 log
+                    _save_whitelist_log(bot_id, chat_id, chat_name,
+                                        vendor_code, "\n".join(ips),
+                                        "success" if success else "failed", db)
+                    # Freshdesk 建單
+                    threading.Thread(
+                        target=_create_freshdesk_ticket_bg,
+                        args=(text, reply_wl, chat_name), daemon=True
+                    ).start()
+                    return
+                else:
+                    logger.warning(f"Bot {bot_id} 白名單請求解析失敗（無法取得廠商或IP）")
+
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
             models.KeywordRule.bot_id == bot_id,
@@ -276,6 +303,20 @@ def start_all_enabled_bots(db):
             bot_manager.start_bot(bot.id, bot.token, db)
         except Exception as e:
             logger.error(f"啟動機器人 {bot.id} 失敗：{e}")
+
+
+def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status, db):
+    import models
+    log = models.WhitelistLog(
+        bot_id=bot_id, chat_id=chat_id, chat_name=chat_name,
+        vendor_name=vendor_name, ip_list=ip_list, status=status,
+    )
+    db.add(log)
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"儲存白名單 log 失敗：{e}")
+        db.rollback()
 
 
 def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
