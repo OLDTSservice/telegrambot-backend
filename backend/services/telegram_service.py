@@ -154,7 +154,7 @@ class BotManager:
                 vendor_code, all_parts, ips = parse_whitelist_request(text)
                 if all_parts and ips:
                     logger.info(f"Bot {bot_id} 偵測到白名單請求：帳號數={len(all_parts)}, IPs={ips}")
-                    all_success = True
+                    any_success = False
                     for username_parts in all_parts:
                         logger.info(f"Bot {bot_id} 處理帳號：{username_parts}")
                         try:
@@ -166,15 +166,15 @@ class BotManager:
                         _save_whitelist_log(bot_id, chat_id, chat_name,
                                             log_vendor, "\n".join(ips),
                                             "success" if success else "failed", db)
-                        if not success:
-                            all_success = False
-                    if all_success:
+                        if success:
+                            any_success = True
+                    if any_success:
                         await update.message.reply_text("Done")
                         threading.Thread(
                             target=_create_freshdesk_ticket_bg,
                             args=(text, "Done", chat_name), daemon=True
                         ).start()
-                    # 任一失敗時靜默，不回覆、不建工單
+                    # 全部失敗時靜默，不回覆、不建工單
                     return
                 else:
                     logger.warning(f"Bot {bot_id} 白名單請求解析失敗（無法取得廠商或IP）")
