@@ -102,9 +102,22 @@ async def _do_add_whitelist(username_parts: list[str], ips: list[str]) -> tuple[
             # 登入欄位：type="email" placeholder="Account"
             await page.locator('input[type="email"], input[placeholder="Account"]').first.fill(SITE_USER)
             await page.locator('input[type="password"]').first.fill(SITE_PASS)
+
+            # 點擊前先截圖確認頁面狀態
+            logger.info(f"[Whitelist] 準備點擊登入，當前URL={page.url}, title={await page.title()}")
+
             await page.locator('button:has-text("Sign In"), button[type="submit"]').first.click()
-            await page.wait_for_load_state("networkidle", timeout=15000)
-            logger.info(f"[Whitelist] 登入完成，URL={page.url}")
+
+            # 等待導航離開 /login 頁面（最多 15 秒）
+            try:
+                await page.wait_for_url(lambda u: '/login' not in u, timeout=15000)
+            except Exception:
+                # 若仍在 /login，把頁面文字印出來幫助 debug
+                page_text = await page.inner_text('body')
+                logger.error(f"[Whitelist] 登入失敗，頁面內容前200字：{page_text[:200]}")
+                return False, None
+
+            logger.info(f"[Whitelist] 登入成功，URL={page.url}")
 
             # ── Step 2：直接導航到白名單設定工具 ────────────
             wl_url = base + '/admin/maintenance/white-list-ip-setting'
