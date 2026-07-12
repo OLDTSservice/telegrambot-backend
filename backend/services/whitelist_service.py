@@ -124,6 +124,8 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool,
             # ── Step 4：逐段比對廠商名稱 ──────────────────────
             matched_id = None
             matched_name = None
+            full_username = '_'.join(username_parts).upper()
+            prev_candidates = []
 
             for i in range(1, len(username_parts) + 1):
                 prefix = '_'.join(username_parts[:i]).upper()
@@ -139,8 +141,20 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool,
                     logger.info(f"[Whitelist] 唯一匹配：id={matched_id}, name={matched_name}")
                     break
                 elif len(candidates) == 0:
-                    logger.error(f"[Whitelist] 前綴 '{prefix}' 無匹配，中止")
+                    # fallback：從上一輪候選中篩選完整帳號以該廠商名稱為前綴的
+                    fallback = [
+                        (api_id, name)
+                        for api_id, name in prev_candidates
+                        if full_username == name.upper() or full_username.startswith(name.upper() + '_')
+                    ]
+                    logger.info(f"[Whitelist] 前綴 '{prefix}' 無匹配，fallback 候選：{[(n) for _, n in fallback]}")
+                    if len(fallback) == 1:
+                        matched_id, matched_name = fallback[0]
+                        logger.info(f"[Whitelist] Fallback 唯一匹配：id={matched_id}, name={matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
                     break
+                prev_candidates = candidates
 
             if not matched_id:
                 logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
