@@ -157,8 +157,30 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool,
                     break
                 prev_candidates = candidates
 
+            # ── Step 4b：第二層 fallback — 廠商名稱為帳號第一段的前綴（取最長匹配）
             if not matched_id:
-                logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
+                first_segment = username_parts[0].upper()
+                prefix_matches = [
+                    (api_id, name)
+                    for api_id, name in all_vendors
+                    if first_segment.startswith(name.upper()) and len(name) > 1
+                ]
+                if prefix_matches:
+                    # 取廠商名稱最長的那一筆（最精確）
+                    best = max(prefix_matches, key=lambda x: len(x[1]))
+                    # 確認沒有其他同長度的競爭者
+                    best_len = len(best[1])
+                    same_len = [x for x in prefix_matches if len(x[1]) == best_len]
+                    logger.info(f"[Whitelist] 第二層 fallback：第一段='{first_segment}'，候選={[(n) for _, n in prefix_matches]}，最長={best[1]}")
+                    if len(same_len) == 1:
+                        matched_id, matched_name = best
+                        logger.info(f"[Whitelist] 第二層 fallback 匹配：id={matched_id}, name={matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
+                else:
+                    logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
+
+            if not matched_id:
                 return False, None
 
             # ── Step 5：新增白名單 ────────────────────────────
