@@ -17,7 +17,7 @@ SITE_PASS = os.getenv("WHITELIST_SITE_PASS", "Igs22995048")
 
 _BO_KEYWORDS = [
     "whitelist bo ip", "bo ip", "backend ip", "whitelist bo",
-    "加白后台ip", "加白后台", "白名单ip", "後台ip", "白名單ip",
+    "加白后台ip", "加白后台", "後台ip",
     "加白後台", "whitelist backend",
     "backoffice ip whitelist", "backoffice ip",
 ]
