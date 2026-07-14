@@ -157,32 +157,8 @@ def _extract_tokens(text: str) -> set[str]:
 
 
 def _score_chunks(question: str, chunks) -> list[str]:
-    """
-    評分邏輯：
-    - 主分：命中不同 token 的數量（unique_hits），避免單詞重複出現的 chunk 霸榜
-    - 次分：所有 token 出現總次數（total_hits），作為同主分時的排序依據
-    - 回傳 Top 8（原為 5），讓 Claude 有更多上下文可用
-    - 若最高分為 0（完全無匹配），直接回傳空串列，由呼叫端跳過 Claude 呼叫
-    """
-    tokens = _extract_tokens(question)
-
-    if not tokens:
-        return [c.chunk_text for c in chunks[:8]]
-
-    scored = []
-    for chunk in chunks:
-        text_lower = chunk.chunk_text.lower()
-        unique_hits = sum(1 for t in tokens if t in text_lower)
-        total_hits = sum(text_lower.count(t) for t in tokens)
-        scored.append((unique_hits, total_hits, chunk.chunk_text))
-
-    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
-
-    # 最高 unique_hits 為 0 → 完全無匹配，不呼叫 Claude
-    if scored[0][0] == 0:
-        return []
-
-    return [text for _, _, text in scored[:8]]
+    """所有 chunk 直接送給 Claude，由 Claude 判斷語意相關性"""
+    return [c.chunk_text for c in chunks]
 
 
 # ── 知識庫查詢（Telegram）────────────────────────────────────────────────────
@@ -221,9 +197,6 @@ def query_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple]:
             return None
 
         top_chunks = _score_chunks(question, all_chunks)
-        if not top_chunks:
-            logger.info(f"Bot {bot_id} 無任何 chunk 命中查詢 token，跳過 Claude 呼叫")
-            return None, 0, 0
         return _call_claude(question, top_chunks, bot_id)
     finally:
         if own_db:
@@ -260,9 +233,6 @@ def query_teams_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple
             return None
 
         top_chunks = _score_chunks(question, all_chunks)
-        if not top_chunks:
-            logger.info(f"Teams Bot {bot_id} 無任何 chunk 命中查詢 token，跳過 Claude 呼叫")
-            return None, 0, 0
         return _call_claude(question, top_chunks, bot_id)
     finally:
         if own_db:
