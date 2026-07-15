@@ -159,8 +159,23 @@ function SourceTab({ user }) {
     }
   }
 
-  const handleDownload = (doc) => {
-    window.open(`/api/knowledge/${doc.id}/download`, '_blank')
+  const handleDownload = async (doc) => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/knowledge/${doc.id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) { message.error('下載失敗'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.original_filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      message.error('下載失敗')
+    }
   }
 
   const handleToggle = async (doc, checked) => {
