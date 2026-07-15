@@ -51,15 +51,20 @@ def _extract_text(file_path: str, ext: str) -> str:
                 lines.append("\t".join(str(c) if c is not None else "" for c in row))
         return "\n".join(lines)
 
+    elif ext in (".txt", ".csv", ".md"):
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
+
+    return ""
+
 
 def _parse_excel_qa(file_path: str) -> list[dict]:
-    """
-    讀取 Excel，A 欄=問題、B 欄=答案，自動轉為 Q&A 清單。
-    跳過標題行（首行如果 B 欄不像答案內容）和空白行。
-    """
+    """讀取 Excel，A 欄=問題、B 欄=答案，自動轉為 Q&A 清單。"""
     import openpyxl
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     qas = []
+    skip_headers = {"問題", "問題內容", "Q", "question", "題目"}
+    skip_answers = {"回覆", "回覆內容", "A", "answer", "答案"}
     for sheet in wb.worksheets:
         for row in sheet.iter_rows(values_only=True):
             if len(row) < 2:
@@ -68,17 +73,10 @@ def _parse_excel_qa(file_path: str) -> list[dict]:
             a = str(row[1]).strip() if row[1] is not None else ""
             if not q or not a:
                 continue
-            # 跳過純標題行（問題欄和答案欄都很短且相似，如「問題」「回覆」）
-            if q in ("問題", "問題內容", "Q", "question", "題目") and a in ("回覆", "回覆內容", "A", "answer", "答案"):
+            if q in skip_headers and a in skip_answers:
                 continue
             qas.append({"question": q, "keywords": "", "answer": a})
     return qas
-
-    elif ext in (".txt", ".csv", ".md"):
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read()
-
-    return ""
 
 
 def _is_cjk(text: str) -> bool:
