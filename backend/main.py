@@ -1,5 +1,8 @@
 import os
+import asyncio
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from database import engine, SessionLocal
 import models
 from auth import hash_password
-from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live, whitelist
+from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live, whitelist, conversation_log, no_answer_log, group_settings, ai_rescue
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,6 +22,12 @@ def _migrate_columns():
         "ALTER TABLE telegram_bots ADD COLUMN is_managed BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_bots ADD COLUMN whitelist_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_messages ADD COLUMN telegram_message_id INTEGER",
+        "ALTER TABLE usage_stats ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE usage_stats ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE conversation_logs ADD COLUMN input_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE conversation_logs ADD COLUMN output_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE conversation_logs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE conversation_logs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -67,6 +76,13 @@ async def lifespan(app: FastAPI):
             db.close()
     except Exception as e:
         logger.warning(f"Telegram 機器人啟動失敗（API 服務仍可正常使用）：{e}")
+    # 啟動 AI 救援背景排程
+    try:
+        from services.rescue_service import rescue_loop
+        asyncio.ensure_future(rescue_loop())
+        logger.info("AI 救援排程已啟動")
+    except Exception as e:
+        logger.warning(f"AI 救援排程啟動失敗：{e}")
     yield
 
 
@@ -96,6 +112,10 @@ app.include_router(teams_ignores.router)
 app.include_router(group_stats.router)
 app.include_router(telegram_live.router)
 app.include_router(whitelist.router)
+app.include_router(conversation_log.router)
+app.include_router(no_answer_log.router)
+app.include_router(group_settings.router)
+app.include_router(ai_rescue.router)
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from database import get_db
 import models, schemas
 from auth import require_editor, require_viewer
@@ -9,8 +9,11 @@ router = APIRouter(prefix="/api/rules", tags=["關鍵字規則"])
 
 
 @router.get("", response_model=List[schemas.RuleOut])
-def list_rules(db: Session = Depends(get_db), _=Depends(require_viewer)):
-    return db.query(models.KeywordRule).all()
+def list_rules(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+    q = db.query(models.KeywordRule)
+    if bot_id is not None:
+        q = q.filter(models.KeywordRule.bot_id == bot_id)
+    return q.all()
 
 
 @router.post("", response_model=schemas.RuleOut)

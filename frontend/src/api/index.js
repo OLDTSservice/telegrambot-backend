@@ -43,7 +43,7 @@ export const updateBot = (id, d) => api.put(`/bots/${id}`, d)
 export const deleteBot = id => api.delete(`/bots/${id}`)
 
 // ── Rules ──────────────────────────────────────
-export const getRules = () => api.get('/rules')
+export const getRules = (params) => api.get('/rules', { params })
 export const createRule = d => api.post('/rules', d)
 export const updateRule = (id, d) => api.put(`/rules/${id}`, d)
 export const deleteRule = id => api.delete(`/rules/${id}`)
@@ -109,3 +109,7 @@ export const liveSendMessage = (d) => api.post('/telegram-live/send', d)
 export const updatePendingReply = (id, d) => api.put(`/telegram-live/pending/${id}`, d)
 export const sendPendingReply = (id) => api.post(`/telegram-live/pending/${id}/send`)
 export const discardPendingReply = (id) => api.delete(`/telegram-live/pending/${id}`)
+
+// ── AI 救援設定 ────────────────────────────────
+export const getRescueSetting = (botId) => api.get(`/ai-rescue/${botId}`)
+export const updateRescueSetting = (botId, d) => api.put(`/ai-rescue/${botId}`, d)

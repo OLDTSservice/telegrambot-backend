@@ -35,8 +35,13 @@ class TelegramBot(Base):
     usage_stats = relationship("UsageStat", back_populates="bot", cascade="all, delete-orphan")
     ignores = relationship("TelegramIgnore", back_populates="bot", cascade="all, delete-orphan")
     group_stats = relationship("TelegramGroupStat", back_populates="bot", cascade="all, delete-orphan")
+    group_settings = relationship("TelegramGroupSetting", back_populates="bot", cascade="all, delete-orphan")
     live_messages = relationship("TelegramMessage", back_populates="bot", cascade="all, delete-orphan")
     whitelist_logs = relationship("WhitelistLog", back_populates="bot", cascade="all, delete-orphan")
+    conversation_logs = relationship("ConversationLog", back_populates="bot", cascade="all, delete-orphan")
+    no_answer_logs = relationship("NoAnswerLog", back_populates="bot", cascade="all, delete-orphan")
+    ai_rescue_setting = relationship("AIRescueSetting", back_populates="bot", uselist=False, cascade="all, delete-orphan")
+    rescue_candidates = relationship("AIRescueCandidate", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -68,6 +73,7 @@ class KnowledgeDoc(Base):
 
     bot = relationship("TelegramBot", back_populates="knowledge_docs")
     chunks = relationship("KnowledgeChunk", back_populates="doc", cascade="all, delete-orphan")
+    qas = relationship("KnowledgeQA", back_populates="doc", cascade="all, delete-orphan")
 
 
 class KnowledgeChunk(Base):
@@ -83,6 +89,56 @@ class KnowledgeChunk(Base):
     doc = relationship("KnowledgeDoc", back_populates="chunks")
 
 
+class KnowledgeQA(Base):
+    """知識庫 Q&A 條目（每筆對應一組問答）"""
+    __tablename__ = "knowledge_qas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    doc_id = Column(Integer, ForeignKey("knowledge_docs.id"), nullable=False)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    question = Column(Text, nullable=False)
+    keywords = Column(Text, nullable=True)   # 問題的其他說法或關鍵字（換行分隔）
+    answer = Column(Text, nullable=False)
+    order_index = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    doc = relationship("KnowledgeDoc", back_populates="qas")
+
+
+class ConversationLog(Base):
+    """Telegram 機器人對話日誌（近 7 日）"""
+    __tablename__ = "conversation_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
+    cache_read_tokens = Column(Integer, default=0)
+    cache_write_tokens = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="conversation_logs")
+
+
+class NoAnswerLog(Base):
+    """AI 無解答對話紀錄（近 7 日，觸發固定回覆時儲存）"""
+    __tablename__ = "no_answer_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    question = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="no_answer_logs")
+
+
 class UsageStat(Base):
     __tablename__ = "usage_stats"
 
@@ -91,7 +147,9 @@ class UsageStat(Base):
     date = Column(String(10), nullable=False)  # YYYY-MM-DD
     input_tokens = Column(Integer, default=0)
     output_tokens = Column(Integer, default=0)
-    total_tokens = Column(Integer, default=0)
+    cache_read_tokens = Column(Integer, default=0)
+    cache_write_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)   # 實際計費等效 token
     request_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -276,6 +334,52 @@ class TelegramGroupStat(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="group_stats")
+
+
+class AIRescueSetting(Base):
+    """AI 機器人救援功能設定（每個 bot 一筆）"""
+    __tablename__ = "ai_rescue_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False)
+    timeout_minutes = Column(Integer, default=5)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="ai_rescue_setting")
+
+
+class AIRescueCandidate(Base):
+    """AI 救援候選訊息（AI 關閉的群組中收到的未回應訊息）"""
+    __tablename__ = "ai_rescue_candidates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    chat_type = Column(String(32), nullable=True)
+    telegram_message_id = Column(Integer, nullable=False)
+    text = Column(Text, nullable=False)
+    sender_id = Column(String(64), nullable=True)
+    sender_name = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_handled = Column(Boolean, default=False)
+    handled_at = Column(DateTime, nullable=True)
+
+    bot = relationship("TelegramBot", back_populates="rescue_candidates")
+
+
+class TelegramGroupSetting(Base):
+    """每個群組的 AI 問答開關設定"""
+    __tablename__ = "telegram_group_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(50), nullable=False)
+    ai_enabled = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="group_settings")
 
 
 # ── Teams Group Reply Stats ────────────────────────────────────────────────

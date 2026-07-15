@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   Table, Button, Switch, Modal, Form, Input, Select,
-  Popconfirm, message, Space, Card, Typography,
+  Popconfirm, message, Space, Card, Typography, Empty,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { getRules, createRule, updateRule, deleteRule, getBots } from '../api'
@@ -16,16 +16,25 @@ export default function RulesPage({ user }) {
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState(null)
+  const [selectedBotId, setSelectedBotId] = useState(null)
   const [form] = Form.useForm()
 
   const load = async () => {
-    setLoading(true)
     try {
-      const [rRes, bRes] = await Promise.all([getRules(), getBots()])
-      setRules(rRes.data)
+      const bRes = await getBots()
       setBots(bRes.data)
     } catch {
       message.error('載入失敗')
+    }
+  }
+
+  const loadRules = async (botId) => {
+    setLoading(true)
+    try {
+      const rRes = await getRules({ bot_id: botId })
+      setRules(rRes.data)
+    } catch {
+      message.error('載入規則失敗')
     } finally {
       setLoading(false)
     }
@@ -33,11 +42,15 @@ export default function RulesPage({ user }) {
 
   useEffect(() => { load() }, [])
 
-  const botName = (id) => bots.find(b => b.id === id)?.name || `Bot #${id}`
+  const handleBotChange = (botId) => {
+    setSelectedBotId(botId)
+    loadRules(botId)
+  }
 
   const openAdd = () => {
     setEditingRule(null)
     form.resetFields()
+    form.setFieldsValue({ bot_id: selectedBotId })
     setModalOpen(true)
   }
 
@@ -62,7 +75,7 @@ export default function RulesPage({ user }) {
         message.success('已新增')
       }
       setModalOpen(false)
-      load()
+      if (selectedBotId) loadRules(selectedBotId)
     } catch (err) {
       message.error(err.response?.data?.detail || '操作失敗')
     }
@@ -71,7 +84,7 @@ export default function RulesPage({ user }) {
   const handleToggle = async (rule, checked) => {
     try {
       await updateRule(rule.id, { is_enabled: checked })
-      load()
+      if (selectedBotId) loadRules(selectedBotId)
     } catch {
       message.error('切換失敗')
     }
@@ -81,7 +94,7 @@ export default function RulesPage({ user }) {
     try {
       await deleteRule(id)
       message.success('已刪除')
-      load()
+      if (selectedBotId) loadRules(selectedBotId)
     } catch {
       message.error('刪除失敗')
     }
@@ -110,12 +123,6 @@ export default function RulesPage({ user }) {
       render: msg => <Text style={{ color: '#555' }}>{msg}</Text>,
     },
     {
-      title: '綁定機器人',
-      dataIndex: 'bot_id',
-      width: 160,
-      render: id => botName(id),
-    },
-    {
       title: '操作',
       width: 100,
       render: (_, record) => (
@@ -133,23 +140,39 @@ export default function RulesPage({ user }) {
 
   return (
     <Card>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <h2>關鍵字自動回覆規則</h2>
-        {canEdit(user) && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-            新增規則
-          </Button>
-        )}
+        <Space>
+          <Select
+            style={{ width: 200 }}
+            placeholder="選擇機器人"
+            value={selectedBotId}
+            onChange={handleBotChange}
+          >
+            {bots.map(b => (
+              <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>
+            ))}
+          </Select>
+          {canEdit(user) && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd} disabled={!selectedBotId}>
+              新增規則
+            </Button>
+          )}
+        </Space>
       </div>
 
-      <Table
-        rowKey="id"
-        dataSource={rules}
-        columns={columns}
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-        locale={{ emptyText: '尚未設定任何關鍵字規則' }}
-      />
+      {!selectedBotId ? (
+        <Empty description="請先選擇機器人" style={{ padding: 48 }} />
+      ) : (
+        <Table
+          rowKey="id"
+          dataSource={rules}
+          columns={columns}
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          locale={{ emptyText: '此機器人尚未設定任何關鍵字規則' }}
+        />
+      )}
 
       <Modal
         title={editingRule ? '編輯規則' : '新增規則'}

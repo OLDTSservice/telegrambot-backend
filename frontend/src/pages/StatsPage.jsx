@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Card, Row, Col, Statistic, Select, Spin, Empty, Typography,
+  Card, Row, Col, Statistic, Select, Spin, Empty, Typography, Tag, Tooltip as AntTooltip,
 } from 'antd'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -8,6 +8,7 @@ import {
 } from 'recharts'
 import { ThunderboltOutlined, ApiOutlined, CalendarOutlined, RobotOutlined } from '@ant-design/icons'
 import { getStats } from '../api'
+import api from '../api'
 
 const { Text } = Typography
 
@@ -17,12 +18,17 @@ export default function StatsPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [days, setDays] = useState(30)
+  const [recentQueries, setRecentQueries] = useState([])
 
   const load = async () => {
     setLoading(true)
     try {
-      const res = await getStats(days)
-      setStats(res.data)
+      const [statsRes, recentRes] = await Promise.all([
+        getStats(days),
+        api.get('/stats/recent-queries', { params: { limit: 10 } }),
+      ])
+      setStats(statsRes.data)
+      setRecentQueries(recentRes.data)
     } catch {
       // ignore
     } finally {
@@ -133,7 +139,7 @@ export default function StatsPage() {
       </Row>
 
       {/* 每日請求次數長條圖 */}
-      <Card title="每日請求次數">
+      <Card title="每日請求次數" style={{ marginBottom: 20 }}>
         {stats?.daily?.length ? (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={stats.daily} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -145,6 +151,62 @@ export default function StatsPage() {
             </BarChart>
           </ResponsiveContainer>
         ) : <Empty description="暫無資料" />}
+      </Card>
+
+      {/* 最近 10 筆查詢 Token 紀錄 */}
+      <Card title="最近 10 筆知識庫查詢 Token 紀錄">
+        {recentQueries.length === 0 ? (
+          <Empty description="尚無查詢紀錄" />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#fafafa', textAlign: 'left' }}>
+                  {['時間', '群組', '問題', 'Input', 'Output', '快取讀取', '快取寫入', '實際計費'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentQueries.map((q, i) => {
+                  const billed = q.input_tokens + q.output_tokens + Math.round(q.cache_read_tokens * 0.1) + Math.round(q.cache_write_tokens * 1.25)
+                  return (
+                    <tr key={q.id} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                      <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: '#888', fontSize: 11 }}>
+                        {new Date(q.created_at).toLocaleString('zh-TW')}
+                      </td>
+                      <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                        <Text style={{ fontSize: 12 }}>{q.chat_name}</Text>
+                      </td>
+                      <td style={{ padding: '8px 12px', maxWidth: 200 }}>
+                        <AntTooltip title={q.question}>
+                          <Text ellipsis style={{ maxWidth: 180, fontSize: 12 }}>{q.question}</Text>
+                        </AntTooltip>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        <Tag color="blue">{q.input_tokens}</Tag>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        <Tag color="green">{q.output_tokens}</Tag>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        <Tag color="purple">{q.cache_read_tokens.toLocaleString()}</Tag>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        <Tag color="orange">{q.cache_write_tokens.toLocaleString()}</Tag>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        <AntTooltip title="Input + Output + 快取讀取×10% + 快取寫入×125%（等效 token 數）">
+                          <Tag color="red">{billed.toLocaleString()}</Tag>
+                        </AntTooltip>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </div>
   )

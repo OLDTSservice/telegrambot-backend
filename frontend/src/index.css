@@ -4,13 +4,113 @@
   padding: 0;
 }
 
+html {
+  font-size: 15px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC',
     'Microsoft JhengHei', sans-serif;
   background: #f5f6fa;
   color: #222;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
+/* ── Ant Design 全域字體放大 ─────────────────── */
+.ant-typography,
+.ant-table,
+.ant-form-item-label > label,
+.ant-select-selector,
+.ant-input,
+.ant-input-number-input,
+.ant-btn,
+.ant-menu-item,
+.ant-tabs-tab,
+.ant-tag,
+.ant-pagination,
+.ant-modal-title,
+.ant-card-head-title {
+  font-size: 14px !important;
+}
+
+/* 表格內容 */
+.ant-table-cell {
+  font-size: 14px !important;
+}
+
+/* 小標籤/提示文字 — 稍小但仍清晰 */
+.ant-table-cell .ant-typography,
+.ant-table-cell span[style*="font-size: 12"],
+.ant-table-cell span[style*="font-size:12"] {
+  font-size: 13px !important;
+}
+
+/* 說明文字（淺灰色提示）*/
+span[style*="color: #888"],
+span[style*="color:#888"],
+span[style*="color: rgb(136"],
+div[style*="color: #888"],
+div[style*="color:#888"] {
+  font-size: 13px !important;
+  color: #666 !important;   /* 比原本 #888 更深，更容易閱讀 */
+}
+
+/* Switch 旁的標籤、Tag */
+.ant-tag {
+  font-size: 13px !important;
+  padding: 2px 8px !important;
+  line-height: 1.6 !important;
+}
+
+/* Modal 標題 */
+.ant-modal-title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Form label */
+.ant-form-item-label > label {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+/* 側邊欄選單 */
+.ant-menu-item,
+.ant-menu-submenu-title {
+  font-size: 14px !important;
+}
+
+/* Tabs 標籤 */
+.ant-tabs-tab {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+/* Pagination */
+.ant-pagination-item a,
+.ant-pagination-item-link {
+  font-size: 13px !important;
+}
+
+/* Select 下拉選項 */
+.ant-select-item-option-content {
+  font-size: 14px !important;
+}
+
+/* Empty 空狀態說明 */
+.ant-empty-description {
+  font-size: 14px !important;
+  color: #666 !important;
+}
+
+/* Popconfirm / Tooltip 文字 */
+.ant-popover-message-title,
+.ant-tooltip-inner {
+  font-size: 13px !important;
+}
+
+/* ── 頁面結構 ───────────────────────────────── */
 .page-header {
   display: flex;
   align-items: center;
@@ -19,7 +119,7 @@ body {
 }
 
 .page-header h2 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
 }
 

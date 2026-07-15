@@ -63,6 +63,36 @@ def _is_cjk(text: str) -> bool:
     return len(text) > 0 and cjk / len(text) > 0.2
 
 
+def parse_qa_text(text: str) -> list[dict]:
+    """
+    解析 Q&A 格式文字，回傳 [{"question": ..., "keywords": ..., "answer": ...}, ...]
+    格式：
+    Q1: 問題標題
+    問題的其他說法或關鍵字（可選，接在 Q 行之後、A 行之前）
+    A1: 回答內容
+    ------------------------------------------------------------
+    Q2: ...
+    """
+    import re
+    blocks = re.split(r'\n-{10,}\n', text)
+    qas = []
+    qa_re = re.compile(
+        r'Q\d*[:：]\s*(.+?)\n(.*?)A\d*[:：]\s*(.+)',
+        re.DOTALL | re.IGNORECASE
+    )
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        m = qa_re.match(block)
+        if m:
+            question = m.group(1).strip()
+            keywords = m.group(2).strip()
+            answer = m.group(3).strip()
+            qas.append({"question": question, "keywords": keywords, "answer": answer})
+    return qas
+
+
 def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 40):
     import re
 
@@ -114,6 +144,21 @@ async def process_document(file_path: str, ext: str, collection_name: str,
         for i, chunk in enumerate(chunks):
             db.add(ChunkModel(doc_id=doc_id, bot_id=bot_id,
                               chunk_text=chunk, chunk_index=i))
+
+        # Telegram 平台：若偵測到 Q&A 格式，同步寫入 KnowledgeQA
+        if platform == "telegram":
+            qas = parse_qa_text(text)
+            for i, qa in enumerate(qas):
+                db.add(models.KnowledgeQA(
+                    doc_id=doc_id, bot_id=bot_id,
+                    question=qa["question"],
+                    keywords=qa["keywords"],
+                    answer=qa["answer"],
+                    order_index=i,
+                ))
+            if qas:
+                logger.info(f"文件 doc_id={doc_id} 解析到 {len(qas)} 組 Q&A")
+
         db.commit()
         logger.info(f"文件 doc_id={doc_id} 共 {len(chunks)} 個段落已存入 SQLite")
 
@@ -246,24 +291,44 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
     logger.info(f"Bot {bot_id} 呼叫 Claude，context {len(context)} 字元")
     try:
         client = get_anthropic_client()
+        system_prompt = (
+            "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
+            "不要加入任何額外補充、說明或開場白。"
+            "重要規則：\n"
+            "1. 只有在知識庫中有【直接對應的答案】時才回答，不可自行推斷、整合或延伸。\n"
+            "2. 若訊息是申請單、表單或提交資料（特徵：多行編號欄位如「1. 商戶名字：xxx」、「2. 幣種：MYR」等結構），"
+            "視為提交資料而非提問，請回覆找不到相關資訊。\n"
+            "3. 請使用與問題完全相同的語言回答"
+            "（問題為繁體中文→繁體中文、英文→英文、簡體中文→簡體中文、其他語言同理）。\n"
+            "4. 若知識庫中沒有直接對應的資訊，僅以問題的語言簡短告知找不到相關資訊即可。"
+        )
         message = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1024,
+            system=[
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                },
+                {
+                    "type": "text",
+                    "text": f"知識庫內容：\n{context}",
+                    "cache_control": {"type": "ephemeral"},
+                },
+            ],
             messages=[{
                 "role": "user",
-                "content": (
-                    "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
-                    "不要加入任何額外補充、說明或開場白。"
-                    "重要：請使用與問題完全相同的語言回答"
-                    "（問題為繁體中文→繁體中文、英文→英文、簡體中文→簡體中文、其他語言同理）。"
-                    "若知識庫中沒有相關資訊，僅以問題的語言簡短告知找不到相關資訊即可。\n\n"
-                    f"知識庫內容：\n{context}\n\n"
-                    f"問題：{question}\n\n答案："
-                )
-            }]
+                "content": f"問題：{question}\n\n答案："
+            }],
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
         )
         reply = message.content[0].text.strip()
-        logger.info(f"Bot {bot_id} Claude 回覆成功，tokens: in={message.usage.input_tokens}")
+        cache_read = getattr(message.usage, "cache_read_input_tokens", 0) or 0
+        cache_write = getattr(message.usage, "cache_creation_input_tokens", 0) or 0
+        logger.info(
+            f"Bot {bot_id} Claude 回覆成功，tokens: in={message.usage.input_tokens} "
+            f"cache_read={cache_read} cache_write={cache_write}"
+        )
         in_tok, out_tok = message.usage.input_tokens, message.usage.output_tokens
         # 若 Claude 判斷找不到答案，回傳 (None, tokens) 讓上層仍能記錄用量
         NO_ANSWER_SIGNALS = [
@@ -273,18 +338,21 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
         ]
         if any(s in reply for s in NO_ANSWER_SIGNALS):
             logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")
-            return None, in_tok, out_tok
-        return reply, in_tok, out_tok
+            return None, in_tok, out_tok, cache_read, cache_write
+        return reply, in_tok, out_tok, cache_read, cache_write
     except Exception as e:
         logger.error(f"Bot {bot_id} Claude API 失敗：{e}", exc_info=True)
-        return None, 0, 0
+        return None, 0, 0, 0, 0
 
 
 # ── 使用量記錄 ────────────────────────────────────────────────────────────────
 
-def record_usage(bot_id: int, input_tokens: int, output_tokens: int, db):
+def record_usage(bot_id: int, input_tokens: int, output_tokens: int, db,
+                 cache_read_tokens: int = 0, cache_write_tokens: int = 0):
     import models
     today = date.today().isoformat()
+    # 實際計費等效 token：input + output + cache_read×10% + cache_write×125%
+    effective = input_tokens + output_tokens + round(cache_read_tokens * 0.1) + round(cache_write_tokens * 1.25)
     stat = db.query(models.UsageStat).filter(
         models.UsageStat.bot_id == bot_id,
         models.UsageStat.date == today
@@ -292,13 +360,16 @@ def record_usage(bot_id: int, input_tokens: int, output_tokens: int, db):
     if stat:
         stat.input_tokens += input_tokens
         stat.output_tokens += output_tokens
-        stat.total_tokens += input_tokens + output_tokens
+        stat.cache_read_tokens += cache_read_tokens
+        stat.cache_write_tokens += cache_write_tokens
+        stat.total_tokens += effective
         stat.request_count += 1
     else:
         stat = models.UsageStat(
             bot_id=bot_id, date=today,
             input_tokens=input_tokens, output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens, request_count=1,
+            cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+            total_tokens=effective, request_count=1,
         )
         db.add(stat)
     db.commit()

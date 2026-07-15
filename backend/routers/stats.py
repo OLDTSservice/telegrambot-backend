@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from database import get_db
 import models, schemas
 from auth import require_viewer
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/stats", tags=["使用量統計"])
 
@@ -55,6 +56,10 @@ def get_stats(
         models.UsageStat.date >= start_date
     ).group_by(models.UsageStat.bot_id, models.TelegramBot.name).all()
 
+    return _build_summary(today_row, month_row, daily_rows, bot_rows)
+
+
+def _build_summary(today_row, month_row, daily_rows, bot_rows):
     return schemas.StatsSummary(
         total_tokens_today=today_row[0] or 0,
         total_tokens_month=month_row[0] or 0,
@@ -78,3 +83,30 @@ def get_stats(
             ) for r in bot_rows
         ],
     )
+
+
+class RecentQueryOut(BaseModel):
+    id: int
+    chat_name: str
+    question: str
+    answer: str
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/recent-queries", response_model=List[RecentQueryOut])
+def get_recent_queries(
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _=Depends(require_viewer),
+):
+    logs = db.query(models.ConversationLog).order_by(
+        models.ConversationLog.created_at.desc()
+    ).limit(limit).all()
+    return logs

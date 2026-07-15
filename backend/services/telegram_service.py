@@ -14,6 +14,19 @@ _no_match_ts: Dict[str, float] = {}
 _COOLDOWN_SECS = 6        # 無匹配冷卻秒數
 _MIN_TEXT_LEN  = 10       # 無匹配時最短回應字元數
 
+def _is_application_form(text: str) -> bool:
+    """
+    偵測結構化申請表單：多行含「數字編號 + 冒號欄位」格式
+    例：1. 商戶名字：xxx  /  2. Domain URL：xxx
+    條件：至少 3 行符合「編號. 內容：值」或「編號.內容：值」格式
+    """
+    import re
+    lines = text.splitlines()
+    # 符合「數字. 任意內容 ：或: 任意內容」的行
+    field_line = re.compile(r'^\s*\d+[\.\、]\s*.+[：:].+')
+    matched = sum(1 for line in lines if field_line.match(line))
+    return matched >= 3
+
 
 class BotManager:
     def __init__(self):
@@ -211,23 +224,82 @@ class BotManager:
             logger.debug(f"Bot {bot_id} 訊息長度 {len(text.strip())} < {_MIN_TEXT_LEN}，略過")
             return
 
+        # 功能一-b：申請表單格式偵測 → 跳過知識庫，直接 fallback
+        if _is_application_form(text):
+            logger.info(f"Bot {bot_id} 偵測到申請表單格式，跳過知識庫直接 fallback")
+            import re
+            fallback_msg = (
+                "您好，人員將會協助確認，請稍後"
+                if re.search(r'[一-鿿㐀-䶿]', text)
+                else "Hello, our team will assist you shortly. Please wait."
+            )
+            await update.message.reply_text(fallback_msg)
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+            return
+
         # 功能二：同一使用者的無匹配冷卻（6 秒內不重複 fallback）
         cooldown_key = f"{bot_id}:{sender_id or chat_id}"
         now = time.monotonic()
         last_ts = _no_match_ts.get(cooldown_key, 0)
 
-        # 2. 嘗試知識庫 AI 回覆
+        # 2. 檢查此群組是否啟用 AI 問答
+        group_setting = db.query(models.TelegramGroupSetting).filter(
+            models.TelegramGroupSetting.bot_id == bot_id,
+            models.TelegramGroupSetting.chat_id == chat_id,
+        ).first()
+        if group_setting and not group_setting.ai_enabled:
+            logger.info(f"Bot {bot_id} 群組 {chat_id} AI 問答已關閉，跳過知識庫查詢")
+            # 救援功能：記錄候選訊息 / 標記已被直接回覆
+            rescue_setting = db.query(models.AIRescueSetting).filter(
+                models.AIRescueSetting.bot_id == bot_id,
+                models.AIRescueSetting.enabled == True,
+            ).first()
+            if rescue_setting:
+                reply_to_id = (
+                    update.message.reply_to_message.message_id
+                    if update.message.reply_to_message else None
+                )
+                if reply_to_id:
+                    # 若此訊息是直接 reply 某則候選 → 標記已被人工回應
+                    candidate = db.query(models.AIRescueCandidate).filter(
+                        models.AIRescueCandidate.bot_id == bot_id,
+                        models.AIRescueCandidate.chat_id == chat_id,
+                        models.AIRescueCandidate.telegram_message_id == reply_to_id,
+                        models.AIRescueCandidate.is_handled == False,
+                    ).first()
+                    if candidate:
+                        from datetime import datetime
+                        candidate.is_handled = True
+                        candidate.handled_at = datetime.utcnow()
+                        try:
+                            db.commit()
+                            logger.info(f"[Rescue] 候選訊息 {reply_to_id} 已被人工回覆，標記 handled")
+                        except Exception:
+                            db.rollback()
+                else:
+                    # 非 reply 訊息 → 存為新的救援候選
+                    _save_rescue_candidate(
+                        bot_id, chat_id, chat_name, chat_type,
+                        sender_id, sender_name, text,
+                        update.message.message_id, db
+                    )
+            return
+
+        # 3. 嘗試知識庫 AI 回覆
         try:
             result = await asyncio.to_thread(query_knowledge, bot_id, text)
         except Exception as e:
             logger.error(f"Bot {bot_id} query_knowledge 發生例外：{e}", exc_info=True)
             result = None
 
-        # result = (reply, in_tok, out_tok)，reply 為 None 代表 Claude 找不到答案
-        reply, input_tokens, output_tokens = result if result else (None, 0, 0)
+        # result = (reply, in_tok, out_tok, cache_read, cache_write)
+        reply, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = \
+            result if result else (None, 0, 0, 0, 0)
 
-        if input_tokens:
-            record_usage(bot_id, input_tokens, output_tokens, db)
+        if input_tokens or cache_read_tokens:
+            record_usage(bot_id, input_tokens, output_tokens, db,
+                         cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
 
         if is_managed:
             # 管控模式：無論 KB 是否找到答案，都記錄訊息讓管理員處理
@@ -243,6 +315,9 @@ class BotManager:
             if reply:
                 await update.message.reply_text(reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
+                                       input_tokens=input_tokens, output_tokens=output_tokens,
+                                       cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
                 threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name), daemon=True).start()
             else:
                 # 沒有關鍵字規則也沒有知識庫結果 → fallback（含冷卻）
@@ -250,8 +325,15 @@ class BotManager:
                     logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
                     return
                 _no_match_ts[cooldown_key] = now
-                await update.message.reply_text("您好，人員將會協助確認，請稍後")
+                import re
+                fallback_msg = (
+                    "您好，人員將會協助確認，請稍後"
+                    if re.search(r'[一-鿿㐀-䶿]', text)
+                    else "Hello, our team will assist you shortly. Please wait."
+                )
+                await update.message.reply_text(fallback_msg)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
 
 
 def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_name, text, db, telegram_message_id=None):
@@ -315,6 +397,48 @@ def start_all_enabled_bots(db):
             logger.error(f"啟動機器人 {bot.id} 失敗：{e}")
 
 
+def _save_conversation_log(bot_id, chat_id, chat_name, question, answer, db,
+                            input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0):
+    import models
+    from datetime import datetime, timedelta
+    log = models.ConversationLog(
+        bot_id=bot_id, chat_id=chat_id, chat_name=chat_name,
+        question=question, answer=answer,
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+    )
+    db.add(log)
+    try:
+        db.commit()
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        db.query(models.ConversationLog).filter(
+            models.ConversationLog.created_at < cutoff
+        ).delete()
+        db.commit()
+    except Exception as e:
+        logger.error(f"儲存對話 log 失敗：{e}")
+        db.rollback()
+
+
+def _save_no_answer_log(bot_id, chat_id, chat_name, question, db):
+    import models
+    from datetime import datetime, timedelta
+    log = models.NoAnswerLog(
+        bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, question=question,
+    )
+    db.add(log)
+    try:
+        db.commit()
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        db.query(models.NoAnswerLog).filter(
+            models.NoAnswerLog.created_at < cutoff
+        ).delete()
+        db.commit()
+    except Exception as e:
+        logger.error(f"儲存無解答 log 失敗：{e}")
+        db.rollback()
+
+
 def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status, db):
     import models
     log = models.WhitelistLog(
@@ -326,6 +450,30 @@ def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status
         db.commit()
     except Exception as e:
         logger.error(f"儲存白名單 log 失敗：{e}")
+        db.rollback()
+
+
+def _save_rescue_candidate(bot_id, chat_id, chat_name, chat_type,
+                            sender_id, sender_name, text, telegram_message_id, db):
+    import models
+    existing = db.query(models.AIRescueCandidate).filter(
+        models.AIRescueCandidate.bot_id == bot_id,
+        models.AIRescueCandidate.chat_id == chat_id,
+        models.AIRescueCandidate.telegram_message_id == telegram_message_id,
+    ).first()
+    if existing:
+        return
+    candidate = models.AIRescueCandidate(
+        bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, chat_type=chat_type,
+        telegram_message_id=telegram_message_id, text=text,
+        sender_id=sender_id, sender_name=sender_name,
+    )
+    db.add(candidate)
+    try:
+        db.commit()
+        logger.debug(f"[Rescue] 已記錄候選訊息 msg_id={telegram_message_id} chat={chat_id}")
+    except Exception as e:
+        logger.error(f"[Rescue] 儲存候選失敗: {e}")
         db.rollback()
 
 

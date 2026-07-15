@@ -168,6 +168,7 @@ class DocOut(BaseModel):
     file_size: Optional[int]
     is_enabled: bool
     created_at: datetime
+    qa_count: Optional[int] = 0
 
     class Config:
         from_attributes = True
