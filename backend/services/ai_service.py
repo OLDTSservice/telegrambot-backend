@@ -51,6 +51,29 @@ def _extract_text(file_path: str, ext: str) -> str:
                 lines.append("\t".join(str(c) if c is not None else "" for c in row))
         return "\n".join(lines)
 
+
+def _parse_excel_qa(file_path: str) -> list[dict]:
+    """
+    讀取 Excel，A 欄=問題、B 欄=答案，自動轉為 Q&A 清單。
+    跳過標題行（首行如果 B 欄不像答案內容）和空白行。
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    qas = []
+    for sheet in wb.worksheets:
+        for row in sheet.iter_rows(values_only=True):
+            if len(row) < 2:
+                continue
+            q = str(row[0]).strip() if row[0] is not None else ""
+            a = str(row[1]).strip() if row[1] is not None else ""
+            if not q or not a:
+                continue
+            # 跳過純標題行（問題欄和答案欄都很短且相似，如「問題」「回覆」）
+            if q in ("問題", "問題內容", "Q", "question", "題目") and a in ("回覆", "回覆內容", "A", "answer", "答案"):
+                continue
+            qas.append({"question": q, "keywords": "", "answer": a})
+    return qas
+
     elif ext in (".txt", ".csv", ".md"):
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
@@ -145,9 +168,13 @@ async def process_document(file_path: str, ext: str, collection_name: str,
             db.add(ChunkModel(doc_id=doc_id, bot_id=bot_id,
                               chunk_text=chunk, chunk_index=i))
 
-        # Telegram 平台：若偵測到 Q&A 格式，同步寫入 KnowledgeQA
+        # Telegram 平台：同步寫入 KnowledgeQA
         if platform == "telegram":
-            qas = parse_qa_text(text)
+            # Excel 直接以 A欄=Q、B欄=A 解析，其餘走 Q&A 文字格式
+            if ext in (".xls", ".xlsx"):
+                qas = _parse_excel_qa(file_path)
+            else:
+                qas = parse_qa_text(text)
             for i, qa in enumerate(qas):
                 db.add(models.KnowledgeQA(
                     doc_id=doc_id, bot_id=bot_id,
