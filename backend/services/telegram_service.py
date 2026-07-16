@@ -160,6 +160,9 @@ class BotManager:
 
         is_managed = bool(bot_record.is_managed)
 
+        # 每次收到訊息都更新群組名稱（確保改名後能同步）
+        _refresh_chat_name(bot_id, chat_id, chat_name, db)
+
         # 0.5. 後台白名單自動處理（優先於關鍵字/KB，管控模式下仍執行）
         if bot_record.whitelist_enabled:
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
@@ -357,6 +360,21 @@ def _save_pending_reply(bot_id, chat_id, message_id, reply_text, db):
     )
     db.add(pending)
     db.commit()
+
+
+def _refresh_chat_name(bot_id: int, chat_id: str, chat_name: str, db):
+    """每次收到訊息時，把最新群組名稱同步到最近一筆 stat 記錄，不影響計數。"""
+    import models
+    latest = db.query(models.TelegramGroupStat).filter(
+        models.TelegramGroupStat.bot_id == bot_id,
+        models.TelegramGroupStat.chat_id == chat_id,
+    ).order_by(models.TelegramGroupStat.date.desc()).first()
+    if latest and latest.chat_name != chat_name:
+        latest.chat_name = chat_name
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
 
 def _record_group_stat(bot_id: int, chat_id: str, chat_name: str, chat_type: str, db):

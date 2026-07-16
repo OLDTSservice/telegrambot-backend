@@ -31,20 +31,39 @@ def list_groups(
     db: Session = Depends(get_db),
     _=Depends(require_viewer),
 ):
-    # 取得此 bot 所有不重複群組（從 group_stats 彙整）
-    subq = db.query(
+    # 取得每個 chat_id 最新日期的記錄（含最新群組名稱）
+    latest_date_sq = db.query(
         models.TelegramGroupStat.chat_id,
-        func.max(models.TelegramGroupStat.chat_name).label("chat_name"),
-        func.max(models.TelegramGroupStat.chat_type).label("chat_type"),
-        func.max(models.TelegramGroupStat.date).label("last_active"),
+        func.max(models.TelegramGroupStat.date).label("max_date"),
     ).filter(
         models.TelegramGroupStat.bot_id == bot_id
-    ).group_by(models.TelegramGroupStat.chat_id)
+    ).group_by(models.TelegramGroupStat.chat_id).subquery()
+
+    from sqlalchemy import and_
+    rows = db.query(
+        models.TelegramGroupStat.chat_id,
+        models.TelegramGroupStat.chat_name,
+        models.TelegramGroupStat.chat_type,
+        models.TelegramGroupStat.date.label("last_active"),
+    ).join(
+        latest_date_sq,
+        and_(
+            models.TelegramGroupStat.chat_id == latest_date_sq.c.chat_id,
+            models.TelegramGroupStat.date == latest_date_sq.c.max_date,
+            models.TelegramGroupStat.bot_id == bot_id,
+        )
+    ).order_by(models.TelegramGroupStat.date.desc()).all()
+
+    # 去重（同一天可能有多筆，取第一筆）
+    seen = set()
+    groups = []
+    for r in rows:
+        if r.chat_id not in seen:
+            seen.add(r.chat_id)
+            groups.append(r)
 
     if search:
-        subq = subq.having(func.max(models.TelegramGroupStat.chat_name).ilike(f"%{search}%"))
-
-    groups = subq.order_by(func.max(models.TelegramGroupStat.date).desc()).all()
+        groups = [g for g in groups if search.lower() in g.chat_name.lower()]
 
     # 取得此 bot 的 AI 開關設定
     settings = {
