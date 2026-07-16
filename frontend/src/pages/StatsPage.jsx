@@ -6,13 +6,30 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { ThunderboltOutlined, ApiOutlined, CalendarOutlined, RobotOutlined } from '@ant-design/icons'
+import { ThunderboltOutlined, ApiOutlined, CalendarOutlined, RobotOutlined, DollarOutlined } from '@ant-design/icons'
 import { getStats } from '../api'
 import api from '../api'
 
 const { Text } = Typography
 
 const COLORS = ['#1677ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2']
+
+// claude-haiku-4-5 定價（USD / 1M tokens）
+const PRICE = {
+  input: 0.80,
+  output: 4.00,
+  cache_write: 1.00,
+  cache_read: 0.08,
+}
+
+function calcUSD(input, output, cacheRead, cacheWrite) {
+  return (
+    (input * PRICE.input +
+     output * PRICE.output +
+     cacheRead * PRICE.cache_read +
+     cacheWrite * PRICE.cache_write) / 1_000_000
+  )
+}
 
 export default function StatsPage() {
   const [stats, setStats] = useState(null)
@@ -75,6 +92,33 @@ export default function StatsPage() {
             </Card>
           </Col>
         ))}
+        {/* 本月預估費用 */}
+        {recentQueries.length > 0 && (() => {
+          const monthUSD = recentQueries.reduce((sum, q) =>
+            sum + calcUSD(q.input_tokens, q.output_tokens, q.cache_read_tokens, q.cache_write_tokens), 0)
+          return (
+            <Col span={6} key="usd">
+              <Card className="stat-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    background: '#13c2c218', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, color: '#13c2c2',
+                  }}>
+                    <DollarOutlined />
+                  </div>
+                  <Statistic
+                    title="最近 10 筆合計費用"
+                    value={`$${monthUSD.toFixed(4)}`}
+                    valueStyle={{ fontSize: 22, color: '#13c2c2' }}
+                    suffix="USD"
+                  />
+                </div>
+              </Card>
+            </Col>
+          )
+        })()}
       </Row>
 
       <Row gutter={16} style={{ marginBottom: 20 }}>
@@ -162,7 +206,7 @@ export default function StatsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#fafafa', textAlign: 'left' }}>
-                  {['時間', '群組', '問題', 'Input', 'Output', '快取讀取', '快取寫入', '實際計費'].map(h => (
+                  {['時間', '群組', '問題', 'Input', 'Output', '快取讀取', '快取寫入', '實際計費', '費用 (USD)'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -170,6 +214,7 @@ export default function StatsPage() {
               <tbody>
                 {recentQueries.map((q, i) => {
                   const billed = q.input_tokens + q.output_tokens + Math.round(q.cache_read_tokens * 0.1) + Math.round(q.cache_write_tokens * 1.25)
+                  const usd = calcUSD(q.input_tokens, q.output_tokens, q.cache_read_tokens, q.cache_write_tokens)
                   return (
                     <tr key={q.id} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: '#888', fontSize: 11 }}>
@@ -198,6 +243,11 @@ export default function StatsPage() {
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>
                         <AntTooltip title="Input + Output + 快取讀取×10% + 快取寫入×125%（等效 token 數）">
                           <Tag color="red">{billed.toLocaleString()}</Tag>
+                        </AntTooltip>
+                      </td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <AntTooltip title={`Input $${(q.input_tokens*PRICE.input/1e6).toFixed(5)} + Output $${(q.output_tokens*PRICE.output/1e6).toFixed(5)} + Cache R $${(q.cache_read_tokens*PRICE.cache_read/1e6).toFixed(5)} + Cache W $${(q.cache_write_tokens*PRICE.cache_write/1e6).toFixed(5)}`}>
+                          <Tag color="cyan">${usd.toFixed(5)}</Tag>
                         </AntTooltip>
                       </td>
                     </tr>
