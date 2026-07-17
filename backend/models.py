@@ -134,6 +134,10 @@ class NoAnswerLog(Base):
     chat_id = Column(String(64), nullable=False)
     chat_name = Column(String(255), nullable=False)
     question = Column(Text, nullable=False)
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
+    cache_read_tokens = Column(Integer, default=0)
+    cache_write_tokens = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="no_answer_logs")

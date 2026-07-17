@@ -28,6 +28,10 @@ def _migrate_columns():
         "ALTER TABLE conversation_logs ADD COLUMN output_tokens INTEGER DEFAULT 0",
         "ALTER TABLE conversation_logs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
         "ALTER TABLE conversation_logs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE no_answer_logs ADD COLUMN input_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE no_answer_logs ADD COLUMN output_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE no_answer_logs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
+        "ALTER TABLE no_answer_logs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
     ]
     with engine.connect() as conn:
         for sql in migrations:

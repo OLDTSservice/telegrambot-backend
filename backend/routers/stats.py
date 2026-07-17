@@ -87,9 +87,11 @@ def _build_summary(today_row, month_row, daily_rows, bot_rows):
 
 class RecentQueryOut(BaseModel):
     id: int
+    source: str  # "conversation"（有解答） | "no_answer"（無解答）
+    has_answer: bool
     chat_name: str
     question: str
-    answer: str
+    answer: Optional[str] = None
     input_tokens: int
     output_tokens: int
     cache_read_tokens: int
@@ -106,7 +108,32 @@ def get_recent_queries(
     db: Session = Depends(get_db),
     _=Depends(require_viewer),
 ):
-    logs = db.query(models.ConversationLog).order_by(
+    """合併「有解答」與「無解答」兩種知識庫呼叫紀錄，依時間排序取最新 N 筆。
+    無解答的呼叫同樣會消耗 Token（Claude 判斷找不到答案也要付費），
+    但過去只記錄在 NoAnswerLog、不會出現在這份清單，容易讓人誤以為沒有消耗。"""
+    answered = db.query(models.ConversationLog).order_by(
         models.ConversationLog.created_at.desc()
     ).limit(limit).all()
-    return logs
+    unanswered = db.query(models.NoAnswerLog).order_by(
+        models.NoAnswerLog.created_at.desc()
+    ).limit(limit).all()
+
+    combined = [
+        RecentQueryOut(
+            id=log.id, source="conversation", has_answer=True,
+            chat_name=log.chat_name, question=log.question, answer=log.answer,
+            input_tokens=log.input_tokens, output_tokens=log.output_tokens,
+            cache_read_tokens=log.cache_read_tokens, cache_write_tokens=log.cache_write_tokens,
+            created_at=log.created_at,
+        ) for log in answered
+    ] + [
+        RecentQueryOut(
+            id=log.id, source="no_answer", has_answer=False,
+            chat_name=log.chat_name, question=log.question, answer=None,
+            input_tokens=log.input_tokens, output_tokens=log.output_tokens,
+            cache_read_tokens=log.cache_read_tokens, cache_write_tokens=log.cache_write_tokens,
+            created_at=log.created_at,
+        ) for log in unanswered
+    ]
+    combined.sort(key=lambda x: x.created_at, reverse=True)
+    return combined[:limit]

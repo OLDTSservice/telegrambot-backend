@@ -336,7 +336,9 @@ class BotManager:
                 )
                 await update.message.reply_text(fallback_msg)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                _save_no_answer_log(bot_id, chat_id, chat_name, text, db,
+                                    input_tokens=input_tokens, output_tokens=output_tokens,
+                                    cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
 
 
 def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_name, text, db, telegram_message_id=None):
@@ -438,11 +440,14 @@ def _save_conversation_log(bot_id, chat_id, chat_name, question, answer, db,
         db.rollback()
 
 
-def _save_no_answer_log(bot_id, chat_id, chat_name, question, db):
+def _save_no_answer_log(bot_id, chat_id, chat_name, question, db,
+                         input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0):
     import models
     from datetime import datetime, timedelta
     log = models.NoAnswerLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, question=question,
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
     )
     db.add(log)
     try:

@@ -198,7 +198,10 @@ export default function StatsPage() {
       </Card>
 
       {/* 最近 10 筆查詢 Token 紀錄 */}
-      <Card title="最近 10 筆知識庫查詢 Token 紀錄">
+      <Card
+        title="最近 10 筆知識庫查詢 Token 紀錄"
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>含「無解答」呼叫（AI 判斷找不到答案時仍會消耗 Token）</Text>}
+      >
         {recentQueries.length === 0 ? (
           <Empty description="尚無查詢紀錄" />
         ) : (
@@ -206,7 +209,7 @@ export default function StatsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#fafafa', textAlign: 'left' }}>
-                  {['時間', '群組', '問題', 'Input', 'Output', '快取讀取', '快取寫入', '實際計費', '費用 (USD)'].map(h => (
+                  {['時間', '狀態', '群組', '問題', 'Input', 'Output', '快取讀取', '快取寫入', '實際計費', '費用 (USD)'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 500, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -216,15 +219,20 @@ export default function StatsPage() {
                   const billed = q.input_tokens + q.output_tokens + Math.round(q.cache_read_tokens * 0.1) + Math.round(q.cache_write_tokens * 1.25)
                   const usd = calcUSD(q.input_tokens, q.output_tokens, q.cache_read_tokens, q.cache_write_tokens)
                   return (
-                    <tr key={q.id} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                    <tr key={`${q.source}-${q.id}`} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: '#888', fontSize: 11 }}>
                         {new Date(q.created_at).toLocaleString('zh-TW')}
+                      </td>
+                      <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                        {q.has_answer
+                          ? <Tag color="green">已解答</Tag>
+                          : <Tag color="red">無解答</Tag>}
                       </td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                         <Text style={{ fontSize: 12 }}>{q.chat_name}</Text>
                       </td>
                       <td style={{ padding: '8px 12px', maxWidth: 200 }}>
-                        <AntTooltip title={q.question}>
+                        <AntTooltip title={q.has_answer ? `${q.question}\n\n答：${q.answer}` : q.question}>
                           <Text ellipsis style={{ maxWidth: 180, fontSize: 12 }}>{q.question}</Text>
                         </AntTooltip>
                       </td>
