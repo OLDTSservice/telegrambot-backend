@@ -248,8 +248,8 @@ function SourceTab({ user }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
         {/* 左側文件列表 */}
-        <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid #f0f0f0', background: '#fafafa', fontWeight: 500, fontSize: 13 }}>
+        <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', fontWeight: 600, fontSize: 15, color: '#1a1a2e' }}>
             文件清單 <Tag style={{ marginLeft: 6 }}>{docs.length} 份</Tag>
           </div>
           {loading ? (
@@ -263,22 +263,22 @@ function SourceTab({ user }) {
                 onClick={() => handleSelectDoc(doc)}
                 style={{
                   padding: '12px 14px',
-                  borderBottom: '1px solid #f5f5f5',
+                  borderBottom: '1px solid #d4d8e2',
                   cursor: 'pointer',
-                  background: selectedDoc?.id === doc.id ? '#e6f4ff' : 'white',
+                  background: selectedDoc?.id === doc.id ? '#ddeeff' : 'white',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500, fontSize: 13, marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>
                   {FILE_ICON[doc.file_type] || <FileTextOutlined />}
                   <span style={{ wordBreak: 'break-all' }}>{doc.original_filename}</span>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 12, color: '#888' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 13, color: '#444' }}>
                   <span>{botName(doc.bot_id)}</span>
                   <span>·</span>
                   <span>{formatSize(doc.file_size)}</span>
                   <span>·</span>
                   <span>{new Date(doc.created_at).toLocaleDateString('zh-TW')}</span>
-                  <Tag color="blue" style={{ marginLeft: 2, fontSize: 11 }}>QA: {doc.qa_count ?? 0}</Tag>
+                  <Tag color="blue" style={{ marginLeft: 2, fontSize: 13 }}>QA: {doc.qa_count ?? 0}</Tag>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                   <Switch checked={doc.is_enabled} size="small"
@@ -306,21 +306,21 @@ function SourceTab({ user }) {
         </div>
 
         {/* 右側 Q&A 列表 */}
-        <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
           {!selectedDoc ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, color: '#aaa', gap: 8 }}>
-              <BookOutlined style={{ fontSize: 32 }} />
-              <span style={{ fontSize: 13 }}>點擊左側文件查看 Q&A 內容</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, color: '#555', gap: 8 }}>
+              <BookOutlined style={{ fontSize: 36 }} />
+              <span style={{ fontSize: 15, fontWeight: 500 }}>點擊左側文件查看 Q&A 內容</span>
             </div>
           ) : (
             <>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid #f0f0f0', background: '#fafafa', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 500, fontSize: 13, flexShrink: 0 }}>{selectedDoc.original_filename}</span>
+              <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 15, color: '#1a1a2e', flexShrink: 0 }}>{selectedDoc.original_filename}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Input
                     size="small"
                     placeholder="搜尋關鍵字…"
-                    prefix={<SearchOutlined style={{ color: '#bbb' }} />}
+                    prefix={<SearchOutlined style={{ color: '#555' }} />}
                     allowClear
                     style={{ width: 180 }}
                     value={qaSearch}
@@ -344,13 +344,13 @@ function SourceTab({ user }) {
                       ? qas.filter(qa => [qa.question, qa.keywords, qa.answer].join(' ').toLowerCase().includes(qaSearch.toLowerCase()))
                       : qas
                     ).map((qa, idx) => (
-                      <div key={qa.id} style={{ margin: '8px 14px', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12, background: '#fafafa' }}>
-                        <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>Q{qasPage > 1 ? (qasPage - 1) * 50 + idx + 1 : idx + 1}</div>
-                        <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{qa.question}</div>
-                        {qa.keywords && <div style={{ fontSize: 12, color: '#555', marginBottom: 6, whiteSpace: 'pre-wrap' }}>{qa.keywords}</div>}
-                        <div style={{ height: 1, background: '#f0f0f0', margin: '6px 0' }} />
-                        <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>A{qasPage > 1 ? (qasPage - 1) * 50 + idx + 1 : idx + 1}</div>
-                        <div style={{ fontSize: 13, color: '#333', whiteSpace: 'pre-wrap' }}>{qa.answer}</div>
+                      <div key={qa.id} style={{ margin: '8px 14px', border: '1.5px solid #c8ccd8', borderRadius: 6, padding: 12, background: '#f8f9fc' }}>
+                        <div style={{ fontSize: 13, color: '#555', fontWeight: 600, marginBottom: 4 }}>Q{qasPage > 1 ? (qasPage - 1) * 50 + idx + 1 : idx + 1}</div>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 2 }}>{qa.question}</div>
+                        {qa.keywords && <div style={{ fontSize: 13, color: '#444', marginBottom: 6, whiteSpace: 'pre-wrap' }}>{qa.keywords}</div>}
+                        <div style={{ height: 1, background: '#c8ccd8', margin: '8px 0' }} />
+                        <div style={{ fontSize: 13, color: '#555', fontWeight: 600, marginBottom: 4 }}>A{qasPage > 1 ? (qasPage - 1) * 50 + idx + 1 : idx + 1}</div>
+                        <div style={{ fontSize: 15, color: '#222', whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{qa.answer}</div>
                         {canEdit(user) && (
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }}>
                             <Button size="small" icon={<EditOutlined />}
@@ -493,7 +493,7 @@ function LogsTab({ user }) {
           value={botFilter} onChange={v => { setBotFilter(v); loadLogs(1, v) }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
-        <span style={{ fontSize: 12, color: '#888' }}>顯示近 7 日紀錄，最多 20 筆/頁</span>
+        <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日紀錄，最多 20 筆/頁</span>
       </div>
 
       {loading ? (
@@ -502,15 +502,15 @@ function LogsTab({ user }) {
         <Empty description="近 7 日無對話紀錄" style={{ padding: 40 }} />
       ) : (
         <>
-          <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
             {logs.map(log => (
-              <div key={log.id} style={{ padding: '14px 16px', borderBottom: '1px solid #f5f5f5' }}>
-                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12, color: '#999' }}>
+              <div key={log.id} style={{ padding: '14px 16px', borderBottom: '1px solid #d4d8e2' }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
                   <span>{new Date(log.created_at).toLocaleString('zh-TW')}</span>
-                  <span style={{ color: '#1677ff' }}>{log.chat_name}</span>
+                  <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
                 </div>
-                <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 4 }}>Q：{log.question}</div>
-                <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>A：{log.answer}</div>
+                <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>Q：{log.question}</div>
+                <div style={{ fontSize: 15, color: '#333', lineHeight: 1.65 }}>A：{log.answer}</div>
                 {canEdit(user) && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                     <Button size="small" icon={<PlusOutlined />} onClick={() => openAddToKb(log)}>
@@ -623,7 +623,7 @@ function NoAnswerTab({ user }) {
           value={botFilter} onChange={v => { setBotFilter(v); loadLogs(1, v) }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
-        <span style={{ fontSize: 12, color: '#888' }}>顯示近 7 日無解答紀錄，最多 20 筆/頁</span>
+        <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日無解答紀錄，最多 20 筆/頁</span>
       </div>
 
       {loading ? (
@@ -632,14 +632,14 @@ function NoAnswerTab({ user }) {
         <Empty description="近 7 日無無解答對話紀錄" style={{ padding: 40 }} />
       ) : (
         <>
-          <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
             {logs.map(log => (
-              <div key={log.id} style={{ padding: '14px 16px', borderBottom: '1px solid #f5f5f5' }}>
-                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12, color: '#999' }}>
+              <div key={log.id} style={{ padding: '14px 16px', borderBottom: '1px solid #d4d8e2' }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
                   <span>{new Date(log.created_at).toLocaleString('zh-TW')}</span>
-                  <span style={{ color: '#1677ff' }}>{log.chat_name}</span>
+                  <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
                 </div>
-                <div style={{ fontSize: 13, color: '#333', whiteSpace: 'pre-wrap' }}>{log.question}</div>
+                <div style={{ fontSize: 15, color: '#111', fontWeight: 500, whiteSpace: 'pre-wrap' }}>{log.question}</div>
                 {canEdit(user) && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                     <Button size="small" icon={<PlusOutlined />} onClick={() => openAdd(log)}>

@@ -5,19 +5,19 @@
 }
 
 html {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC',
     'Microsoft JhengHei', sans-serif;
-  background: #f5f6fa;
-  color: #222;
-  font-size: 15px;
-  line-height: 1.6;
+  background: #eef0f5;
+  color: #111;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
-/* ── Ant Design 全域字體放大 ─────────────────── */
+/* ── 全域字體放大 ────────────────────────────── */
 .ant-typography,
 .ant-table,
 .ant-form-item-label > label,
@@ -30,84 +30,272 @@ body {
 .ant-tag,
 .ant-pagination,
 .ant-modal-title,
-.ant-card-head-title {
-  font-size: 14px !important;
+.ant-card-head-title,
+.ant-descriptions-item-label,
+.ant-descriptions-item-content,
+.ant-list-item,
+.ant-radio-wrapper,
+.ant-checkbox-wrapper {
+  font-size: 15px !important;
 }
 
 /* 表格內容 */
 .ant-table-cell {
+  font-size: 15px !important;
+  color: #111 !important;
+}
+
+/* 表格 header */
+.ant-table-thead > tr > th {
   font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #222 !important;
+  background: #f0f2f7 !important;
+  border-bottom: 2px solid #c8ccd8 !important;
 }
 
-/* 小標籤/提示文字 — 稍小但仍清晰 */
-.ant-table-cell .ant-typography,
-.ant-table-cell span[style*="font-size: 12"],
-.ant-table-cell span[style*="font-size:12"] {
-  font-size: 13px !important;
+/* 表格 row 邊線加深 */
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid #d4d8e2 !important;
 }
 
-/* 說明文字（淺灰色提示）*/
+.ant-table-tbody > tr:hover > td {
+  background: #f5f7ff !important;
+}
+
+/* 表格外框 */
+.ant-table-wrapper {
+  border: 1.5px solid #c8ccd8 !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+/* 說明文字加深（原 #888/#999/#aaa 太淺） */
 span[style*="color: #888"],
 span[style*="color:#888"],
+span[style*="color: #999"],
+span[style*="color:#999"],
+span[style*="color: #aaa"],
+span[style*="color:#aaa"],
 span[style*="color: rgb(136"],
+span[style*="color: rgb(153"],
 div[style*="color: #888"],
-div[style*="color:#888"] {
-  font-size: 13px !important;
-  color: #666 !important;   /* 比原本 #888 更深，更容易閱讀 */
+div[style*="color:#888"],
+div[style*="color: #999"],
+div[style*="color:#999"],
+.ant-typography.ant-typography-secondary,
+.ant-form-item-extra,
+.ant-form-item-explain {
+  font-size: 14px !important;
+  color: #444 !important;
 }
 
-/* Switch 旁的標籤、Tag */
+/* Empty 提示圖示文字 */
+.ant-empty-description {
+  font-size: 15px !important;
+  color: #444 !important;
+}
+
+/* Tag */
 .ant-tag {
-  font-size: 13px !important;
-  padding: 2px 8px !important;
-  line-height: 1.6 !important;
+  font-size: 14px !important;
+  padding: 2px 10px !important;
+  line-height: 1.7 !important;
+  border-width: 1.5px !important;
 }
 
-/* Modal 標題 */
+/* Modal */
 .ant-modal-title {
-  font-size: 16px !important;
-  font-weight: 600 !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.ant-modal-content {
+  border: 2px solid #b0b8cc !important;
+  border-radius: 10px !important;
+}
+
+.ant-modal-header {
+  border-bottom: 2px solid #d0d5e3 !important;
+  padding-bottom: 12px !important;
 }
 
 /* Form label */
 .ant-form-item-label > label {
-  font-size: 14px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #222 !important;
+}
+
+/* Input / Select 邊框加深 */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select-selector {
+  border-color: #8892aa !important;
+  border-width: 1.5px !important;
+  font-size: 15px !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input-number:focus,
+.ant-select-focused .ant-select-selector {
+  border-color: #4472c4 !important;
+  box-shadow: 0 0 0 2px rgba(68,114,196,0.18) !important;
+}
+
+/* Select placeholder 文字加深 */
+.ant-select-selection-placeholder {
+  color: #555 !important;
+  font-size: 15px !important;
   font-weight: 500 !important;
+}
+
+/* Select 已選值文字 */
+.ant-select-selection-item {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  color: #111 !important;
+}
+
+/* Select 箭頭圖示加深 */
+.ant-select-arrow {
+  color: #555 !important;
+  font-size: 13px !important;
+}
+
+/* Card 邊框與標題 */
+.ant-card {
+  border: 1.5px solid #c0c6d8 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07) !important;
+}
+
+.ant-card-head {
+  border-bottom: 2px solid #c0c6d8 !important;
+  background: #f4f6fb !important;
+}
+
+.ant-card-head-title {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #1a1a2e !important;
 }
 
 /* 側邊欄選單 */
 .ant-menu-item,
 .ant-menu-submenu-title {
-  font-size: 14px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
 }
 
-/* Tabs 標籤 */
+/* ── Tabs 加邊框凸顯 ────────────────────────── */
 .ant-tabs-tab {
-  font-size: 14px !important;
-  font-weight: 500 !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  padding: 8px 18px !important;
+  border: 1.5px solid transparent !important;
+  border-bottom: none !important;
+  border-radius: 6px 6px 0 0 !important;
+  margin-right: 4px !important;
+  color: #444 !important;
+}
+
+.ant-tabs-tab:not(.ant-tabs-tab-active) {
+  background: #e8ebf3 !important;
+  border-color: #c0c6d8 !important;
+}
+
+.ant-tabs-tab-active {
+  background: #fff !important;
+  border-color: #4472c4 !important;
+  color: #4472c4 !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #4472c4 !important;
+}
+
+.ant-tabs-nav::before {
+  border-bottom: 2px solid #c0c6d8 !important;
+}
+
+.ant-tabs-ink-bar {
+  height: 3px !important;
+  background: #4472c4 !important;
+}
+
+.ant-tabs-content-holder {
+  border: 1.5px solid #c0c6d8 !important;
+  border-top: none !important;
+  border-radius: 0 0 8px 8px !important;
+  padding: 16px !important;
+  background: #fff !important;
 }
 
 /* Pagination */
 .ant-pagination-item a,
 .ant-pagination-item-link {
-  font-size: 13px !important;
+  font-size: 14px !important;
+}
+
+.ant-pagination-item {
+  border-color: #b0b8cc !important;
+}
+
+.ant-pagination-item-active {
+  border-color: #4472c4 !important;
 }
 
 /* Select 下拉選項 */
 .ant-select-item-option-content {
-  font-size: 14px !important;
+  font-size: 15px !important;
 }
 
-/* Empty 空狀態說明 */
+.ant-select-dropdown {
+  border: 1.5px solid #b0b8cc !important;
+  border-radius: 8px !important;
+}
+
+/* Empty 空狀態 */
 .ant-empty-description {
-  font-size: 14px !important;
-  color: #666 !important;
+  font-size: 15px !important;
+  color: #555 !important;
 }
 
-/* Popconfirm / Tooltip 文字 */
+/* Popconfirm / Tooltip */
 .ant-popover-message-title,
 .ant-tooltip-inner {
-  font-size: 13px !important;
+  font-size: 14px !important;
+}
+
+/* Button 邊框加深 */
+.ant-btn {
+  font-size: 15px !important;
+  border-color: #aab0c4 !important;
+  font-weight: 500 !important;
+}
+
+.ant-btn-primary {
+  border-color: #4472c4 !important;
+}
+
+.ant-btn-dangerous {
+  border-color: #d9363e !important;
+}
+
+/* Divider */
+.ant-divider {
+  border-color: #c0c6d8 !important;
+}
+
+/* Switch label 旁文字 */
+.ant-space,
+.ant-space-item {
+  font-size: 15px !important;
 }
 
 /* ── 頁面結構 ───────────────────────────────── */
@@ -115,17 +303,19 @@ div[style*="color:#888"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .page-header h2 {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a2e;
 }
 
 .stat-card {
   background: #fff;
   border-radius: 10px;
   padding: 20px 24px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  border: 1.5px solid #c0c6d8;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
 }
