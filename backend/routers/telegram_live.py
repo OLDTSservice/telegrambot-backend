@@ -122,6 +122,28 @@ def send_message(payload: schemas.LiveSendRequest, db: Session = Depends(get_db)
     )
     db.add(msg)
     db.commit()
+
+    # 自動開單
+    import threading
+    from services.telegram_service import _create_freshdesk_ticket_bg
+    # 取得最後一則用戶訊息作為問題
+    user_msg = (
+        db.query(models.TelegramMessage)
+        .filter(
+            models.TelegramMessage.bot_id == payload.bot_id,
+            models.TelegramMessage.chat_id == payload.chat_id,
+            models.TelegramMessage.is_from_admin == False,
+        )
+        .order_by(models.TelegramMessage.created_at.desc())
+        .first()
+    )
+    question = user_msg.text if user_msg else payload.text
+    threading.Thread(
+        target=_create_freshdesk_ticket_bg,
+        args=(question, payload.text, chat_name),
+        daemon=True,
+    ).start()
+
     return {"ok": True}
 
 
@@ -195,6 +217,17 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(requi
                 date=today, reply_count=1,
             ))
         db.commit()
+
+    # 自動開單（與 AI 回覆相同流程）
+    if last_msg:
+        import threading
+        from services.telegram_service import _create_freshdesk_ticket_bg
+        threading.Thread(
+            target=_create_freshdesk_ticket_bg,
+            args=(last_msg.text, pending.reply_text, last_msg.chat_name),
+            daemon=True,
+        ).start()
+
     return {"ok": True}
 
 
