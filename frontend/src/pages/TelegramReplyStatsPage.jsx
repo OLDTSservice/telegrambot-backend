@@ -1,23 +1,18 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Card, Row, Col, Select, DatePicker, Table, Tag, Space,
-  Typography, Statistic, Spin, Empty,
+  Typography, Statistic, Spin, Empty, Button,
 } from 'antd'
-import { TrophyOutlined, MessageOutlined, RobotOutlined } from '@ant-design/icons'
+import { TrophyOutlined, MessageOutlined, RobotOutlined, FileTextOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line,
 } from 'recharts'
 import dayjs from 'dayjs'
-import { getTelegramGroupStats, getTelegramTrend, getBots } from '../api'
+import { getTelegramGroupStats, getTelegramTrend, getBots, getTicketCounts } from '../api'
 
 const { Text, Title } = Typography
-
-const PERIOD_OPTIONS = [
-  { label: '每日', value: 'daily' },
-  { label: '每月', value: 'monthly' },
-  { label: '每年', value: 'yearly' },
-]
+const { RangePicker } = DatePicker
 
 const CHAT_TYPE_TAG = {
   private: { color: 'blue', label: '私聊' },
@@ -26,60 +21,80 @@ const CHAT_TYPE_TAG = {
   channel: { color: 'orange', label: '頻道' },
 }
 
-function periodValue(period) {
-  const now = dayjs()
-  if (period === 'daily') return now.format('YYYY-MM-DD')
-  if (period === 'monthly') return now.format('YYYY-MM')
-  return now.format('YYYY')
-}
+// 快捷時間範圍
+const PRESETS = [
+  { label: '今日',   getRange: () => [dayjs(), dayjs()] },
+  { label: '昨日',   getRange: () => [dayjs().subtract(1,'day'), dayjs().subtract(1,'day')] },
+  { label: '近7日',  getRange: () => [dayjs().subtract(6,'day'), dayjs()] },
+  { label: '近30日', getRange: () => [dayjs().subtract(29,'day'), dayjs()] },
+  { label: '本月',   getRange: () => [dayjs().startOf('month'), dayjs().endOf('month')] },
+  { label: '上個月', getRange: () => [dayjs().subtract(1,'month').startOf('month'), dayjs().subtract(1,'month').endOf('month')] },
+  { label: '今年',   getRange: () => [dayjs().startOf('year'), dayjs().endOf('year')] },
+  { label: '去年',   getRange: () => [dayjs().subtract(1,'year').startOf('year'), dayjs().subtract(1,'year').endOf('year')] },
+]
 
 export default function TelegramReplyStatsPage() {
-  const [period, setPeriod] = useState('monthly')
-  const [value, setValue] = useState(periodValue('monthly'))
+  const today = dayjs()
+  const [dateRange, setDateRange] = useState([today.startOf('month'), today])
+  const [activePreset, setActivePreset] = useState('本月')
   const [botId, setBotId] = useState(null)
   const [bots, setBots] = useState([])
   const [rankData, setRankData] = useState([])
   const [trendData, setTrendData] = useState([])
+  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, whitelist_tickets: 0 })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     getBots().then(r => setBots(r.data)).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [period, value, botId])
+  useEffect(() => { load() }, [dateRange, botId])
+
+  const buildParams = useCallback(() => {
+    const [from, to] = dateRange
+    return {
+      date_from: from.format('YYYY-MM-DD'),
+      date_to: to.format('YYYY-MM-DD'),
+      bot_id: botId || undefined,
+    }
+  }, [dateRange, botId])
 
   const load = async () => {
     setLoading(true)
     try {
-      const [rankRes, trendRes] = await Promise.all([
-        getTelegramGroupStats(period, value, botId),
-        getTelegramTrend(period, value, botId),
+      const params = buildParams()
+      const [rankRes, trendRes, tcRes] = await Promise.all([
+        getTelegramGroupStats(params),
+        getTelegramTrend(params),
+        getTicketCounts(params),
       ])
       setRankData(rankRes.data)
       setTrendData(trendRes.data)
-    } catch { }
+      setTicketCounts(tcRes.data)
+    } catch {}
     finally { setLoading(false) }
   }
 
+  const handlePreset = (preset) => {
+    setActivePreset(preset.label)
+    setDateRange(preset.getRange())
+  }
+
+  const handleRangeChange = (dates) => {
+    if (dates) {
+      setActivePreset(null)
+      setDateRange(dates)
+    }
+  }
+
   const totalReplies = rankData.reduce((s, r) => s + r.reply_count, 0)
-
-  const handlePeriodChange = (p) => {
-    setPeriod(p)
-    setValue(periodValue(p))
-  }
-
-  const handleDateChange = (_, dateStr) => {
-    if (dateStr) setValue(dateStr)
-  }
 
   const rankColumns = [
     {
       title: '排名', width: 60,
       render: (_, __, idx) => (
-        <span style={{ fontWeight: 700, color: idx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] : '#888' }}>
-          {idx < 3 ? ['🥇', '🥈', '🥉'][idx] : `#${idx + 1}`}
+        <span style={{ fontWeight: 700, color: idx < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][idx] : '#888' }}>
+          {idx < 3 ? ['🥇','🥈','🥉'][idx] : `#${idx + 1}`}
         </span>
       ),
     },
@@ -119,53 +134,76 @@ export default function TelegramReplyStatsPage() {
 
       {/* 篩選列 */}
       <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <span>統計週期：</span>
-          <Select value={period} onChange={handlePeriodChange} style={{ width: 100 }}
-            options={PERIOD_OPTIONS} />
-
-          {period === 'daily' && (
-            <DatePicker value={dayjs(value)} onChange={handleDateChange}
-              format="YYYY-MM-DD" allowClear={false} />
-          )}
-          {period === 'monthly' && (
-            <DatePicker.MonthPicker value={dayjs(value)} onChange={handleDateChange}
-              format="YYYY-MM" allowClear={false} />
-          )}
-          {period === 'yearly' && (
-            <DatePicker.YearPicker value={dayjs(value)} onChange={handleDateChange}
-              format="YYYY" allowClear={false} />
-          )}
-
-          <span style={{ marginLeft: 8 }}>機器人：</span>
-          <Select value={botId} onChange={setBotId} style={{ width: 160 }}
-            placeholder="全部機器人" allowClear>
-            {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
-          </Select>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {/* 快捷按鈕 */}
+          <Space wrap>
+            <span style={{ fontWeight: 600, color: '#333' }}>快捷選擇：</span>
+            {PRESETS.map(p => (
+              <Button
+                key={p.label}
+                size="small"
+                type={activePreset === p.label ? 'primary' : 'default'}
+                onClick={() => handlePreset(p)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </Space>
+          {/* 自訂時間範圍 + 機器人篩選 */}
+          <Space wrap>
+            <span style={{ fontWeight: 600, color: '#333' }}>自訂範圍：</span>
+            <RangePicker
+              value={dateRange}
+              onChange={handleRangeChange}
+              allowClear={false}
+              format="YYYY/MM/DD"
+            />
+            <span style={{ marginLeft: 8, fontWeight: 600, color: '#333' }}>機器人：</span>
+            <Select
+              value={botId}
+              onChange={setBotId}
+              style={{ width: 180 }}
+              allowClear
+              placeholder="全部機器人"
+            >
+              <Select.Option value={null}>全部機器人</Select.Option>
+              {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
+            </Select>
+          </Space>
         </Space>
       </Card>
 
       {/* 摘要卡片 */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={8}>
+        <Col span={6}>
           <Card>
             <Statistic title="總回覆次數" value={totalReplies}
               prefix={<MessageOutlined />} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card>
             <Statistic title="活躍群組數" value={rankData.length}
               prefix={<RobotOutlined />} valueStyle={{ color: '#52c41a' }} />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card>
             <Statistic
-              title="最活躍群組"
-              value={rankData[0]?.chat_name || '—'}
-              prefix={<TrophyOutlined style={{ color: '#FFD700' }} />}
-              valueStyle={{ fontSize: 16 }}
+              title="知識庫建立工單數"
+              value={ticketCounts.kb_tickets}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="白名單建立工單數"
+              value={ticketCounts.whitelist_tickets}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#13c2c2' }}
             />
           </Card>
         </Col>
@@ -204,8 +242,7 @@ export default function TelegramReplyStatsPage() {
                       margin={{ left: 20, right: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <YAxis type="category" dataKey="chat_name" width={110}
-                        tick={{ fontSize: 11 }} />
+                      <YAxis type="category" dataKey="chat_name" width={110} tick={{ fontSize: 11 }} />
                       <Tooltip formatter={v => [`${v} 次`, '回覆次數']} />
                       <Bar dataKey="reply_count" fill="#1677ff" radius={[0, 4, 4, 0]} />
                     </BarChart>

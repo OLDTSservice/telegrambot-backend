@@ -500,8 +500,39 @@ def _save_rescue_candidate(bot_id, chat_id, chat_name, chat_type,
         db.rollback()
 
 
+def _send_notify_message(ticket_id, group_name: str, error_msg: str = None):
+    """發送 Freshdesk 工單建立通知到指定 Telegram 群組"""
+    try:
+        from database import SessionLocal
+        import models as _models
+        db = SessionLocal()
+        try:
+            setting = db.query(_models.NotifySetting).filter(
+                _models.NotifySetting.enabled == True
+            ).first()
+            if not setting:
+                return
+            success = ticket_id is not None
+            lines = [
+                f"群組名稱：{group_name}",
+                f"建立狀態：{'✅ 成功' if success else '❌ 失敗'}",
+            ]
+            if success:
+                lines.append(f"工單編號：#{ticket_id}")
+            else:
+                lines.append(f"失敗原因：{error_msg or '未知錯誤'}")
+            text = "\n".join(lines)
+            bot_manager.send_message(setting.bot_id, setting.chat_id, text)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"[Notify] 發送通知失敗: {e}")
+
+
 def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
     """背景建立 Freshdesk 工單，不阻擋 bot 回覆流程"""
+    ticket_id = None
+    error_msg = None
     try:
         resp = requests.post(
             "https://freshdesk-ticket-creation.onrender.com/api/create-ticket-from-bot",
@@ -509,8 +540,12 @@ def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
             timeout=30,
         )
         if resp.ok:
-            logger.info(f"[Freshdesk] 工單建立成功 ID={resp.json().get('id')} group={group_name}")
+            ticket_id = resp.json().get('id')
+            logger.info(f"[Freshdesk] 工單建立成功 ID={ticket_id} group={group_name}")
         else:
+            error_msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
             logger.warning(f"[Freshdesk] 建單失敗 {resp.status_code}: {resp.text[:500]}")
     except Exception as e:
+        error_msg = str(e)
         logger.error(f"[Freshdesk] 建單例外: {e}")
+    _send_notify_message(ticket_id, group_name, error_msg)

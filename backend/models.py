@@ -373,6 +373,18 @@ class AIRescueCandidate(Base):
     bot = relationship("TelegramBot", back_populates="rescue_candidates")
 
 
+class NotifySetting(Base):
+    """Freshdesk 工單通知設定：指定哪個機器人發通知到哪個群組"""
+    __tablename__ = "notify_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False, default="")
+    enabled = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TelegramGroupSetting(Base):
     """每個群組的 AI 問答開關設定"""
     __tablename__ = "telegram_group_settings"

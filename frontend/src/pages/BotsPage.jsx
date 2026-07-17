@@ -5,7 +5,7 @@ import {
   Pagination, Empty, Spin, InputNumber, Tooltip,
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined, SearchOutlined } from '@ant-design/icons'
-import { getBots, createBot, updateBot, deleteBot, getRescueSetting, updateRescueSetting } from '../api'
+import { getBots, createBot, updateBot, deleteBot, getRescueSetting, updateRescueSetting, getNotifySetting, updateNotifySetting } from '../api'
 import api from '../api'
 
 const { Text } = Typography
@@ -372,6 +372,136 @@ function RescueTab({ user }) {
   )
 }
 
+// ── Notify 管理 Tab ─────────────────────────────────────────────────────────
+function NotifyTab({ user }) {
+  const [bots, setBots] = useState([])
+  const [groups, setGroups] = useState([])
+  const [botId, setBotId] = useState(null)
+  const [chatId, setChatId] = useState(null)
+  const [chatName, setChatName] = useState('')
+  const [enabled, setEnabled] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [groupsLoading, setGroupsLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getBots().then(r => setBots(r.data)).catch(() => {})
+    getNotifySetting().then(r => {
+      const s = r.data
+      if (s.bot_id) {
+        setBotId(s.bot_id)
+        setChatId(s.chat_id)
+        setChatName(s.chat_name || '')
+        setEnabled(s.enabled)
+        loadGroups(s.bot_id)
+      }
+    }).catch(() => {})
+  }, [])
+
+  const loadGroups = async (bid) => {
+    if (!bid) return
+    setGroupsLoading(true)
+    try {
+      const r = await api.get('/group-stats/telegram', { params: { period: 'yearly', value: new Date().getFullYear().toString(), bot_id: bid } })
+      setGroups(r.data)
+    } catch {}
+    finally { setGroupsLoading(false) }
+  }
+
+  const handleBotChange = (bid) => {
+    setBotId(bid)
+    setChatId(null)
+    setChatName('')
+    loadGroups(bid)
+  }
+
+  const handleChatChange = (cid) => {
+    setChatId(cid)
+    const g = groups.find(g => g.chat_id === cid)
+    setChatName(g ? g.chat_name : cid)
+  }
+
+  const handleSave = async () => {
+    if (!botId || !chatId) { message.warning('請選擇機器人和群組'); return }
+    setSaving(true)
+    try {
+      await updateNotifySetting({ bot_id: botId, chat_id: chatId, chat_name: chatName, enabled })
+      message.success('設定已儲存')
+    } catch { message.error('儲存失敗') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 620 }}>
+      <div style={{ marginBottom: 16, color: '#555', fontSize: 14 }}>
+        選擇一個 Telegram 機器人與目標群組，當 Freshdesk 工單建立成功或失敗時，機器人將自動發送通知到該群組。
+      </div>
+      <Card style={{ marginBottom: 16 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size={16}>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>通知開關</div>
+            <Switch
+              checked={enabled}
+              onChange={setEnabled}
+              checkedChildren="啟用" unCheckedChildren="關閉"
+              disabled={!canEdit(user)}
+            />
+            <Tag style={{ marginLeft: 12 }} color={enabled ? 'green' : 'default'}>
+              {enabled ? '通知已啟用' : '通知未啟用'}
+            </Tag>
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>發送通知的機器人</div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="選擇機器人"
+              value={botId}
+              onChange={handleBotChange}
+              disabled={!canEdit(user)}
+            >
+              {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
+            </Select>
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>通知目標群組</div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder={botId ? '選擇群組' : '請先選擇機器人'}
+              value={chatId}
+              onChange={handleChatChange}
+              loading={groupsLoading}
+              disabled={!canEdit(user) || !botId}
+              showSearch
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              options={groups.map(g => ({ value: g.chat_id, label: g.chat_name }))}
+            />
+            {chatId && (
+              <div style={{ marginTop: 6, fontSize: 13, color: '#555' }}>
+                群組 ID：<Text code>{chatId}</Text>
+              </div>
+            )}
+          </div>
+          {canEdit(user) && (
+            <Button type="primary" onClick={handleSave} loading={saving}>儲存設定</Button>
+          )}
+        </Space>
+      </Card>
+
+      <Card title="通知訊息格式預覽" size="small">
+        <div style={{ fontFamily: 'monospace', fontSize: 13, background: '#f5f7fa', padding: 12, borderRadius: 6, lineHeight: 2 }}>
+          <div>群組名稱：{chatName || '（目標群組名稱）'}</div>
+          <div style={{ color: '#52c41a' }}>建立狀態：✅ 成功</div>
+          <div>工單編號：#12345</div>
+          <hr style={{ border: 'none', borderTop: '1px dashed #ccc', margin: '8px 0' }} />
+          <div>群組名稱：{chatName || '（目標群組名稱）'}</div>
+          <div style={{ color: '#f5222d' }}>建立狀態：❌ 失敗</div>
+          <div>失敗原因：HTTP 500: Internal Server Error</div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ── 主頁面 ──────────────────────────────────────────────────────────────────
 export default function BotsPage({ user }) {
   return (
@@ -393,6 +523,11 @@ export default function BotsPage({ user }) {
             key: 'rescue',
             label: 'AI機器人救援',
             children: <RescueTab user={user} />,
+          },
+          {
+            key: 'notify',
+            label: 'Notify管理',
+            children: <NotifyTab user={user} />,
           },
         ]}
       />

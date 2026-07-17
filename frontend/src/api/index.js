@@ -88,10 +88,12 @@ export const updateTelegramIgnore = (id, d) => api.put(`/telegram-ignores/${id}`
 export const deleteTelegramIgnore = id => api.delete(`/telegram-ignores/${id}`)
 
 // ── Group Stats ────────────────────────────────
-export const getTelegramGroupStats = (period, value, botId) =>
-  api.get('/group-stats/telegram', { params: { period, value, bot_id: botId || undefined } })
-export const getTelegramTrend = (period, value, botId) =>
-  api.get('/group-stats/telegram/trend', { params: { period, value, bot_id: botId || undefined } })
+export const getTelegramGroupStats = (params) =>
+  api.get('/group-stats/telegram', { params })
+export const getTelegramTrend = (params) =>
+  api.get('/group-stats/telegram/trend', { params })
+export const getTicketCounts = (params) =>
+  api.get('/group-stats/ticket-counts', { params })
 export const getTeamsGroupStats = (period, value, botId) =>
   api.get('/group-stats/teams', { params: { period, value, bot_id: botId || undefined } })
 export const getTeamsTrend = (period, value, botId) =>
@@ -113,3 +115,7 @@ export const discardPendingReply = (id) => api.delete(`/telegram-live/pending/${
 // ── AI 救援設定 ────────────────────────────────
 export const getRescueSetting = (botId) => api.get(`/ai-rescue/${botId}`)
 export const updateRescueSetting = (botId, d) => api.put(`/ai-rescue/${botId}`, d)
+
+// ── Notify 通知設定 ────────────────────────────
+export const getNotifySetting = () => api.get('/notify-settings')
+export const updateNotifySetting = (d) => api.put('/notify-settings', d)

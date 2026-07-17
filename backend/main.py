@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from database import engine, SessionLocal
 import models
 from auth import hash_password
-from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live, whitelist, conversation_log, no_answer_log, group_settings, ai_rescue
+from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live, whitelist, conversation_log, no_answer_log, group_settings, ai_rescue, notify_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -120,6 +120,7 @@ app.include_router(conversation_log.router)
 app.include_router(no_answer_log.router)
 app.include_router(group_settings.router)
 app.include_router(ai_rescue.router)
+app.include_router(notify_settings.router)
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
