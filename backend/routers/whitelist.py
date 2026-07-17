@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/whitelist", tags=["後台白名單處理"])
 
 
 @router.get("/logs", response_model=List[schemas.WhitelistLogOut])
-def get_whitelist_logs(bot_id: int, limit: int = 10,
+def get_whitelist_logs(bot_id: int, limit: int = 50,
                        db: Session = Depends(get_db), _=Depends(require_viewer)):
     """取得最近 N 筆白名單處理記錄"""
     return (

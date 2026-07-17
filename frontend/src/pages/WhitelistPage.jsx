@@ -74,7 +74,7 @@ export default function WhitelistPage({ user }) {
     if (!selectedBotId) return
     setLoading(true)
     try {
-      const r = await getWhitelistLogs(selectedBotId, 10)
+      const r = await getWhitelistLogs(selectedBotId, 50)
       setLogs(r.data)
     } catch {
       message.error('載入記錄失敗')
@@ -125,7 +125,7 @@ export default function WhitelistPage({ user }) {
       </Card>
 
       {/* 最近 10 筆記錄 */}
-      <Card title="最近 10 筆白名單處理記錄">
+      <Card title="最近 50 筆白名單處理記錄">
         <Table
           dataSource={logs}
           columns={columns}
