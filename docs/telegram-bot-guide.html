@@ -417,7 +417,7 @@
             顯示該群組廠商驗證功能的狀態（「已啟用」藍色標籤 / 「未啟用」灰色標籤）。點擊盾牌圖示按鈕開啟設定 Modal，可設定：
             <ul style="margin:6px 0">
               <li><strong>廠商驗證開關</strong>：開啟後，此群組的白名單申請在執行前會先驗證廠商是否在允許清單內，不符合則靜默拒絕。</li>
-              <li><strong>允許廠商前綴</strong>（逗號分隔，不分大小寫）：填入廠商名稱或前綴，系統解析出的廠商名稱只要以其中一個前綴<strong>開頭</strong>即視為允許。例如填 <span class="code">TitanTR1_SCFLY</span> 可允許完整廠商名；填 <span class="code">TitanTR1</span> 則允許所有 <span class="code">TitanTR1_</span> 開頭的廠商。</li>
+              <li><strong>允許廠商前綴</strong>（逗號分隔，不分大小寫）：填入廠商名稱或前綴。比對採<strong>分隔符號感知</strong>模式——前綴 <span class="code">P</span> 僅允許廠商名稱完全等於 <span class="code">P</span>、或以 <span class="code">P_</span>（底線）、<span class="code">P-</span>（破折號）開頭；不會誤放行恰好含同樣字母但屬不同廠商的名稱（例如填 <span class="code">ON9</span> 只允許 <span class="code">ON9</span>、<span class="code">ON9_sub</span>，不會放行 <span class="code">On9gaming</span>）。填 <span class="code">TitanTR1</span> 則允許 <span class="code">TitanTR1</span>、<span class="code">TitanTR1_SCFLY</span> 等旗下子品牌。</li>
             </ul>
             未填允許前綴或關閉開關時，此群組不受廠商限制，任何廠商都可加白。
           </td></tr>
@@ -796,9 +796,14 @@
           <tr>
             <td>允許廠商前綴（逗號分隔）</td>
             <td>
-              填入允許的廠商名稱或前綴，<strong>不分大小寫</strong>。判斷邏輯為「解析到的廠商名稱以其中一個前綴<strong>開頭</strong>即通過」：<br>
-              • 填 <span class="code">TitanTR1_SCFLY</span> → 僅允許該完整廠商名稱<br>
-              • 填 <span class="code">TitanTR1</span> → 允許所有 <span class="code">TitanTR1_</span> 開頭的廠商（包含旗下多個子品牌）<br>
+              填入允許的廠商名稱或前綴，<strong>不分大小寫</strong>。採<strong>分隔符號感知比對</strong>，前綴 <span class="code">P</span> 通過條件為以下三者之一：<br>
+              • 廠商名稱 <strong>完全等於</strong> <span class="code">P</span><br>
+              • 廠商名稱以 <span class="code">P_</span>（底線）開頭<br>
+              • 廠商名稱以 <span class="code">P-</span>（破折號）開頭<br>
+              <br>
+              範例：<br>
+              • 填 <span class="code">ON9</span> → 允許 <span class="code">ON9</span>、<span class="code">ON9_subagent</span>，但<strong>不放行</strong> <span class="code">On9gaming</span>（屬於不同廠商，名稱中間無分隔符號）<br>
+              • 填 <span class="code">TitanTR1</span> → 允許 <span class="code">TitanTR1</span>、<span class="code">TitanTR1_SCFLY</span> 等旗下子品牌<br>
               • 留空（或關閉開關） → 不做任何限制，任何廠商皆可加白
             </td>
           </tr>

@@ -205,9 +205,18 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                 return False, None
 
             # ── Step 4d：群組廠商白名單驗證 ──────────────────────────────
+            # 使用分隔符號感知比對：前綴 P 允許廠商名稱 == P、P_* 或 P-*
+            # 避免 "ON9" 誤放行 "On9gaming"（沒有分隔符號，屬於不同廠商）
+            def _vendor_matches(vendor_upper: str, prefix_upper: str) -> bool:
+                return (
+                    vendor_upper == prefix_upper
+                    or vendor_upper.startswith(prefix_upper + '_')
+                    or vendor_upper.startswith(prefix_upper + '-')
+                )
+
             if allowed_vendor_prefixes:
                 upper_name = matched_name.upper()
-                if not any(upper_name.startswith(p.strip().upper()) for p in allowed_vendor_prefixes):
+                if not any(_vendor_matches(upper_name, p.strip().upper()) for p in allowed_vendor_prefixes):
                     logger.warning(f"[Whitelist] 廠商 '{matched_name}' 不在群組允許清單 {allowed_vendor_prefixes}，拒絕")
                     return False, None
                 logger.info(f"[Whitelist] 廠商驗證通過：'{matched_name}' 符合允許清單")
