@@ -60,6 +60,7 @@ export default function RulesPage({ user }) {
       bot_id: rule.bot_id,
       keyword: rule.keyword,
       reply_message: rule.reply_message,
+      reply_message_en: rule.reply_message_en || '',
     })
     setModalOpen(true)
   }
@@ -117,10 +118,18 @@ export default function RulesPage({ user }) {
       render: kw => <Text code>{kw}</Text>,
     },
     {
-      title: '回覆訊息',
+      title: '中文回覆',
       dataIndex: 'reply_message',
       ellipsis: true,
       render: msg => <Text style={{ color: '#555' }}>{msg}</Text>,
+    },
+    {
+      title: '英文回覆',
+      dataIndex: 'reply_message_en',
+      ellipsis: true,
+      render: msg => msg
+        ? <Text style={{ color: '#555' }}>{msg}</Text>
+        : <Text type="secondary">（未設定，英文問題套用中文回覆）</Text>,
     },
     {
       title: '操作',
@@ -197,9 +206,13 @@ export default function RulesPage({ user }) {
             rules={[{ required: true, message: '請輸入關鍵字' }]}>
             <Input placeholder="例如：你好、優惠、價格" />
           </Form.Item>
-          <Form.Item name="reply_message" label="自動回覆訊息"
+          <Form.Item name="reply_message" label="中文回覆訊息（預設）"
             rules={[{ required: true, message: '請輸入回覆內容' }]}>
-            <TextArea rows={4} placeholder="輸入機器人要回覆的訊息內容" />
+            <TextArea rows={4} placeholder="輸入機器人要回覆的訊息內容（中文問題或未設英文時使用）" />
+          </Form.Item>
+          <Form.Item name="reply_message_en" label="英文回覆訊息（選填）"
+            extra="純英文問題時改用此內容；未填則一律回覆上方中文版本">
+            <TextArea rows={4} placeholder="English reply for non-Chinese messages" />
           </Form.Item>
         </Form>
       </Modal>

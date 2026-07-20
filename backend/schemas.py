@@ -136,6 +136,7 @@ class RuleBase(BaseModel):
     bot_id: int
     keyword: str
     reply_message: str
+    reply_message_en: Optional[str] = None
 
 
 class RuleCreate(RuleBase):
@@ -146,6 +147,7 @@ class RuleUpdate(BaseModel):
     bot_id: Optional[int] = None
     keyword: Optional[str] = None
     reply_message: Optional[str] = None
+    reply_message_en: Optional[str] = None
     is_enabled: Optional[bool] = None
 
 

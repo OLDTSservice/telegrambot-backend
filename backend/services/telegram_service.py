@@ -208,18 +208,26 @@ class BotManager:
 
         tg_msg_id = update.message.message_id  # Telegram 原生訊息 ID
 
+        import re as _re
+        _is_chinese = bool(_re.search(r'[一-鿿㐀-䶿]', text))
+
         for rule in rules:
             if rule.keyword.lower() in text.lower():
+                reply_text = (
+                    rule.reply_message
+                    if _is_chinese or not rule.reply_message_en
+                    else rule.reply_message_en
+                )
                 if is_managed:
                     # 管控模式：記錄訊息 + 建立待發送回覆
                     msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
                                              sender_id, sender_name, text, db,
                                              telegram_message_id=tg_msg_id)
-                    _save_pending_reply(bot_id, chat_id, msg.id, rule.reply_message, db)
+                    _save_pending_reply(bot_id, chat_id, msg.id, reply_text, db)
                 else:
-                    await update.message.reply_text(rule.reply_message)
+                    await update.message.reply_text(reply_text)
                     _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, rule.reply_message, chat_name), daemon=True).start()
+                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply_text, chat_name), daemon=True).start()
                 return
 
         # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過

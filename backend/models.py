@@ -51,6 +51,7 @@ class KeywordRule(Base):
     bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
     keyword = Column(String(500), nullable=False)
     reply_message = Column(Text, nullable=False)
+    reply_message_en = Column(Text, nullable=True)   # 英文回覆（選填）
     is_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
