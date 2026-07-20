@@ -71,7 +71,7 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     return vendor_code, all_parts, ips
 
 
-def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None) -> tuple[bool, Optional[str]]:
+def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None) -> tuple[bool, Optional[str], bool]:
     """同步 HTTP 流程，直接在 asyncio.to_thread 的執行緒中執行"""
     logger.info(f"[Whitelist] 開始（HTTP 模式）：username_parts={username_parts}, IPs={ips}")
 
@@ -92,7 +92,7 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
 
             if login_json.get("response", {}).get("error", -1) != 0:
                 logger.error(f"[Whitelist] 登入失敗：{login_json}")
-                return False, None
+                return False, None, False
             logger.info("[Whitelist] 登入成功")
 
             # ── Step 3：取廠商清單 ────────────────────────────
@@ -120,7 +120,7 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
 
             if not all_vendors:
                 logger.error(f"[Whitelist] 廠商清單解析失敗，前300字：{init_r.text[:300]}")
-                return False, None
+                return False, None, False
 
             # ── Step 4：逐段比對廠商名稱 ──────────────────────
             matched_id = None
@@ -202,7 +202,7 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                         logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
 
             if not matched_id:
-                return False, None
+                return False, None, False
 
             # ── Step 4d：群組廠商白名單驗證 ──────────────────────────────
             # 使用分隔符號感知比對：前綴 P 允許廠商名稱 == P、P_* 或 P-*
@@ -218,7 +218,7 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                 upper_name = matched_name.upper()
                 if not any(_vendor_matches(upper_name, p.strip().upper()) for p in allowed_vendor_prefixes):
                     logger.warning(f"[Whitelist] 廠商 '{matched_name}' 不在群組允許清單 {allowed_vendor_prefixes}，拒絕")
-                    return False, None
+                    return False, None, True
                 logger.info(f"[Whitelist] 廠商驗證通過：'{matched_name}' 符合允許清單")
 
             # ── Step 5：新增白名單 ────────────────────────────
@@ -242,11 +242,11 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
             if error_code != 0:
                 msg = save_json.get("response", {}).get("message", save_json.get("msg", "unknown"))
                 logger.error(f"[Whitelist] 新增失敗：{msg}")
-                return False, None
+                return False, None, False
 
             logger.info(f"[Whitelist] 新增成功：廠商={matched_name}, IPs={ips}")
-            return True, matched_name
+            return True, matched_name, False
 
         except Exception as e:
             logger.error(f"[Whitelist] 例外：{e}", exc_info=True)
-            return False, None
+            return False, None, False

@@ -508,7 +508,7 @@
             </div>
             <div class="flow-outcome">
               <div class="flow-branch"><span class="tag tag-green">至少一組帳號成功</span> 回覆固定文字 <span class="code">Done</span>，並背景建立 Freshdesk 工單</div>
-              <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過</span> 解析出的廠商名稱不在此群組的允許清單內 → 靜默拒絕，不加白、不回覆、不建工單（須於群組管理 Tab 開啟廠商驗證並設定允許前綴，詳見 <a href="#bots-tab-groups">群組管理 Tab</a>）</div>
+              <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過</span> 解析出的廠商名稱不在此群組的允許清單內 → 不執行加白、不建工單；依訊息語言回覆固定訊息（中文：「您好，人員將會協助確認，請稍後」／英文：「Hello, our team will assist you shortly. Please wait.」），詳見 <a href="#bots-tab-groups">群組管理 Tab</a></div>
               <div class="flow-branch"><span class="tag tag-gray">全部失敗 / 無法解析</span> 靜默不回覆、不建工單</div>
             </div>
             <p style="margin-top:8px" class="flow-desc">⚠️ 此步驟<strong>不受「即時對話管控模式」影響</strong>——即使該機器人開啟了管控模式，只要訊息符合白名單請求格式，機器人仍會自動處理並直接回覆，不會進入待審佇列。</p>
@@ -780,7 +780,7 @@
 
       <div class="flow-outcome" style="margin-top:10px">
         <div class="flow-branch"><span class="tag tag-green">解析成功 ≥1 組帳號</span> 呼叫內部系統新增白名單 IP，機器人回覆 <span class="code">Done</span>，並建立 Freshdesk 工單留存紀錄</div>
-        <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過（Step 4d）</span> 解析到的廠商不屬於此群組的允許廠商 → 靜默拒絕，不加白、不回覆</div>
+        <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過（Step 4d）</span> 解析到的廠商不屬於此群組的允許廠商 → 不加白、不建工單；依訊息語言自動回覆固定訊息（中文：「您好，人員將會協助確認，請稍後」／英文：「Hello, our team will assist you shortly. Please wait.」）</div>
         <div class="flow-branch"><span class="tag tag-gray">全部失敗（廠商無法判斷 / 登入失敗等）</span> 機器人<strong>不回覆任何訊息</strong>，避免誤導使用者以為已處理完成；僅在記錄檔中留下失敗 log</div>
       </div>
 
