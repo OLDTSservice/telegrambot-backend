@@ -307,6 +307,7 @@
       <a class="toc-link toc-sub" href="#bots-tab-list">— 機器人管理 Tab</a>
       <a class="toc-link toc-sub" href="#bots-tab-groups">— 群組管理 Tab</a>
       <a class="toc-link toc-sub" href="#bots-tab-rescue">— AI機器人救援 Tab</a>
+      <a class="toc-link toc-sub" href="#bots-tab-notify">— Notify管理 Tab</a>
     </div>
 
     <div class="toc-group">
@@ -404,7 +405,7 @@
       </div>
 
       <h3 id="bots-tab-groups">群組管理 Tab</h3>
-      <p>列出指定機器人「曾經收到訊息」的所有 Telegram 群組／聊天室，並可個別控制該群組是否啟用 AI 問答。</p>
+      <p>列出指定機器人「曾經收到訊息」的所有 Telegram 群組／聊天室，並可個別控制每個群組的 AI 問答及白名單廠商驗證設定。</p>
       <table>
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
         <tbody>
@@ -412,8 +413,20 @@
           <tr><td>搜尋群組名稱</td><td>依群組名稱關鍵字篩選。</td></tr>
           <tr><td><strong>AI 問答</strong> 開關</td><td>此開關直接對應 <span class="code">TelegramGroupSetting.ai_enabled</span>（預設為開啟）。關閉後，該群組的訊息完全不會查詢知識庫，機器人只剩「關鍵字規則」仍會作用；此設定也是觸發「AI 救援」的先決條件之一，詳見 <a href="#flow-group-ai">訊息流程 — 群組 AI 開關</a>。</td></tr>
           <tr><td>群組類型標籤</td><td>私聊 / 群組 / 超級群組 / 頻道，取自 Telegram 原生 <span class="code">chat.type</span>。</td></tr>
+          <tr><td><strong>白名單廠商驗證</strong> 欄（Tag + 🛡 按鈕）</td><td>
+            顯示該群組廠商驗證功能的狀態（「已啟用」藍色標籤 / 「未啟用」灰色標籤）。點擊盾牌圖示按鈕開啟設定 Modal，可設定：
+            <ul style="margin:6px 0">
+              <li><strong>廠商驗證開關</strong>：開啟後，此群組的白名單申請在執行前會先驗證廠商是否在允許清單內，不符合則靜默拒絕。</li>
+              <li><strong>允許廠商前綴</strong>（逗號分隔，不分大小寫）：填入廠商名稱或前綴，系統解析出的廠商名稱只要以其中一個前綴<strong>開頭</strong>即視為允許。例如填 <span class="code">TitanTR1_SCFLY</span> 可允許完整廠商名；填 <span class="code">TitanTR1</span> 則允許所有 <span class="code">TitanTR1_</span> 開頭的廠商。</li>
+            </ul>
+            未填允許前綴或關閉開關時，此群組不受廠商限制，任何廠商都可加白。
+          </td></tr>
         </tbody>
       </table>
+      <div class="callout warn">
+        <strong>廠商驗證開關預設關閉</strong>
+        新加入的群組預設不啟用廠商驗證，若需要限制特定群組只能提交特定廠商的白名單申請，需手動到此頁面設定，避免遺漏。
+      </div>
 
       <h3 id="bots-tab-rescue">AI機器人救援 Tab</h3>
       <p>逐機器人設定「AI 救援」功能的啟用與逾時時間，詳細運作機制見 <a href="#rescue-detail">AI機器人救援（運作細節）</a>。</p>
@@ -425,6 +438,44 @@
           <tr><td>狀態標籤</td><td>顯示「未啟用」或「監控中（N 分）」。</td></tr>
         </tbody>
       </table>
+
+      <h3 id="bots-tab-notify">Notify管理 Tab</h3>
+      <p>設定「Freshdesk 工單建立通知」的接收機器人與目標群組。每當機器人在一般模式下自動回覆（關鍵字規則、知識庫問答、白名單成功處理），背景執行緒會嘗試建立 Freshdesk 工單；不論建立成功或失敗，都可透過此設定讓指定機器人自動把結果通知到指定的 Telegram 群組。</p>
+      <table>
+        <thead><tr><th>按鍵 / 欄位</th><th>功能說明 / 限制</th></tr></thead>
+        <tbody>
+          <tr><td><strong>通知開關</strong></td><td>關閉時完全不發送任何工單通知；開啟後，每筆 Freshdesk 建單動作（成功或失敗）都會觸發一則通知訊息。</td></tr>
+          <tr><td><strong>發送通知的機器人</strong></td><td>選擇用哪一個 Telegram 機器人來傳送通知訊息；需先在「機器人管理 Tab」建立並啟用機器人後才會出現於此下拉選單。</td></tr>
+          <tr><td><strong>通知目標群組</strong></td><td>選擇要把通知發到哪個群組；下拉選單來源為所選機器人曾有訊息活動的群組清單（若目標群組不在列，需先讓機器人在該群組收到至少一則訊息）。選定後會顯示群組 ID 供確認。</td></tr>
+          <tr><td><span class="btn-chip">儲存設定</span></td><td>儲存後立即生效，下次工單建立時即會發送通知到新設定的目標。</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>全域單一設定</strong>
+        Notify 設定是<strong>整個系統共用一組</strong>，不區分機器人——所有機器人的 Freshdesk 工單通知都會發到同一個目標群組。若需要按機器人分開通知，目前需手動更換設定。
+      </div>
+
+      <h4>通知訊息格式</h4>
+      <div class="card" style="font-family:monospace; font-size:13.5px; line-height:2;">
+        <div><strong>工單建立成功時：</strong></div>
+        <div style="background:var(--code-bg); padding:10px 14px; border-radius:6px; margin:6px 0;">
+          群組名稱：（觸發回覆的 Telegram 群組名稱）<br>
+          建立狀態：✅ 成功<br>
+          工單編號：#12345
+        </div>
+        <div style="margin-top:10px"><strong>工單建立失敗時：</strong></div>
+        <div style="background:var(--code-bg); padding:10px 14px; border-radius:6px; margin:6px 0;">
+          群組名稱：（觸發回覆的 Telegram 群組名稱）<br>
+          建立狀態：❌ 失敗<br>
+          失敗原因：HTTP 500: Internal Server Error
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>通知不觸發的情境</strong>
+        管控模式下由人工手動發送的回覆、Fallback 無解答回覆、以及 AI 救援回覆，都<strong>不會</strong>建立 Freshdesk 工單，因此也不會觸發 Notify 通知，詳見 <a href="#message-flow">訊息處理總流程</a>。
+      </div>
     </section>
 
     <!-- ═══════════ 核心：訊息處理流程 ═══════════ -->
@@ -457,6 +508,7 @@
             </div>
             <div class="flow-outcome">
               <div class="flow-branch"><span class="tag tag-green">至少一組帳號成功</span> 回覆固定文字 <span class="code">Done</span>，並背景建立 Freshdesk 工單</div>
+              <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過</span> 解析出的廠商名稱不在此群組的允許清單內 → 靜默拒絕，不加白、不回覆、不建工單（須於群組管理 Tab 開啟廠商驗證並設定允許前綴，詳見 <a href="#bots-tab-groups">群組管理 Tab</a>）</div>
               <div class="flow-branch"><span class="tag tag-gray">全部失敗 / 無法解析</span> 靜默不回覆、不建工單</div>
             </div>
             <p style="margin-top:8px" class="flow-desc">⚠️ 此步驟<strong>不受「即時對話管控模式」影響</strong>——即使該機器人開啟了管控模式，只要訊息符合白名單請求格式，機器人仍會自動處理並直接回覆，不會進入待審佇列。</p>
@@ -470,9 +522,15 @@
             <div class="flow-desc">
               依序檢查該機器人所有「已啟用」的關鍵字規則，只要訊息文字（不分大小寫）<strong>包含</strong>某條規則的關鍵字即算命中（取第一條符合的規則，不會同時觸發多條）。
             </div>
+            <p class="flow-desc" style="margin-top:8px">
+              <strong>雙語回覆判斷：</strong>命中後，系統會檢查提問是否含有中文字元（CJK 字符範圍）：
+              <br>• 提問含中文 → 使用「中文回覆」
+              <br>• 提問純英文 + 該規則有填「英文回覆」 → 使用英文版本
+              <br>• 提問純英文 + 未填英文回覆 → 仍使用中文回覆（不會空白）
+            </p>
             <div class="flow-outcome">
-              <div class="flow-branch"><span class="tag tag-orange">管控模式開啟</span> 記錄訊息 + 建立「待發送回覆」，等待人工於即時對話頁面確認發送</div>
-              <div class="flow-branch"><span class="tag tag-green">一般模式</span> 直接回覆＋記錄群組統計＋背景建立 Freshdesk 工單</div>
+              <div class="flow-branch"><span class="tag tag-orange">管控模式開啟</span> 記錄訊息 + 建立「待發送回覆」（已套用語言判斷），等待人工於即時對話頁面確認發送</div>
+              <div class="flow-branch"><span class="tag tag-green">一般模式</span> 直接回覆（對應語言版本）＋記錄群組統計＋背景建立 Freshdesk 工單</div>
               <div class="flow-branch"><span class="tag tag-gray">皆未命中</span> 繼續下一步</div>
             </div>
           </div>
@@ -565,11 +623,29 @@
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
         <tbody>
           <tr><td>選擇機器人</td><td>規則綁定特定機器人，須先選擇才能查看／新增該機器人的規則。</td></tr>
-          <tr><td><span class="btn-chip">新增規則</span></td><td>填寫「關鍵字」與「自動回覆訊息」。比對邏輯為「文字包含」（不分大小寫），不是完全比對，也不支援正規表示式。</td></tr>
+          <tr><td><span class="btn-chip">新增規則</span></td><td>填寫「關鍵字」、「中文回覆訊息（預設）」，以及選填的「英文回覆訊息」。比對邏輯為「文字包含」（不分大小寫），不是完全比對，也不支援正規表示式。</td></tr>
+          <tr><td><strong>中文回覆（預設）</strong></td><td>必填。中文提問、或未填英文版時，一律使用此欄位的內容回覆。</td></tr>
+          <tr><td><strong>英文回覆（選填）</strong></td><td>選填。僅當提問內容<strong>完全不含中文字元</strong>時才使用；未填此欄則所有問題皆回覆中文版本。適合填入與中文版本對應的英文說明，確保英文使用者能看懂回覆內容。</td></tr>
           <tr><td>啟用開關</td><td>暫時停用某條規則但不刪除。</td></tr>
           <tr><td><span class="btn-chip">編輯</span> / <span class="btn-chip">刪除</span></td><td>刪除有二次確認彈窗。</td></tr>
         </tbody>
       </table>
+
+      <h4>語言判斷邏輯（與 Fallback 相同規則）</h4>
+      <table>
+        <thead><tr><th>提問內容</th><th>使用回覆</th></tr></thead>
+        <tbody>
+          <tr><td>含中文字元（例：「我想問優惠」）</td><td>中文回覆</td></tr>
+          <tr><td>中英混合但含中文字元（例：「whitelist IP 申請」）</td><td>中文回覆（含任何中文字元即視為中文）</td></tr>
+          <tr><td>純英文（例：「Please check my whitelist」）且有填英文版</td><td>英文回覆</td></tr>
+          <tr><td>純英文但未填英文版</td><td>中文回覆（fallback，不會空白）</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>不消耗 AI Token</strong>
+        關鍵字規則命中時，語言判斷僅靠正規表示式偵測是否含中文字元，完全不呼叫 Claude API，因此不計費也不增加延遲，秒回且零成本。
+      </div>
       <div class="callout warn">
         <strong>規則比對順序</strong>
         目前是依資料庫回傳順序逐一比對，命中第一條就停止；同一機器人若有多條關鍵字彼此包含（例如「優惠」與「優惠活動」），實際觸發哪一條會依清單順序而定，建議關鍵字設計上盡量避免重疊。
@@ -691,12 +767,45 @@
         <li><strong>觸發關鍵字：</strong>訊息需包含如 <span class="code">whitelist bo ip</span>、<span class="code">bo ip</span>、<span class="code">backend ip</span>、<span class="code">加白后台ip</span>、<span class="code">後台ip</span>、<span class="code">backoffice ip</span> 等後台相關字樣，<strong>且訊息中同時含有至少一個 IPv4 位址</strong>才會被視為請求。</li>
         <li><strong>排除規則：</strong>若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足第 1 點也不會觸發。</li>
         <li><strong>帳號與廠商解析：</strong>從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / ID</span> 等標籤後方的帳號字串，並以底線／破折號拆解各段；一則訊息可能包含多組帳號（多行列出），會逐一嘗試比對廠商。</li>
-        <li><strong>廠商比對：</strong>登入內部白名單管理後台取得完整廠商清單後，用帳號的各段前綴逐層比對廠商名稱，若唯一命中即確定廠商；命中多筆或完全無法判斷時，會走多層 fallback 規則盡量找出「最長且唯一」的匹配結果，仍無法判斷則視為失敗。</li>
+        <li>
+          <strong>廠商比對（四層漸進式演算法）：</strong>登入內部白名單管理後台取得完整廠商清單後，依序嘗試下列四個步驟，一旦唯一確認廠商即停止：
+          <ul style="margin:6px 0">
+            <li><strong>Step 4a 前綴逐層比對：</strong>從帳號第一段開始，每次多加一段組成前綴，篩選廠商名稱等於或以該前綴為起頭的清單。若某層剛好只剩一筆即命中；若某層結果為 0 筆，嘗試用上一層候選清單再做 fallback（回推帳號完整名是否以候選廠商名稱為起頭），唯一則命中。</li>
+            <li><strong>Step 4b 第一段前綴反向比對：</strong>若 4a 仍未確定，改以帳號<em>第一段</em>為基準，尋找廠商名稱是該第一段<strong>前綴</strong>的所有廠商（即廠商名 ⊆ 帳號第一段），取名稱最長且唯一者。</li>
+            <li><strong>Step 4c 段落成員比對：</strong>若 4b 仍未確定，將所有廠商名稱以底線／破折號拆成多段，找出其中<em>任一段</em>等於帳號第一段的廠商。例如帳號 <span class="code">SCFLY_spinpokies29_MYR</span> 第一段 <span class="code">SCFLY</span> 是廠商 <span class="code">TitanTR1_SCFLY</span> 的第二段，此步驟即可命中；取最長且唯一者。</li>
+            <li><strong>Step 4d 群組廠商驗證：</strong>確認廠商後，若此群組已在「群組管理 Tab」開啟廠商驗證並填有允許前綴，則判斷解析到的廠商名稱是否以允許前綴之一開頭；不符合則視為本群組無權提交該廠商的加白申請，靜默拒絕（詳見下方「群組廠商驗證」說明）。</li>
+          </ul>
+        </li>
       </ol>
 
       <div class="flow-outcome" style="margin-top:10px">
         <div class="flow-branch"><span class="tag tag-green">解析成功 ≥1 組帳號</span> 呼叫內部系統新增白名單 IP，機器人回覆 <span class="code">Done</span>，並建立 Freshdesk 工單留存紀錄</div>
+        <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過（Step 4d）</span> 解析到的廠商不屬於此群組的允許廠商 → 靜默拒絕，不加白、不回覆</div>
         <div class="flow-branch"><span class="tag tag-gray">全部失敗（廠商無法判斷 / 登入失敗等）</span> 機器人<strong>不回覆任何訊息</strong>，避免誤導使用者以為已處理完成；僅在記錄檔中留下失敗 log</div>
+      </div>
+
+      <h3>群組廠商驗證（Step 4d）</h3>
+      <p>為防止不同群組的代理將加白請求送到錯誤群組（例如 B 廠商代理在 A 廠商群組發送申請），每個群組可獨立設定「允許廠商前綴」白名單：</p>
+      <table>
+        <thead><tr><th>欄位</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>廠商驗證開關</td>
+            <td>預設<strong>關閉</strong>（不限制）。開啟後，系統在完成廠商比對（Steps 4a–4c）後會執行前綴驗證，不符合則靜默拒絕整筆請求。</td>
+          </tr>
+          <tr>
+            <td>允許廠商前綴（逗號分隔）</td>
+            <td>
+              填入允許的廠商名稱或前綴，<strong>不分大小寫</strong>。判斷邏輯為「解析到的廠商名稱以其中一個前綴<strong>開頭</strong>即通過」：<br>
+              • 填 <span class="code">TitanTR1_SCFLY</span> → 僅允許該完整廠商名稱<br>
+              • 填 <span class="code">TitanTR1</span> → 允許所有 <span class="code">TitanTR1_</span> 開頭的廠商（包含旗下多個子品牌）<br>
+              • 留空（或關閉開關） → 不做任何限制，任何廠商皆可加白
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>設定入口</strong>：群組管理 Tab → 找到目標群組 → 點擊「🛡」按鈕 → 開啟「廠商驗證」開關並填入允許前綴後儲存。每個群組可設定不同的允許清單，互不影響。
       </div>
 
       <div class="callout danger">
@@ -845,6 +954,7 @@
           <tr><td>AI 模型</td><td>claude-haiku-4-5</td><td>知識庫問答與 AI 救援問題判斷皆使用同一模型</td></tr>
           <tr><td>知識庫回覆 Token 上限</td><td>max_tokens = 1024</td><td>單次 AI 回答長度上限</td></tr>
           <tr><td>白名單請求判斷</td><td>需含後台關鍵字 + 至少一個 IPv4，且不含「API」排除字樣</td><td>否則不視為白名單請求</td></tr>
+          <tr><td>白名單廠商驗證預設行為</td><td>關閉（不限制）</td><td>需手動至群組管理 Tab 開啟並設定允許前綴；未設定時任何廠商皆可加白</td></tr>
           <tr><td>Freshdesk 自動建單條件</td><td>僅限「一般模式」下的關鍵字回覆 / 知識庫回覆 / 白名單成功處理</td><td>管控模式人工發送、Fallback、AI 救援回覆皆不建單</td></tr>
         </tbody>
       </table>
