@@ -158,11 +158,13 @@ def ticket_counts(
     _=Depends(require_viewer),
 ):
     """知識庫工單數 + 白名單工單數"""
-    from sqlalchemy import cast, Date as SaDate
-
+    # SQLite 的 CAST(datetime AS DATE) 不截斷字串，直接比對 datetime 字串
+    # 需以 date_to 的隔天作為排除上界，否則 date_to 當天資料全被過濾
     def apply(q, col):
         if date_from and date_to:
-            q = q.filter(cast(col, SaDate) >= date_from, cast(col, SaDate) <= date_to)
+            from datetime import datetime, timedelta
+            date_to_next = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+            q = q.filter(col >= date_from, col < date_to_next)
         return q
 
     kb_q = db.query(func.count(models.ConversationLog.id))
