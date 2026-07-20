@@ -164,6 +164,19 @@ class BotManager:
         _refresh_chat_name(bot_id, chat_id, chat_name, db)
 
         # 0.5. 後台白名單自動處理（優先於關鍵字/KB，管控模式下仍執行）
+        # 預先讀取該群組的廠商驗證設定（whitelist_service 需要）
+        _group_wl = db.query(models.TelegramGroupSetting).filter(
+            models.TelegramGroupSetting.bot_id == bot_id,
+            models.TelegramGroupSetting.chat_id == chat_id,
+        ).first()
+        allowed_vendors: list = []
+        if (_group_wl and _group_wl.whitelist_vendor_check
+                and _group_wl.whitelist_allowed_vendors):
+            allowed_vendors = [
+                v.strip() for v in _group_wl.whitelist_allowed_vendors.split(',')
+                if v.strip()
+            ]
+
         if bot_record.whitelist_enabled:
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
             if detect_whitelist_request(text):
@@ -174,7 +187,7 @@ class BotManager:
                     for username_parts in all_parts:
                         logger.info(f"Bot {bot_id} 處理帳號：{username_parts}")
                         try:
-                            success, matched_vendor = await asyncio.to_thread(run_whitelist_sync, username_parts, ips)
+                            success, matched_vendor = await asyncio.to_thread(run_whitelist_sync, username_parts, ips, allowed_vendors)
                         except Exception as e:
                             logger.error(f"Bot {bot_id} 白名單自動化例外：{e}", exc_info=True)
                             success, matched_vendor = False, None

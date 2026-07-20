@@ -16,10 +16,19 @@ class GroupOut(BaseModel):
     chat_name: str
     chat_type: Optional[str]
     ai_enabled: bool
+    whitelist_vendor_check: bool = False
+    whitelist_allowed_vendors: Optional[str] = None
     last_active: Optional[str]
 
     class Config:
         from_attributes = True
+
+
+class GroupUpdateIn(BaseModel):
+    bot_id: int
+    ai_enabled: Optional[bool] = None
+    whitelist_vendor_check: Optional[bool] = None
+    whitelist_allowed_vendors: Optional[str] = None
 
 
 @router.get("")
@@ -65,9 +74,9 @@ def list_groups(
     if search:
         groups = [g for g in groups if search.lower() in g.chat_name.lower()]
 
-    # 取得此 bot 的 AI 開關設定
+    # 取得此 bot 的群組設定
     settings = {
-        s.chat_id: s.ai_enabled
+        s.chat_id: s
         for s in db.query(models.TelegramGroupSetting).filter(
             models.TelegramGroupSetting.bot_id == bot_id
         ).all()
@@ -77,36 +86,46 @@ def list_groups(
     offset = (page - 1) * page_size
     page_groups = groups[offset: offset + page_size]
 
-    items = [
-        {
+    items = []
+    for g in page_groups:
+        s = settings.get(g.chat_id)
+        items.append({
             "chat_id": g.chat_id,
             "chat_name": g.chat_name,
             "chat_type": g.chat_type,
-            "ai_enabled": settings.get(g.chat_id, True),
+            "ai_enabled": s.ai_enabled if s else True,
+            "whitelist_vendor_check": s.whitelist_vendor_check if s else False,
+            "whitelist_allowed_vendors": s.whitelist_allowed_vendors if s else None,
             "last_active": g.last_active,
-        }
-        for g in page_groups
-    ]
+        })
     return {"total": total, "items": items}
 
 
 @router.put("/{chat_id}")
 def update_group_setting(
     chat_id: str,
-    bot_id: int,
-    ai_enabled: bool,
+    payload: GroupUpdateIn,
     db: Session = Depends(get_db),
     _=Depends(require_editor),
 ):
     setting = db.query(models.TelegramGroupSetting).filter(
-        models.TelegramGroupSetting.bot_id == bot_id,
+        models.TelegramGroupSetting.bot_id == payload.bot_id,
         models.TelegramGroupSetting.chat_id == chat_id,
     ).first()
     if setting:
-        setting.ai_enabled = ai_enabled
+        if payload.ai_enabled is not None:
+            setting.ai_enabled = payload.ai_enabled
+        if payload.whitelist_vendor_check is not None:
+            setting.whitelist_vendor_check = payload.whitelist_vendor_check
+        if payload.whitelist_allowed_vendors is not None:
+            setting.whitelist_allowed_vendors = payload.whitelist_allowed_vendors
     else:
         db.add(models.TelegramGroupSetting(
-            bot_id=bot_id, chat_id=chat_id, ai_enabled=ai_enabled
+            bot_id=payload.bot_id,
+            chat_id=chat_id,
+            ai_enabled=payload.ai_enabled if payload.ai_enabled is not None else True,
+            whitelist_vendor_check=payload.whitelist_vendor_check or False,
+            whitelist_allowed_vendors=payload.whitelist_allowed_vendors,
         ))
     db.commit()
     return {"message": "已更新"}

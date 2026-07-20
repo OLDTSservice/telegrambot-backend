@@ -33,6 +33,8 @@ def _migrate_columns():
         "ALTER TABLE no_answer_logs ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
         "ALTER TABLE no_answer_logs ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",
         "ALTER TABLE keyword_rules ADD COLUMN reply_message_en TEXT",
+        "ALTER TABLE telegram_group_settings ADD COLUMN whitelist_vendor_check BOOLEAN DEFAULT 0",
+        "ALTER TABLE telegram_group_settings ADD COLUMN whitelist_allowed_vendors TEXT",
     ]
     with engine.connect() as conn:
         for sql in migrations:

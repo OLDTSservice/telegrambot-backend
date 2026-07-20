@@ -71,7 +71,7 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     return vendor_code, all_parts, ips
 
 
-def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool, Optional[str]]:
+def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None) -> tuple[bool, Optional[str]]:
     """同步 HTTP 流程，直接在 asyncio.to_thread 的執行緒中執行"""
     logger.info(f"[Whitelist] 開始（HTTP 模式）：username_parts={username_parts}, IPs={ips}")
 
@@ -180,8 +180,37 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str]) -> tuple[bool,
                 else:
                     logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
 
+            # ── Step 4c：廠商名稱各段中是否有任一段等於帳號第一段 ──────────
+            if not matched_id:
+                first_seg = username_parts[0].upper()
+                segment_matches = [
+                    (api_id, name)
+                    for api_id, name in all_vendors
+                    if first_seg in [s.upper() for s in re.split(r'[_\-]', name)]
+                ]
+                logger.info(f"[Whitelist] Step4c 段落比對：first_seg='{first_seg}'，候選={[n for _, n in segment_matches]}")
+                if len(segment_matches) == 1:
+                    matched_id, matched_name = segment_matches[0]
+                    logger.info(f"[Whitelist] Step4c 唯一匹配：id={matched_id}, name={matched_name}")
+                elif len(segment_matches) > 1:
+                    best = max(segment_matches, key=lambda x: len(x[1]))
+                    same_len = [x for x in segment_matches if len(x[1]) == len(best[1])]
+                    if len(same_len) == 1:
+                        matched_id, matched_name = best
+                        logger.info(f"[Whitelist] Step4c 最長匹配：id={matched_id}, name={matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
+
             if not matched_id:
                 return False, None
+
+            # ── Step 4d：群組廠商白名單驗證 ──────────────────────────────
+            if allowed_vendor_prefixes:
+                upper_name = matched_name.upper()
+                if not any(upper_name.startswith(p.strip().upper()) for p in allowed_vendor_prefixes):
+                    logger.warning(f"[Whitelist] 廠商 '{matched_name}' 不在群組允許清單 {allowed_vendor_prefixes}，拒絕")
+                    return False, None
+                logger.info(f"[Whitelist] 廠商驗證通過：'{matched_name}' 符合允許清單")
 
             # ── Step 5：新增白名單 ────────────────────────────
             import urllib.parse

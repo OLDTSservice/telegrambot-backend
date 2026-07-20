@@ -4,9 +4,11 @@ import {
   Popconfirm, message, Tag, Typography, Card, Tabs, Select,
   Pagination, Empty, Spin, InputNumber, Tooltip,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined, SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined, SearchOutlined, SafetyOutlined } from '@ant-design/icons'
 import { getBots, createBot, updateBot, deleteBot, getRescueSetting, updateRescueSetting, getNotifySetting, updateNotifySetting } from '../api'
 import api from '../api'
+
+const { TextArea } = Input
 
 const { Text } = Typography
 const canEdit = user => user?.role === 'superadmin' || user?.role === 'editor'
@@ -129,6 +131,13 @@ function GroupManageTab({ user }) {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // 廠商驗證 Modal
+  const [vendorModal, setVendorModal] = useState(false)
+  const [editingGroup, setEditingGroup] = useState(null)
+  const [vendorCheck, setVendorCheck] = useState(false)
+  const [allowedVendors, setAllowedVendors] = useState('')
+  const [vendorSaving, setVendorSaving] = useState(false)
+
   useEffect(() => { getBots().then(r => setBots(r.data)) }, [])
 
   const loadGroups = useCallback(async (botId, p = 1, kw = search) => {
@@ -163,12 +172,40 @@ function GroupManageTab({ user }) {
 
   const handleToggleAI = async (chatId, enabled) => {
     try {
-      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, null, {
-        params: { bot_id: selectedBotId, ai_enabled: enabled }
-      })
+      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, ai_enabled: enabled })
       setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, ai_enabled: enabled } : g))
     } catch {
       message.error('切換失敗')
+    }
+  }
+
+  const openVendorModal = (group) => {
+    setEditingGroup(group)
+    setVendorCheck(group.whitelist_vendor_check || false)
+    setAllowedVendors(group.whitelist_allowed_vendors || '')
+    setVendorModal(true)
+  }
+
+  const handleVendorSave = async () => {
+    if (!editingGroup) return
+    setVendorSaving(true)
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(editingGroup.chat_id)}`, {
+        bot_id: selectedBotId,
+        whitelist_vendor_check: vendorCheck,
+        whitelist_allowed_vendors: allowedVendors.trim() || null,
+      })
+      setGroups(prev => prev.map(g =>
+        g.chat_id === editingGroup.chat_id
+          ? { ...g, whitelist_vendor_check: vendorCheck, whitelist_allowed_vendors: allowedVendors.trim() || null }
+          : g
+      ))
+      message.success('廠商驗證設定已儲存')
+      setVendorModal(false)
+    } catch {
+      message.error('儲存失敗')
+    } finally {
+      setVendorSaving(false)
     }
   }
 
@@ -233,9 +270,72 @@ function GroupManageTab({ user }) {
                 title: '最後活躍', dataIndex: 'last_active', width: 120,
                 render: d => <Text type="secondary" style={{ fontSize: 12 }}>{d || '-'}</Text>,
               },
+              {
+                title: '白名單廠商驗證',
+                width: 130,
+                render: (_, record) => (
+                  <Space size={6}>
+                    <Tag color={record.whitelist_vendor_check ? 'blue' : 'default'}>
+                      {record.whitelist_vendor_check ? '已啟用' : '未啟用'}
+                    </Tag>
+                    {canEdit(user) && (
+                      <Tooltip title="廠商驗證設定">
+                        <Button
+                          size="small"
+                          icon={<SafetyOutlined />}
+                          onClick={() => openVendorModal(record)}
+                        />
+                      </Tooltip>
+                    )}
+                  </Space>
+                ),
+              },
             ]}
             locale={{ emptyText: '無符合條件的群組' }}
           />
+
+          <Modal
+            title={`廠商驗證設定 — ${editingGroup?.chat_name || ''}`}
+            open={vendorModal}
+            onOk={handleVendorSave}
+            onCancel={() => setVendorModal(false)}
+            okText="儲存"
+            cancelText="取消"
+            confirmLoading={vendorSaving}
+            width={500}
+          >
+            <div style={{ marginBottom: 16, color: '#666', fontSize: 13 }}>
+              啟用後，此群組收到的白名單申請只有解析出的廠商名稱符合允許清單時才會執行；不符合則靜默拒絕。
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Space>
+                <Switch
+                  checked={vendorCheck}
+                  onChange={setVendorCheck}
+                  checkedChildren="啟用" unCheckedChildren="關閉"
+                />
+                <Text>廠商驗證開關</Text>
+              </Space>
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                允許廠商前綴
+                <Text type="secondary" style={{ fontWeight: 400, fontSize: 12, marginLeft: 8 }}>
+                  （逗號分隔，不分大小寫，例：TitanTR1_SCFLY, VendorB）
+                </Text>
+              </div>
+              <TextArea
+                rows={4}
+                value={allowedVendors}
+                onChange={e => setAllowedVendors(e.target.value)}
+                disabled={!vendorCheck}
+                placeholder="TitanTR1_SCFLY, VendorB_Brand"
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
+                填入廠商名稱或前綴；解析出的廠商名稱以任一前綴<strong>開頭</strong>即視為符合。未啟用開關時此欄位不生效。
+              </div>
+            </div>
+          </Modal>
           {total > 50 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
               <Pagination current={page} pageSize={50} total={total} size="small"
