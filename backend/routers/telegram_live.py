@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, Integer as SaInteger
+from sqlalchemy import func, Integer as SaInteger, and_
 from typing import List
 from datetime import datetime, date
 from database import get_db
@@ -14,11 +14,39 @@ router = APIRouter(prefix="/api/telegram-live", tags=["即時對話管控"])
 @router.get("/groups", response_model=List[schemas.ChatGroupOut])
 def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
     """取得該機器人所有有訊息的群組，按最新訊息排序"""
-    rows = (
+    # 子查詢：每個 chat_id 最新一則訊息的時間戳（含 admin，用於取最新群組名稱）
+    latest_sub = (
+        db.query(
+            models.TelegramMessage.chat_id,
+            func.max(models.TelegramMessage.created_at).label("max_at"),
+        )
+        .filter(models.TelegramMessage.bot_id == bot_id)
+        .group_by(models.TelegramMessage.chat_id)
+        .subquery()
+    )
+    # 用最新時間戳取出對應的 chat_name / chat_type（改名後只顯示最新名稱）
+    name_rows = (
         db.query(
             models.TelegramMessage.chat_id,
             models.TelegramMessage.chat_name,
             models.TelegramMessage.chat_type,
+        )
+        .join(
+            latest_sub,
+            and_(
+                models.TelegramMessage.chat_id == latest_sub.c.chat_id,
+                models.TelegramMessage.created_at == latest_sub.c.max_at,
+                models.TelegramMessage.bot_id == bot_id,
+            )
+        )
+        .all()
+    )
+    name_map = {r.chat_id: (r.chat_name, r.chat_type) for r in name_rows}
+
+    # 群組統計：只 GROUP BY chat_id，避免改名後出現重複列
+    rows = (
+        db.query(
+            models.TelegramMessage.chat_id,
             func.max(models.TelegramMessage.created_at).label("last_message_at"),
             func.sum(
                 (models.TelegramMessage.is_read == False).cast(SaInteger)
@@ -28,17 +56,14 @@ def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(require_vi
             models.TelegramMessage.bot_id == bot_id,
             models.TelegramMessage.is_from_admin == False,
         )
-        .group_by(
-            models.TelegramMessage.chat_id,
-            models.TelegramMessage.chat_name,
-            models.TelegramMessage.chat_type,
-        )
+        .group_by(models.TelegramMessage.chat_id)
         .order_by(func.max(models.TelegramMessage.created_at).desc())
         .all()
     )
 
     result = []
     for r in rows:
+        chat_name, chat_type = name_map.get(r.chat_id, ("Unknown", "unknown"))
         pending_count = (
             db.query(models.TelegramPendingReply)
             .filter(
@@ -50,8 +75,8 @@ def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(require_vi
         )
         result.append(schemas.ChatGroupOut(
             chat_id=r.chat_id,
-            chat_name=r.chat_name,
-            chat_type=r.chat_type,
+            chat_name=chat_name,
+            chat_type=chat_type,
             last_message_at=r.last_message_at,
             unread_count=int(r.unread_count or 0),
             pending_count=pending_count,
