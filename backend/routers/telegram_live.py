@@ -243,6 +243,14 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(requi
             ))
         db.commit()
 
+    # 若為知識庫 AI 回覆（非關鍵字規則），寫入 AI 對話日誌，與一般模式行為一致
+    if last_msg and pending.source == "knowledge_base":
+        from services.telegram_service import _save_conversation_log
+        _save_conversation_log(
+            pending.bot_id, pending.chat_id, last_msg.chat_name,
+            last_msg.text, pending.reply_text, db,
+        )
+
     # 自動開單（與 AI 回覆相同流程）
     if last_msg:
         import threading

@@ -598,7 +598,7 @@
               兩者取 <strong>OR</strong>：<span class="code">is_managed = 機器人總開關 OR 群組層級開關</span>
             </div>
             <div class="flow-outcome">
-              <div class="flow-branch"><span class="tag tag-orange">管控模式（任一層開啟）</span> 不論 AI 有沒有找到答案，都先把使用者訊息記錄下來；若 AI 有答案，同時建立「待發送回覆」供人工審核；管理員需至<a href="#live-page">即時對話管控頁面</a>手動按「發送」才會真正送出</div>
+              <div class="flow-branch"><span class="tag tag-orange">管控模式（任一層開啟）</span> 不論 AI 有沒有找到答案，都先把使用者訊息記錄下來；若 AI 有答案，同時建立「待發送回覆」供人工審核；管理員需至<a href="#live-page">即時對話管控頁面</a>手動按「發送」才會真正送出，發送當下會依來源（知識庫 / 關鍵字規則）決定是否寫入<a href="#knowledge-page">AI對話日誌</a>（規則同一般模式）</div>
               <div class="flow-branch"><span class="tag tag-green">一般模式（兩層皆關閉）</span> AI 有答案 → 立刻自動回覆＋記錄統計＋寫入對話日誌＋背景建立 Freshdesk 工單；AI 無答案 → 進入 <a href="#flow-fallback">Fallback 流程</a></div>
             </div>
           </div>
@@ -694,7 +694,7 @@
       </ul>
 
       <h3>AI對話日誌 Tab</h3>
-      <p>顯示近 <strong>7 天</strong>內、AI <strong>成功回答</strong>的所有問答紀錄（超過 7 天自動清除）。</p>
+      <p>顯示近 <strong>7 天</strong>內、AI <strong>成功回答</strong>的所有問答紀錄（超過 7 天自動清除）。此頁面只收錄「知識庫 AI 問答」內容，<strong>不含</strong>關鍵字規則命中的固定回覆（因其非 AI 生成內容）。</p>
       <table>
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
         <tbody>
@@ -702,6 +702,10 @@
           <tr><td><span class="btn-chip">新增至知識庫</span></td><td>把這筆「問與答」快速轉存為知識庫 Q&amp;A（可在彈窗中微調文字後再存），方便把常見對話固化成標準答案。</td></tr>
         </tbody>
       </table>
+      <div class="callout">
+        <strong>管控模式也會記錄</strong>
+        不論一般模式自動回覆，或<strong>即時對話管控</strong>下由管理員按下「發送」核可的知識庫 AI 回覆，只要來源是知識庫查詢，都會寫入此頁面；但管控模式下若是<strong>關鍵字規則</strong>命中的待發送回覆，經人工發送後同樣不會出現在這裡（與一般模式行為一致）。
+      </div>
 
       <h3>AI無解答對話紀錄 Tab</h3>
       <p>顯示近 <strong>7 天</strong>內所有<strong>沒有找到答案（觸發 Fallback 或表單偵測）</strong>的訊息，一樣 7 天自動清除。</p>
@@ -756,9 +760,9 @@
           <tr><td>群組列表（右側）</td><td>依「最新訊息時間」排序，顯示未讀數（藍色）與待發送回覆數（金色）徽章，點擊切換聊天室。群組改名後，列表僅顯示<strong>最新名稱</strong>（歷史訊息仍保留但以最新名稱呈現，不會重複顯示舊名稱）。</td></tr>
           <tr><td>訊息視窗</td><td>顯示該聊天室最新 <strong>100 則</strong>訊息，選取群組時自動標記為已讀。</td></tr>
           <tr><td>待發送回覆卡片（虛線框）</td><td>管控模式下，機器人算出的回覆會以此卡片形式呈現，附上原始問題引用。<br>
-            <span class="btn-chip">發送</span> 立即送出（會引用原訊息）並記入回覆統計；<br>
+            <span class="btn-chip">發送</span> 立即送出（會引用原訊息）並記入回覆統計；若此回覆來自<strong>知識庫 AI 查詢</strong>，同時會寫入<a href="#knowledge-page">AI對話日誌</a>（關鍵字規則回覆則不會，與一般模式行為一致）；<br>
             <span class="btn-chip">編輯</span> 可先修改回覆文字再送出；<br>
-            <span class="btn-chip">捨棄</span> 放棄這則自動草稿，不會發送也不計入統計。</td></tr>
+            <span class="btn-chip">捨棄</span> 放棄這則自動草稿，不會發送也不計入統計、不寫入日誌。</td></tr>
           <tr><td>輸入框＋<span class="btn-chip">發送</span></td><td>可完全跳過機器人邏輯，由後台直接手動發一則訊息到該聊天室（Enter 送出，Shift+Enter 換行）。</td></tr>
           <tr><td><span class="btn-chip">前往群組管理</span>（提示列按鈕）</td><td>點擊直接跳轉至「機器人管理 → 群組管理 Tab」，可對各群組個別設定即時對話管控開關。</td></tr>
         </tbody>

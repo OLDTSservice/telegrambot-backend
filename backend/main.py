@@ -36,6 +36,7 @@ def _migrate_columns():
         "ALTER TABLE telegram_group_settings ADD COLUMN whitelist_vendor_check BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_group_settings ADD COLUMN whitelist_allowed_vendors TEXT",
         "ALTER TABLE telegram_group_settings ADD COLUMN is_managed BOOLEAN DEFAULT 0",
+        "ALTER TABLE telegram_pending_replies ADD COLUMN source VARCHAR(16) DEFAULT 'knowledge_base'",
     ]
     with engine.connect() as conn:
         for sql in migrations:

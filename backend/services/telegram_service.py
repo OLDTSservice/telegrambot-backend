@@ -254,7 +254,7 @@ class BotManager:
                     msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
                                              sender_id, sender_name, text, db,
                                              telegram_message_id=tg_msg_id)
-                    _save_pending_reply(bot_id, chat_id, msg.id, reply_text, db)
+                    _save_pending_reply(bot_id, chat_id, msg.id, reply_text, db, source="keyword")
                 else:
                     await update.message.reply_text(reply_text)
                     _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
@@ -393,11 +393,11 @@ def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_
     return msg
 
 
-def _save_pending_reply(bot_id, chat_id, message_id, reply_text, db):
+def _save_pending_reply(bot_id, chat_id, message_id, reply_text, db, source="knowledge_base"):
     import models
     pending = models.TelegramPendingReply(
         bot_id=bot_id, chat_id=chat_id, message_id=message_id,
-        reply_text=reply_text, status="pending",
+        reply_text=reply_text, status="pending", source=source,
     )
     db.add(pending)
     db.commit()

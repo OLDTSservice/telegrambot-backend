@@ -208,6 +208,7 @@ class TelegramPendingReply(Base):
     message_id = Column(Integer, ForeignKey("telegram_messages.id"), nullable=False)
     reply_text = Column(Text, nullable=False)
     status = Column(String(16), default="pending")   # pending / sent / discarded
+    source = Column(String(16), default="knowledge_base")  # knowledge_base / keyword，發送時決定是否寫入 AI 對話日誌
     created_at = Column(DateTime, default=datetime.utcnow)
     sent_at = Column(DateTime, nullable=True)
 
