@@ -179,6 +179,16 @@ function GroupManageTab({ user }) {
     }
   }
 
+  const handleToggleManaged = async (chatId, enabled) => {
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, is_managed: enabled })
+      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, is_managed: enabled } : g))
+      message.success(enabled ? '管控模式已啟用' : '管控模式已關閉')
+    } catch {
+      message.error('切換失敗')
+    }
+  }
+
   const openVendorModal = (group) => {
     setEditingGroup(group)
     setVendorCheck(group.whitelist_vendor_check || false)
@@ -255,6 +265,18 @@ function GroupManageTab({ user }) {
                   <Switch checked={val} size="small"
                     onChange={checked => handleToggleAI(record.chat_id, checked)}
                     disabled={!canEdit(user)} />
+                ),
+              },
+              {
+                title: '即時對話管控',
+                dataIndex: 'is_managed',
+                width: 110,
+                render: (val, record) => (
+                  <Switch checked={!!val} size="small"
+                    onChange={checked => handleToggleManaged(record.chat_id, checked)}
+                    disabled={!canEdit(user)}
+                    checkedChildren="管控中" unCheckedChildren="關閉"
+                  />
                 ),
               },
               {

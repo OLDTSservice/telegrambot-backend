@@ -394,6 +394,7 @@ class TelegramGroupSetting(Base):
     bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
     chat_id = Column(String(50), nullable=False)
     ai_enabled = Column(Boolean, default=True)
+    is_managed = Column(Boolean, default=False)               # 群組層級管控模式開關
     whitelist_vendor_check = Column(Boolean, default=False)   # 白名單廠商驗證開關
     whitelist_allowed_vendors = Column(Text, nullable=True)   # 允許廠商前綴，逗號分隔
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

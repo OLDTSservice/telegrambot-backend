@@ -16,6 +16,7 @@ class GroupOut(BaseModel):
     chat_name: str
     chat_type: Optional[str]
     ai_enabled: bool
+    is_managed: bool = False
     whitelist_vendor_check: bool = False
     whitelist_allowed_vendors: Optional[str] = None
     last_active: Optional[str]
@@ -27,6 +28,7 @@ class GroupOut(BaseModel):
 class GroupUpdateIn(BaseModel):
     bot_id: int
     ai_enabled: Optional[bool] = None
+    is_managed: Optional[bool] = None
     whitelist_vendor_check: Optional[bool] = None
     whitelist_allowed_vendors: Optional[str] = None
 
@@ -94,6 +96,7 @@ def list_groups(
             "chat_name": g.chat_name,
             "chat_type": g.chat_type,
             "ai_enabled": s.ai_enabled if s else True,
+            "is_managed": s.is_managed if s else False,
             "whitelist_vendor_check": s.whitelist_vendor_check if s else False,
             "whitelist_allowed_vendors": s.whitelist_allowed_vendors if s else None,
             "last_active": g.last_active,
@@ -115,6 +118,8 @@ def update_group_setting(
     if setting:
         if payload.ai_enabled is not None:
             setting.ai_enabled = payload.ai_enabled
+        if payload.is_managed is not None:
+            setting.is_managed = payload.is_managed
         if payload.whitelist_vendor_check is not None:
             setting.whitelist_vendor_check = payload.whitelist_vendor_check
         if payload.whitelist_allowed_vendors is not None:
@@ -124,6 +129,7 @@ def update_group_setting(
             bot_id=payload.bot_id,
             chat_id=chat_id,
             ai_enabled=payload.ai_enabled if payload.ai_enabled is not None else True,
+            is_managed=payload.is_managed or False,
             whitelist_vendor_check=payload.whitelist_vendor_check or False,
             whitelist_allowed_vendors=payload.whitelist_allowed_vendors,
         ))

@@ -158,22 +158,24 @@ class BotManager:
         chat_type = chat.type or "unknown"
         sender_name = update.message.from_user.full_name if update.message.from_user else None
 
-        is_managed = bool(bot_record.is_managed)
-
         # 每次收到訊息都更新群組名稱（確保改名後能同步）
         _refresh_chat_name(bot_id, chat_id, chat_name, db)
 
         # 0.5. 後台白名單自動處理（優先於關鍵字/KB，管控模式下仍執行）
-        # 預先讀取該群組的廠商驗證設定（whitelist_service 需要）
-        _group_wl = db.query(models.TelegramGroupSetting).filter(
+        # 預先讀取群組設定（廠商驗證 + 群組層級管控模式皆從此讀取）
+        _group_setting = db.query(models.TelegramGroupSetting).filter(
             models.TelegramGroupSetting.bot_id == bot_id,
             models.TelegramGroupSetting.chat_id == chat_id,
         ).first()
+
+        # 管控模式：Bot 層級（全域主開關）OR 群組層級（個別群組）
+        is_managed = bool(bot_record.is_managed) or bool(_group_setting.is_managed if _group_setting else False)
+
         allowed_vendors: list = []
-        if (_group_wl and _group_wl.whitelist_vendor_check
-                and _group_wl.whitelist_allowed_vendors):
+        if (_group_setting and _group_setting.whitelist_vendor_check
+                and _group_setting.whitelist_allowed_vendors):
             allowed_vendors = [
-                v.strip() for v in _group_wl.whitelist_allowed_vendors.split(',')
+                v.strip() for v in _group_setting.whitelist_allowed_vendors.split(',')
                 if v.strip()
             ]
 
