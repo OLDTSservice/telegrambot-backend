@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   Select, Switch, Card, Badge, Button, Input, Tooltip, Popconfirm,
-  message, Typography, Tag, Space, Empty, Spin
+  message, Typography, Tag, Space, Empty, Spin, Alert
 } from 'antd'
 import {
   SendOutlined, EditOutlined, CheckOutlined, CloseOutlined,
-  ReloadOutlined, RobotOutlined, UserOutlined
+  ReloadOutlined, RobotOutlined, UserOutlined, SettingOutlined
 } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import {
   getBots, updateBot,
   getLiveGroups, getLiveMessages, markLiveRead,
@@ -118,6 +119,7 @@ function MessageBubble({ msg, onSendPending, onDiscardPending, onEditPending }) 
 // ── 主頁面 ────────────────────────────────────────────────────────────────
 export default function TelegramLivePage({ user }) {
   const canEdit = user?.role === 'superadmin' || user?.role === 'editor'
+  const navigate = useNavigate()
 
   const [bots, setBots] = useState([])
   const [selectedBotId, setSelectedBotId] = useState(null)
@@ -305,6 +307,27 @@ export default function TelegramLivePage({ user }) {
           </Tooltip>
         </div>
       </Card>
+
+      {/* 提示：群組層級管控說明 */}
+      <Alert
+        type="info"
+        showIcon
+        message={
+          <span>
+            上方「即時管控」為全機器人總開關；若需對<strong>個別群組</strong>單獨啟用或關閉管控，請至「群組管理」頁面設定。
+            <Button
+              type="link"
+              size="small"
+              icon={<SettingOutlined />}
+              style={{ paddingLeft: 8 }}
+              onClick={() => navigate('/telegram/bots?tab=groups')}
+            >
+              前往群組管理
+            </Button>
+          </span>
+        }
+        style={{ padding: '6px 14px' }}
+      />
 
       {/* 主體：聊天區 + 群組側欄 */}
       <div style={{ display: 'flex', flex: 1, gap: 12, overflow: 'hidden' }}>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Table, Button, Switch, Modal, Form, Input, Space,
   Popconfirm, message, Tag, Typography, Card, Tabs, Select,
@@ -626,10 +627,14 @@ function NotifyTab({ user }) {
 
 // ── 主頁面 ──────────────────────────────────────────────────────────────────
 export default function BotsPage({ user }) {
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'bots')
+
   return (
     <Card>
       <Tabs
-        defaultActiveKey="bots"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: 'bots',
