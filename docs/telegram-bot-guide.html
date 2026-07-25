@@ -385,7 +385,7 @@
     <section id="bots-page">
       <h2>機器人管理頁面</h2>
       <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 機器人管理</span></p>
-      <p>此頁分為三個分頁（Tab）：機器人管理、群組管理、AI機器人救援。</p>
+      <p>此頁分為四個分頁（Tab）：機器人管理、群組管理、AI機器人救援、Notify管理。</p>
 
       <h3 id="bots-tab-list">機器人管理 Tab</h3>
       <p>管理所有已串接的 Telegram Bot（一個 Bot Token 對應一個機器人身份）。</p>
@@ -413,6 +413,13 @@
           <tr><td>搜尋群組名稱</td><td>依群組名稱關鍵字篩選。</td></tr>
           <tr><td><strong>AI 問答</strong> 開關</td><td>此開關直接對應 <span class="code">TelegramGroupSetting.ai_enabled</span>（預設為開啟）。關閉後，該群組的訊息完全不會查詢知識庫，機器人只剩「關鍵字規則」仍會作用；此設定也是觸發「AI 救援」的先決條件之一，詳見 <a href="#flow-group-ai">訊息流程 — 群組 AI 開關</a>。</td></tr>
           <tr><td>群組類型標籤</td><td>私聊 / 群組 / 超級群組 / 頻道，取自 Telegram 原生 <span class="code">chat.type</span>。</td></tr>
+          <tr><td><strong>即時對話管控</strong> 開關</td><td>
+            此為<strong>群組層級</strong>的管控開關，可讓特定群組單獨進入管控模式，而不影響其他群組。判斷邏輯採 OR 規則：<br>
+            • 若「即時對話管控頁面」的<strong>機器人總開關</strong>已開啟 → 所有群組都進入管控模式（無視此欄設定）<br>
+            • 若機器人總開關關閉，但此欄開啟 → <strong>僅此群組</strong>進入管控模式，其他群組仍自動回覆<br>
+            • 兩者皆關閉 → 完全一般模式，全部自動回覆<br>
+            詳見 <a href="#live-page">即時對話管控頁面</a> 與 <a href="#flow-managed">訊息流程步驟 5</a>。
+          </td></tr>
           <tr><td><strong>白名單廠商驗證</strong> 欄（Tag + 🛡 按鈕）</td><td>
             顯示該群組廠商驗證功能的狀態（「已啟用」藍色標籤 / 「未啟用」灰色標籤）。點擊盾牌圖示按鈕開啟設定 Modal，可設定：
             <ul style="margin:6px 0">
@@ -583,11 +590,16 @@
         <div class="flow-step" id="flow-managed">
           <div class="flow-num">5</div>
           <div class="flow-body">
-            <div class="flow-title">依「即時對話管控」總開關分流</div>
-            <div class="flow-desc">此開關（每個機器人各自獨立）決定知識庫查詢後的處理方式：</div>
+            <div class="flow-title">依「即時對話管控」開關分流（雙層 OR 判斷）</div>
+            <div class="flow-desc">
+              系統採雙層開關判斷，任一層開啟即視為「管控模式」：<br>
+              ① <strong>機器人總開關</strong>（<span class="code">TelegramBot.is_managed</span>）：即時對話管控頁面頂部的「即時管控」開關，開啟後全部群組受管控<br>
+              ② <strong>群組層級開關</strong>（<span class="code">TelegramGroupSetting.is_managed</span>）：「群組管理 Tab」各群組的管控開關，可單獨控制特定群組<br>
+              兩者取 <strong>OR</strong>：<span class="code">is_managed = 機器人總開關 OR 群組層級開關</span>
+            </div>
             <div class="flow-outcome">
-              <div class="flow-branch"><span class="tag tag-orange">管控模式開啟</span> 不論 AI 有沒有找到答案，都先把使用者訊息記錄下來；若 AI 有答案，同時建立「待發送回覆」供人工審核；管理員需至<a href="#live-page">即時對話管控頁面</a>手動按「發送」才會真正送出</div>
-              <div class="flow-branch"><span class="tag tag-green">一般模式（預設）</span> AI 有答案 → 立刻自動回覆＋記錄統計＋寫入對話日誌＋背景建立 Freshdesk 工單；AI 無答案 → 進入 <a href="#flow-fallback">Fallback 流程</a></div>
+              <div class="flow-branch"><span class="tag tag-orange">管控模式（任一層開啟）</span> 不論 AI 有沒有找到答案，都先把使用者訊息記錄下來；若 AI 有答案，同時建立「待發送回覆」供人工審核；管理員需至<a href="#live-page">即時對話管控頁面</a>手動按「發送」才會真正送出</div>
+              <div class="flow-branch"><span class="tag tag-green">一般模式（兩層皆關閉）</span> AI 有答案 → 立刻自動回覆＋記錄統計＋寫入對話日誌＋背景建立 Freshdesk 工單；AI 無答案 → 進入 <a href="#flow-fallback">Fallback 流程</a></div>
             </div>
           </div>
         </div>
@@ -728,22 +740,32 @@
       <h2>即時對話管控頁面</h2>
       <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 即時對話管控</span></p>
       <p>提供類似聊天軟體的介面，讓管理員可以直接查看各群組對話，並在「管控模式」下審核機器人準備發送的回覆。頁面每 <strong>4 秒</strong>自動輪詢一次最新訊息與群組列表。</p>
+
+      <div class="callout">
+        <strong>提示：雙層管控開關設計</strong>
+        此頁面頂部的「即時管控」為<strong>機器人總開關</strong>（全部群組一次套用）；若需針對<strong>個別群組</strong>單獨啟用或關閉管控，請至「機器人管理 → 群組管理 Tab」設定各群組的即時對話管控開關。頁面上也提供「前往群組管理」快捷按鈕直接跳轉。
+      </div>
+
       <table>
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明 / 限制</th></tr></thead>
         <tbody>
-          <tr><td><strong>即時管控</strong> 開關</td><td>對應機器人的 <span class="code">is_managed</span> 欄位，等同於在「機器人管理」頁面切換管控模式，開關在這裡跟機器人管理頁是同一份設定，互相連動。</td></tr>
-          <tr><td>群組列表（右側）</td><td>依「最新訊息時間」排序，顯示未讀數（藍色）與待發送回覆數（金色）徽章，點擊切換聊天室。</td></tr>
+          <tr><td><strong>即時管控</strong> 開關（頂部工具列）</td><td>
+            <strong>機器人層級總開關</strong>，開啟後該機器人旗下<strong>所有群組</strong>都進入管控模式。對應機器人的 <span class="code">TelegramBot.is_managed</span> 欄位，與「機器人管理 → 機器人管理 Tab」的設定互相連動。<br>
+            若僅需特定群組管控，保持此開關關閉，改至「群組管理 Tab」開啟個別群組的管控開關。
+          </td></tr>
+          <tr><td>群組列表（右側）</td><td>依「最新訊息時間」排序，顯示未讀數（藍色）與待發送回覆數（金色）徽章，點擊切換聊天室。群組改名後，列表僅顯示<strong>最新名稱</strong>（歷史訊息仍保留但以最新名稱呈現，不會重複顯示舊名稱）。</td></tr>
           <tr><td>訊息視窗</td><td>顯示該聊天室最新 <strong>100 則</strong>訊息，選取群組時自動標記為已讀。</td></tr>
           <tr><td>待發送回覆卡片（虛線框）</td><td>管控模式下，機器人算出的回覆會以此卡片形式呈現，附上原始問題引用。<br>
             <span class="btn-chip">發送</span> 立即送出（會引用原訊息）並記入回覆統計；<br>
             <span class="btn-chip">編輯</span> 可先修改回覆文字再送出；<br>
             <span class="btn-chip">捨棄</span> 放棄這則自動草稿，不會發送也不計入統計。</td></tr>
           <tr><td>輸入框＋<span class="btn-chip">發送</span></td><td>可完全跳過機器人邏輯，由後台直接手動發一則訊息到該聊天室（Enter 送出，Shift+Enter 換行）。</td></tr>
+          <tr><td><span class="btn-chip">前往群組管理</span>（提示列按鈕）</td><td>點擊直接跳轉至「機器人管理 → 群組管理 Tab」，可對各群組個別設定即時對話管控開關。</td></tr>
         </tbody>
       </table>
       <div class="callout warn">
         <strong>管控模式的影響範圍</strong>
-        開啟管控模式後，機器人不會自動回覆<strong>關鍵字規則</strong>與<strong>知識庫問答</strong>的結果（全部改為待審），但<strong>白名單自動處理</strong>仍會照常自動回覆，兩者互不影響，詳見 <a href="#flow-whitelist">流程步驟 0.5</a>。
+        開啟管控模式後（不論機器人總開關或群組層級開關），機器人不會自動回覆<strong>關鍵字規則</strong>與<strong>知識庫問答</strong>的結果（全部改為待審），但<strong>白名單自動處理</strong>仍會照常自動回覆，兩者互不影響，詳見 <a href="#flow-whitelist">流程步驟 0.5</a>。
       </div>
     </section>
 
@@ -948,6 +970,8 @@
           <tr><td>申請表單判定門檻</td><td>≥ 3 行「編號.內容：值」格式</td><td>符合則跳過知識庫查詢，直接制式回覆</td></tr>
           <tr><td>即時對話訊息載入量</td><td>最新 100 則</td><td>即時對話管控頁面單一聊天室訊息顯示上限</td></tr>
           <tr><td>即時對話輪詢頻率</td><td>每 4 秒</td><td>前端自動刷新群組與訊息列表</td></tr>
+          <tr><td>管控模式判斷邏輯</td><td>機器人總開關 OR 群組層級開關</td><td>任一層開啟即進入管控；群組層級開關於「群組管理 Tab」各群組單獨設定</td></tr>
+          <tr><td>即時對話群組列表去重</td><td>僅顯示最新名稱</td><td>群組改名後，以最近一則訊息的名稱為準，舊名稱不再重複列出</td></tr>
           <tr><td>對話日誌保留天數</td><td>7 天</td><td>「AI對話日誌」與「AI無解答對話紀錄」皆自動清除 7 天前資料</td></tr>
           <tr><td>AI 救援掃描頻率</td><td>每 60 秒</td><td>背景排程檢查逾時候選訊息</td></tr>
           <tr><td>AI 救援逾時可調範圍</td><td>1 ～ 1440 分鐘</td><td>每機器人各自設定</td></tr>
