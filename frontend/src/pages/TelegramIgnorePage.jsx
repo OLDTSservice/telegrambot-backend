@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import {
   Table, Button, Switch, Modal, Form, Input, Select,
-  Popconfirm, message, Space, Card, Typography, Alert,
+  Popconfirm, message, Space, Card, Typography, Alert, Empty,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, StopOutlined, CopyOutlined } from '@ant-design/icons'
 import { getTelegramIgnores, createTelegramIgnore, updateTelegramIgnore, deleteTelegramIgnore, getBots } from '../api'
 
 const { Text } = Typography
@@ -13,25 +13,44 @@ export default function TelegramIgnorePage({ user }) {
   const [items, setItems] = useState([])
   const [bots, setBots] = useState([])
   const [loading, setLoading] = useState(false)
+  const [selectedBotId, setSelectedBotId] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [form] = Form.useForm()
+  const [copyModalOpen, setCopyModalOpen] = useState(false)
+  const [copyingItem, setCopyingItem] = useState(null)
+  const [copyTargetBotId, setCopyTargetBotId] = useState(null)
+  const [copying, setCopying] = useState(false)
 
   const load = async () => {
-    setLoading(true)
     try {
-      const [iRes, bRes] = await Promise.all([getTelegramIgnores(), getBots()])
-      setItems(iRes.data)
+      const bRes = await getBots()
       setBots(bRes.data)
     } catch { message.error('載入失敗') }
+  }
+
+  const loadItems = async (botId) => {
+    setLoading(true)
+    try {
+      const iRes = await getTelegramIgnores({ bot_id: botId })
+      setItems(iRes.data)
+    } catch { message.error('載入忽略名單失敗') }
     finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [])
 
-  const botName = id => bots.find(b => b.id === id)?.name || `Bot #${id}`
+  const handleBotChange = (botId) => {
+    setSelectedBotId(botId)
+    loadItems(botId)
+  }
 
-  const openAdd = () => { setEditingItem(null); form.resetFields(); setModalOpen(true) }
+  const openAdd = () => {
+    setEditingItem(null)
+    form.resetFields()
+    form.setFieldsValue({ bot_id: selectedBotId })
+    setModalOpen(true)
+  }
   const openEdit = item => {
     setEditingItem(item)
     form.setFieldsValue({ bot_id: item.bot_id, identifier: item.identifier, note: item.note || '' })
@@ -49,20 +68,48 @@ export default function TelegramIgnorePage({ user }) {
         message.success('已新增')
       }
       setModalOpen(false)
-      load()
+      if (selectedBotId) loadItems(selectedBotId)
     } catch (err) {
       message.error(err.response?.data?.detail || '操作失敗')
     }
   }
 
   const handleToggle = async (item, checked) => {
-    try { await updateTelegramIgnore(item.id, { is_enabled: checked }); load() }
+    try { await updateTelegramIgnore(item.id, { is_enabled: checked }); if (selectedBotId) loadItems(selectedBotId) }
     catch { message.error('切換失敗') }
   }
 
   const handleDelete = async id => {
-    try { await deleteTelegramIgnore(id); message.success('已刪除'); load() }
+    try { await deleteTelegramIgnore(id); message.success('已刪除'); if (selectedBotId) loadItems(selectedBotId) }
     catch { message.error('刪除失敗') }
+  }
+
+  const openCopy = (item) => {
+    setCopyingItem(item)
+    setCopyTargetBotId(null)
+    setCopyModalOpen(true)
+  }
+
+  const handleCopySubmit = async () => {
+    if (!copyTargetBotId) {
+      message.warning('請選擇要複製到的機器人')
+      return
+    }
+    setCopying(true)
+    try {
+      await createTelegramIgnore({
+        bot_id: copyTargetBotId,
+        identifier: copyingItem.identifier,
+        note: copyingItem.note || null,
+      })
+      message.success('已複製到目標機器人')
+      setCopyModalOpen(false)
+      if (selectedBotId === copyTargetBotId) loadItems(selectedBotId)
+    } catch (err) {
+      message.error(err.response?.data?.detail || '複製失敗')
+    } finally {
+      setCopying(false)
+    }
   }
 
   const columns = [
@@ -83,19 +130,18 @@ export default function TelegramIgnorePage({ user }) {
       render: v => <Text type="secondary">{v || '—'}</Text>,
     },
     {
-      title: '綁定機器人', dataIndex: 'bot_id', width: 160,
-      render: id => botName(id),
-    },
-    {
       title: '新增時間', dataIndex: 'created_at', width: 160,
       render: t => new Date(t).toLocaleString('zh-TW'),
     },
     {
-      title: '操作', width: 100,
+      title: '操作', width: 140,
       render: (_, record) => (
         <Space>
           <Button size="small" icon={<EditOutlined />}
             onClick={() => openEdit(record)} disabled={!canEdit(user)} />
+          <Button size="small" icon={<CopyOutlined />}
+            onClick={() => openCopy(record)} disabled={!canEdit(user)}
+            title="複製到其他機器人" />
           <Popconfirm title="確定從忽略名單移除？" onConfirm={() => handleDelete(record.id)}
             disabled={!canEdit(user)}>
             <Button size="small" danger icon={<DeleteOutlined />} disabled={!canEdit(user)} />
@@ -107,11 +153,25 @@ export default function TelegramIgnorePage({ user }) {
 
   return (
     <Card>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <h2><StopOutlined style={{ marginRight: 8, color: '#ff4d4f' }} />Telegram 忽略名單</h2>
-        {canEdit(user) && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增忽略帳號</Button>
-        )}
+        <Space>
+          <Select
+            style={{ width: 200 }}
+            placeholder="選擇機器人"
+            value={selectedBotId}
+            onChange={handleBotChange}
+          >
+            {bots.map(b => (
+              <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>
+            ))}
+          </Select>
+          {canEdit(user) && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd} disabled={!selectedBotId}>
+              新增忽略帳號
+            </Button>
+          )}
+        </Space>
       </div>
 
       <Alert
@@ -125,14 +185,18 @@ export default function TelegramIgnorePage({ user }) {
         }
       />
 
-      <Table
-        rowKey="id"
-        dataSource={items}
-        columns={columns}
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-        locale={{ emptyText: '忽略名單為空' }}
-      />
+      {!selectedBotId ? (
+        <Empty description="請先選擇機器人" style={{ padding: 48 }} />
+      ) : (
+        <Table
+          rowKey="id"
+          dataSource={items}
+          columns={columns}
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          locale={{ emptyText: '此機器人的忽略名單為空' }}
+        />
+      )}
 
       <Modal
         title={editingItem ? '編輯忽略帳號' : '新增忽略帳號'}
@@ -159,6 +223,42 @@ export default function TelegramIgnorePage({ user }) {
             <Input placeholder="例如：廣告帳號、已封鎖用戶" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="複製忽略帳號到其他機器人"
+        open={copyModalOpen}
+        onOk={handleCopySubmit}
+        onCancel={() => setCopyModalOpen(false)}
+        okText="複製"
+        cancelText="取消"
+        confirmLoading={copying}
+        width={480}
+      >
+        {copyingItem && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary">帳號識別碼：</Text>
+              <Text code>{copyingItem.identifier}</Text>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>目標機器人</Text>
+              <Select
+                style={{ width: '100%', marginTop: 6 }}
+                placeholder="選擇要複製到的機器人"
+                value={copyTargetBotId}
+                onChange={setCopyTargetBotId}
+              >
+                {bots.filter(b => b.id !== copyingItem.bot_id).map(b => (
+                  <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>
+                ))}
+              </Select>
+            </div>
+            <Text type="secondary" style={{ fontSize: 12.5 }}>
+              將以相同的帳號識別碼與備註，在目標機器人下新增一筆忽略名單（不影響原名單）。若目標機器人已有相同識別碼，複製會失敗。
+            </Text>
+          </div>
+        )}
       </Modal>
     </Card>
   )

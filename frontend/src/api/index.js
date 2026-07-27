@@ -82,7 +82,7 @@ export const updateTeamsIgnore = (id, d) => api.put(`/teams-ignores/${id}`, d)
 export const deleteTeamsIgnore = id => api.delete(`/teams-ignores/${id}`)
 
 // ── Telegram Ignore ────────────────────────────
-export const getTelegramIgnores = () => api.get('/telegram-ignores')
+export const getTelegramIgnores = (params) => api.get('/telegram-ignores', { params })
 export const createTelegramIgnore = d => api.post('/telegram-ignores', d)
 export const updateTelegramIgnore = (id, d) => api.put(`/telegram-ignores/${id}`, d)
 export const deleteTelegramIgnore = id => api.delete(`/telegram-ignores/${id}`)

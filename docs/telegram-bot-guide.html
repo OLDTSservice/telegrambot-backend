@@ -727,12 +727,15 @@
       <h2>Telegram 忽略名單頁面</h2>
       <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 忽略名單</span></p>
       <p>名單內的帳號傳送的所有訊息會被機器人完全忽略（見 <a href="#flow-ignore">流程步驟 0</a>），常用於封鎖廣告帳號、內部測試帳號或其他機器人帳號，避免誤觸發回覆或無限對話迴圈。</p>
+      <p>頁面上方需先<strong>選擇機器人</strong>（與「關鍵字規則」頁面相同的選單模式），僅顯示該機器人自己的忽略名單，不同機器人的名單互不顯示、互不影響。</p>
       <table>
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
         <tbody>
-          <tr><td><span class="btn-chip">新增忽略帳號</span></td><td>綁定機器人 + 輸入識別碼。識別碼可填 <span class="code">@username</span>（用戶名稱）或數字 <span class="code">user_id</span>（可用 Telegram 上的 @userinfobot 查詢），同一機器人下識別碼不可重複新增。</td></tr>
+          <tr><td>選擇機器人</td><td>需先選擇機器人才會載入其忽略名單，也才能新增。</td></tr>
+          <tr><td><span class="btn-chip">新增忽略帳號</span></td><td>輸入識別碼即新增至目前選擇的機器人。識別碼可填 <span class="code">@username</span>（用戶名稱）或數字 <span class="code">user_id</span>（可用 Telegram 上的 @userinfobot 查詢），同一機器人下識別碼不可重複新增。</td></tr>
           <tr><td>啟用開關</td><td>暫時取消忽略但保留紀錄，不需重新輸入。</td></tr>
           <tr><td>備註欄</td><td>選填，方便標註「為什麼忽略這個帳號」。</td></tr>
+          <tr><td><span class="btn-chip">複製到其他機器人</span>（📋 圖示）</td><td>將此筆忽略帳號的識別碼與備註複製成一筆<strong>新紀錄</strong>並綁定到另一個選定的機器人；下拉選單只列出<strong>非目前來源機器人</strong>的其他機器人。若目標機器人已存在相同識別碼則複製失敗（後端不允許同機器人重複識別碼）。原紀錄不受影響。</td></tr>
         </tbody>
       </table>
       <div class="callout">

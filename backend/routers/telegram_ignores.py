@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from database import get_db
 import models, schemas
 from auth import require_editor, require_viewer
@@ -9,8 +9,11 @@ router = APIRouter(prefix="/api/telegram-ignores", tags=["Telegram忽略名單"]
 
 
 @router.get("", response_model=List[schemas.TelegramIgnoreOut])
-def list_ignores(db: Session = Depends(get_db), _=Depends(require_viewer)):
-    return db.query(models.TelegramIgnore).all()
+def list_ignores(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+    q = db.query(models.TelegramIgnore)
+    if bot_id is not None:
+        q = q.filter(models.TelegramIgnore.bot_id == bot_id)
+    return q.all()
 
 
 @router.post("", response_model=schemas.TelegramIgnoreOut)
