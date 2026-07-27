@@ -613,10 +613,12 @@ function NotifyTab({ user }) {
       <Card title="通知訊息格式預覽" size="small">
         <div style={{ fontFamily: 'monospace', fontSize: 13, background: '#f5f7fa', padding: 12, borderRadius: 6, lineHeight: 2 }}>
           <div>群組名稱：{chatName || '（目標群組名稱）'}</div>
+          <div>問題訊息：請問遊戲清單在哪裡看？</div>
           <div style={{ color: '#52c41a' }}>建立狀態：✅ 成功</div>
           <div>工單編號：#12345</div>
           <hr style={{ border: 'none', borderTop: '1px dashed #ccc', margin: '8px 0' }} />
           <div>群組名稱：{chatName || '（目標群組名稱）'}</div>
+          <div>問題訊息：請問遊戲清單在哪裡看？</div>
           <div style={{ color: '#f5222d' }}>建立狀態：❌ 失敗</div>
           <div>失敗原因：HTTP 500: Internal Server Error</div>
         </div>
