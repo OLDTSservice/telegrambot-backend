@@ -3,7 +3,7 @@ import {
   Table, Button, Switch, Modal, Form, Input, Select,
   Popconfirm, message, Space, Card, Typography, Empty,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons'
 import { getRules, createRule, updateRule, deleteRule, getBots } from '../api'
 
 const { TextArea } = Input
@@ -18,6 +18,10 @@ export default function RulesPage({ user }) {
   const [editingRule, setEditingRule] = useState(null)
   const [selectedBotId, setSelectedBotId] = useState(null)
   const [form] = Form.useForm()
+  const [copyModalOpen, setCopyModalOpen] = useState(false)
+  const [copyingRule, setCopyingRule] = useState(null)
+  const [copyTargetBotId, setCopyTargetBotId] = useState(null)
+  const [copying, setCopying] = useState(false)
 
   const load = async () => {
     try {
@@ -101,6 +105,35 @@ export default function RulesPage({ user }) {
     }
   }
 
+  const openCopy = (rule) => {
+    setCopyingRule(rule)
+    setCopyTargetBotId(null)
+    setCopyModalOpen(true)
+  }
+
+  const handleCopySubmit = async () => {
+    if (!copyTargetBotId) {
+      message.warning('請選擇要複製到的機器人')
+      return
+    }
+    setCopying(true)
+    try {
+      await createRule({
+        bot_id: copyTargetBotId,
+        keyword: copyingRule.keyword,
+        reply_message: copyingRule.reply_message,
+        reply_message_en: copyingRule.reply_message_en || null,
+      })
+      message.success('已複製到目標機器人')
+      setCopyModalOpen(false)
+      if (selectedBotId === copyTargetBotId) loadRules(selectedBotId)
+    } catch (err) {
+      message.error(err.response?.data?.detail || '複製失敗')
+    } finally {
+      setCopying(false)
+    }
+  }
+
   const columns = [
     {
       title: '啟用',
@@ -133,11 +166,14 @@ export default function RulesPage({ user }) {
     },
     {
       title: '操作',
-      width: 100,
+      width: 140,
       render: (_, record) => (
         <Space>
           <Button size="small" icon={<EditOutlined />}
             onClick={() => openEdit(record)} disabled={!canEdit(user)} />
+          <Button size="small" icon={<CopyOutlined />}
+            onClick={() => openCopy(record)} disabled={!canEdit(user)}
+            title="複製到其他機器人" />
           <Popconfirm title="確定刪除此規則？" onConfirm={() => handleDelete(record.id)}
             disabled={!canEdit(user)}>
             <Button size="small" danger icon={<DeleteOutlined />} disabled={!canEdit(user)} />
@@ -215,6 +251,42 @@ export default function RulesPage({ user }) {
             <TextArea rows={4} placeholder="English reply for non-Chinese messages" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="複製規則到其他機器人"
+        open={copyModalOpen}
+        onOk={handleCopySubmit}
+        onCancel={() => setCopyModalOpen(false)}
+        okText="複製"
+        cancelText="取消"
+        confirmLoading={copying}
+        width={480}
+      >
+        {copyingRule && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary">關鍵字：</Text>
+              <Text code>{copyingRule.keyword}</Text>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>目標機器人</Text>
+              <Select
+                style={{ width: '100%', marginTop: 6 }}
+                placeholder="選擇要複製到的機器人"
+                value={copyTargetBotId}
+                onChange={setCopyTargetBotId}
+              >
+                {bots.filter(b => b.id !== copyingRule.bot_id).map(b => (
+                  <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>
+                ))}
+              </Select>
+            </div>
+            <Text type="secondary" style={{ fontSize: 12.5 }}>
+              將以相同的關鍵字與中英文回覆內容，在目標機器人下新增一條規則（不影響原規則）。
+            </Text>
+          </div>
+        )}
       </Modal>
     </Card>
   )
