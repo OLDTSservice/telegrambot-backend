@@ -59,6 +59,20 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 break
             if _TOKEN_RE.match(line):
                 all_usernames.append(line)
+    else:
+        # 無「Username:」等標籤格式：逐行掃描，取「單獨一行、看起來像帳號」的行
+        # （純英數字加底線/破折號，不含空白，故關鍵字語句與中文字樣自然不會誤判）
+        _skip_phrases = set(_BO_KEYWORDS) | set(_API_EXCLUDE)
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if _IP_RE.search(line):
+                break
+            if line.lower() in _skip_phrases:
+                continue
+            if _TOKEN_RE.match(line):
+                all_usernames.append(line)
 
     all_parts = []
     for u in all_usernames:
