@@ -576,7 +576,7 @@ def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
         resp = requests.post(
             "https://freshdesk-ticket-creation.onrender.com/api/create-ticket-from-bot",
             json={"question": question, "answer": answer, "group_name": group_name},
-            timeout=30,
+            timeout=90,
         )
         if resp.ok:
             ticket_id = resp.json().get('id')
