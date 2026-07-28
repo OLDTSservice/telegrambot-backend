@@ -468,15 +468,18 @@
         <div><strong>工單建立成功時：</strong></div>
         <div style="background:var(--code-bg); padding:10px 14px; border-radius:6px; margin:6px 0;">
           群組名稱：（觸發回覆的 Telegram 群組名稱）<br>
+          問題訊息：（觸發開單的原始問題內容）<br>
           建立狀態：✅ 成功<br>
           工單編號：#12345
         </div>
         <div style="margin-top:10px"><strong>工單建立失敗時：</strong></div>
         <div style="background:var(--code-bg); padding:10px 14px; border-radius:6px; margin:6px 0;">
           群組名稱：（觸發回覆的 Telegram 群組名稱）<br>
+          問題訊息：（觸發開單的原始問題內容）<br>
           建立狀態：❌ 失敗<br>
           失敗原因：HTTP 500: Internal Server Error
         </div>
+        <p class="flow-desc" style="margin-top:8px">新增「問題訊息」欄位是為了在同一群組短時間內有多筆提問時，方便對照失敗通知究竟對應哪一則問題。</p>
       </div>
 
       <div class="callout warn">
@@ -579,10 +582,10 @@
             <div class="flow-desc">
               將該機器人所有「已啟用」知識庫文件的全部段落，連同問題一併送給 Claude Haiku，由 AI 直接判斷是否有「直接對應」的答案（不做向量相似度篩選，而是把候選片段全部交給 AI 自行判斷語意相關性）。
             </div>
-            <p class="flow-desc">系統提示詞明確要求 AI：① 只回答知識庫裡有直接對應答案的內容，不可推論／整合／延伸；② 若訊息本身是表單提交格式，一律視為找不到答案；③ 必須用「與提問相同的語言」回答；④ 找不到答案時僅需簡短告知，不需要多做解釋。</p>
+            <p class="flow-desc">系統提示詞明確要求 AI：① 只回答知識庫裡有直接對應答案的內容，不可推論／整合／延伸；② 若訊息本身是表單提交格式，一律回覆固定識別字串 <span class="code">NO_ANSWER_FOUND</span>；③ 必須用「與提問相同的語言」回答；④ 找不到答案時**只能**回覆固定識別字串 <span class="code">NO_ANSWER_FOUND</span>，不得加任何其他文字或翻譯。程式端以精確比對此固定字串判斷是否為「無答案」，不再依賴猜測各種措辭的關鍵字比對，避免 AI 用詞差異導致誤判為有效回覆。</p>
             <div class="flow-outcome">
               <div class="flow-branch"><span class="tag tag-green">AI 給出答案</span> 進入下一步分流</div>
-              <div class="flow-branch"><span class="tag tag-gray">AI 回覆「找不到相關資訊」等語句</span> 視為無答案，進入 Fallback</div>
+              <div class="flow-branch"><span class="tag tag-gray">AI 回覆固定字串 NO_ANSWER_FOUND</span> 視為無答案，進入 Fallback</div>
             </div>
           </div>
         </div>
@@ -788,15 +791,15 @@
         <tbody>
           <tr><td>選擇機器人</td><td>切換要檢視 / 設定的機器人。</td></tr>
           <tr><td><strong>自動白名單處理</strong> 開關</td><td>對應機器人的 <span class="code">whitelist_enabled</span> 欄位，預設關閉。開啟後，符合格式的訊息才會觸發自動加白（見下方偵測規則）。</td></tr>
-          <tr><td>最近 10 筆處理記錄</td><td>顯示群組名稱、比對到的廠商名稱、IP 列表、成功/失敗狀態與時間，方便追查自動化是否正確判斷廠商。</td></tr>
+          <tr><td>最近 50 筆處理記錄</td><td>顯示群組名稱、比對到的廠商名稱、<strong>完整代理帳號</strong>（如 <span class="code">Ogpro_GOLDBET9AU_MYR</span>）、IP 列表、成功/失敗狀態與時間，方便追查自動化是否正確判斷廠商。</td></tr>
         </tbody>
       </table>
 
       <h3>自動偵測與比對規則</h3>
       <ol>
-        <li><strong>觸發關鍵字：</strong>訊息需包含如 <span class="code">whitelist bo ip</span>、<span class="code">bo ip</span>、<span class="code">backend ip</span>、<span class="code">加白后台ip</span>、<span class="code">後台ip</span>、<span class="code">backoffice ip</span> 等後台相關字樣，<strong>且訊息中同時含有至少一個 IPv4 位址</strong>才會被視為請求。</li>
+        <li><strong>觸發關鍵字：</strong>訊息需包含如 <span class="code">whitelist bo ip</span>、<span class="code">bo ip</span>、<span class="code">backend ip</span>、<span class="code">加白后台ip</span>、<span class="code">加白后台</span>、<span class="code">後台ip</span>、<span class="code">加白後台</span>、<span class="code">whitelist backend</span>、<span class="code">backoffice ip</span>、<span class="code">后台過白</span>、<span class="code">后台过白</span>、<span class="code">後台白名單</span> 等後台相關字樣，<strong>且訊息中同時含有至少一個 IPv4 位址</strong>才會被視為請求。</li>
         <li><strong>排除規則：</strong>若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足第 1 點也不會觸發。</li>
-        <li><strong>帳號與廠商解析：</strong>優先從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / ID</span> 等標籤後方的帳號字串；若訊息<strong>沒有任何標籤</strong>，改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號（例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）。取得帳號後以底線／破折號拆解各段；一則訊息可能包含多組帳號（多行列出），會逐一嘗試比對廠商。</li>
+        <li><strong>帳號與廠商解析：</strong>優先從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / ID</span> 等標籤後方的帳號字串；若訊息<strong>沒有任何標籤</strong>，改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號（例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）；若該行是「任意文字 + 冒號 + 帳號」格式，即使標籤本身打錯字（如誤植 <span class="code">USWER:</span>），只要冒號後方符合帳號格式，一樣容錯解析取得帳號。取得帳號後以底線／破折號拆解各段；一則訊息可能包含多組帳號（多行列出），會逐一嘗試比對廠商。</li>
         <li>
           <strong>廠商比對（四層漸進式演算法）：</strong>登入內部白名單管理後台取得完整廠商清單後，依序嘗試下列四個步驟，一旦唯一確認廠商即停止：
           <ul style="margin:6px 0">
@@ -993,6 +996,8 @@
           <tr><td>白名單請求判斷</td><td>需含後台關鍵字 + 至少一個 IPv4，且不含「API」排除字樣</td><td>否則不視為白名單請求</td></tr>
           <tr><td>白名單廠商驗證預設行為</td><td>關閉（不限制）</td><td>需手動至群組管理 Tab 開啟並設定允許前綴；未設定時任何廠商皆可加白</td></tr>
           <tr><td>Freshdesk 自動建單條件</td><td>僅限「一般模式」下的關鍵字回覆 / 知識庫回覆 / 白名單成功處理</td><td>管控模式人工發送、Fallback、AI 救援回覆皆不建單</td></tr>
+          <tr><td>Freshdesk 建單請求逾時</td><td>90 秒</td><td>呼叫外部 Freshdesk 建單 API 的逾時上限</td></tr>
+          <tr><td>後台時間顯示時區</td><td>固定 Asia/Taipei（UTC+8）</td><td>資料庫皆以 UTC 儲存，前端統一轉換為台灣時間顯示，不受使用者裝置時區影響</td></tr>
         </tbody>
       </table>
     </section>
