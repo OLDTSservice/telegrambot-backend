@@ -20,6 +20,7 @@ _BO_KEYWORDS = [
     "加白后台ip", "加白后台", "後台ip",
     "加白後台", "whitelist backend",
     "backoffice ip whitelist", "backoffice ip",
+    "后台過白", "后台过白", "後台白名單",
 ]
 _API_EXCLUDE = ["api ip", "api whitelist", "加白api", "api white", "apiip"]
 _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
