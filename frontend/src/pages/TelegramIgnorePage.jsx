@@ -5,6 +5,7 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, StopOutlined, CopyOutlined } from '@ant-design/icons'
 import { getTelegramIgnores, createTelegramIgnore, updateTelegramIgnore, deleteTelegramIgnore, getBots } from '../api'
+import { formatDateTime } from '../utils/datetime'
 
 const { Text } = Typography
 const canEdit = user => user?.role === 'superadmin' || user?.role === 'editor'
@@ -131,7 +132,7 @@ export default function TelegramIgnorePage({ user }) {
     },
     {
       title: '新增時間', dataIndex: 'created_at', width: 160,
-      render: t => new Date(t).toLocaleString('zh-TW'),
+      render: t => formatDateTime(t),
     },
     {
       title: '操作', width: 140,

@@ -8,6 +8,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined, SearchOutlined, SafetyOutlined } from '@ant-design/icons'
 import { getBots, createBot, updateBot, deleteBot, getRescueSetting, updateRescueSetting, getNotifySetting, updateNotifySetting } from '../api'
 import api from '../api'
+import { formatDateTime } from '../utils/datetime'
 
 const { TextArea } = Input
 
@@ -81,7 +82,7 @@ function BotListTab({ user }) {
     },
     {
       title: '建立時間', dataIndex: 'created_at', width: 160,
-      render: t => new Date(t).toLocaleString('zh-TW'),
+      render: t => formatDateTime(t),
     },
     {
       title: '操作', width: 120,

@@ -13,21 +13,19 @@ import {
   getLiveGroups, getLiveMessages, markLiveRead,
   liveSendMessage, updatePendingReply, sendPendingReply, discardPendingReply,
 } from '../api'
+import { formatTime, formatMonthDay, isTaipeiToday } from '../utils/datetime'
 
 const { Text } = Typography
 const { TextArea } = Input
 const POLL_MS = 4000
 
 function timeStr(ts) {
-  const d = new Date(ts)
-  return d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+  return formatTime(ts)
 }
 
 function dateStr(ts) {
-  const d = new Date(ts)
-  const today = new Date()
-  if (d.toDateString() === today.toDateString()) return '今天'
-  return d.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
+  if (isTaipeiToday(ts)) return '今天'
+  return formatMonthDay(ts)
 }
 
 // ── 訊息氣泡 ─────────────────────────────────────────────────────────────

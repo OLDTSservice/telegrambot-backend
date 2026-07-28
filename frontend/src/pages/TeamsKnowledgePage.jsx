@@ -8,6 +8,7 @@ import {
   FilePdfOutlined, FileExcelOutlined, FileWordOutlined,
 } from '@ant-design/icons'
 import { getTeamsDocs, uploadTeamsDoc, updateTeamsDoc, deleteTeamsDoc, getTeamsBots } from '../api'
+import { formatDateTime } from '../utils/datetime'
 
 const { Text } = Typography
 const canEdit = user => user?.role === 'superadmin' || user?.role === 'editor'
@@ -91,7 +92,7 @@ export default function TeamsKnowledgePage({ user }) {
     { title: '格式', dataIndex: 'file_type', width: 80, render: t => <Tag>{(t || '').toUpperCase()}</Tag> },
     { title: '大小', dataIndex: 'file_size', width: 100, render: formatSize },
     { title: '綁定機器人', dataIndex: 'bot_id', width: 160, render: id => botName(id) },
-    { title: '上傳時間', dataIndex: 'created_at', width: 160, render: t => new Date(t).toLocaleString('zh-TW') },
+    { title: '上傳時間', dataIndex: 'created_at', width: 160, render: t => formatDateTime(t) },
     {
       title: '操作', width: 80,
       render: (_, record) => (

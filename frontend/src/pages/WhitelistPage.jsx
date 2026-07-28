@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { getBots, updateBot, getWhitelistLogs } from '../api'
+import { formatDateTime } from '../utils/datetime'
 
 const { Text } = Typography
 
@@ -35,7 +36,7 @@ const columns = [
     dataIndex: 'created_at',
     key: 'created_at',
     width: 150,
-    render: (v) => new Date(v).toLocaleString('zh-TW'),
+    render: (v) => formatDateTime(v),
   },
 ]
 

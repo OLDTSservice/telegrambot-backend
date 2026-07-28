@@ -8,6 +8,7 @@ import {
 } from 'recharts'
 import { ThunderboltOutlined, ApiOutlined, CalendarOutlined, RobotOutlined, DollarOutlined } from '@ant-design/icons'
 import { getStats } from '../api'
+import { formatDateTime } from '../utils/datetime'
 import api from '../api'
 
 const { Text } = Typography
@@ -221,7 +222,7 @@ export default function StatsPage() {
                   return (
                     <tr key={`${q.source}-${q.id}`} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: '#888', fontSize: 11 }}>
-                        {new Date(q.created_at).toLocaleString('zh-TW')}
+                        {formatDateTime(q.created_at)}
                       </td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                         {q.has_answer

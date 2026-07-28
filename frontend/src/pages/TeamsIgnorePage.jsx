@@ -5,6 +5,7 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons'
 import { getTeamsIgnores, createTeamsIgnore, updateTeamsIgnore, deleteTeamsIgnore, getTeamsBots } from '../api'
+import { formatDateTime } from '../utils/datetime'
 
 const { Text } = Typography
 const canEdit = user => user?.role === 'superadmin' || user?.role === 'editor'
@@ -88,7 +89,7 @@ export default function TeamsIgnorePage({ user }) {
     },
     {
       title: '新增時間', dataIndex: 'created_at', width: 160,
-      render: t => new Date(t).toLocaleString('zh-TW'),
+      render: t => formatDateTime(t),
     },
     {
       title: '操作', width: 100,

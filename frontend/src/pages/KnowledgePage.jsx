@@ -9,6 +9,7 @@ import {
   DownloadOutlined, PlusOutlined, BookOutlined, MessageOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import api, { getDocs, uploadDoc, updateDoc, deleteDoc, getBots } from '../api'
+import { formatDateTime, formatDate } from '../utils/datetime'
 
 const canEdit = user => user?.role === 'superadmin' || user?.role === 'editor'
 
@@ -277,7 +278,7 @@ function SourceTab({ user }) {
                   <span>·</span>
                   <span>{formatSize(doc.file_size)}</span>
                   <span>·</span>
-                  <span>{new Date(doc.created_at).toLocaleDateString('zh-TW')}</span>
+                  <span>{formatDate(doc.created_at)}</span>
                   <Tag color="blue" style={{ marginLeft: 2, fontSize: 13 }}>QA: {doc.qa_count ?? 0}</Tag>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
@@ -506,7 +507,7 @@ function LogsTab({ user }) {
             {logs.map(log => (
               <div key={log.id} style={{ padding: '14px 16px', borderBottom: '1px solid #d4d8e2' }}>
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
-                  <span>{new Date(log.created_at).toLocaleString('zh-TW')}</span>
+                  <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>Q：{log.question}</div>
@@ -636,7 +637,7 @@ function NoAnswerTab({ user }) {
             {logs.map(log => (
               <div key={log.id} style={{ padding: '14px 16px', borderBottom: '1px solid #d4d8e2' }}>
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
-                  <span>{new Date(log.created_at).toLocaleString('zh-TW')}</span>
+                  <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
                 </div>
                 <div style={{ fontSize: 15, color: '#111', fontWeight: 500, whiteSpace: 'pre-wrap' }}>{log.question}</div>
