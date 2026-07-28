@@ -225,6 +225,7 @@ class WhitelistLog(Base):
     chat_id = Column(String(64), nullable=False)
     chat_name = Column(String(255), nullable=False)
     vendor_name = Column(String(64), nullable=False)   # 廠商代碼（從 Username 第一段取得）
+    full_username = Column(String(255), nullable=True) # 完整代理帳號（如 Ogpro_GOLDBET9AU_MYR）
     ip_list = Column(Text, nullable=False)              # 換行分隔的 IP 列表
     status = Column(String(16), default="success")     # success / failed
     created_at = Column(DateTime, default=datetime.utcnow)

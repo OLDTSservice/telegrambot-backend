@@ -123,6 +123,7 @@ class WhitelistLogOut(BaseModel):
     id: int
     chat_name: str
     vendor_name: str
+    full_username: Optional[str] = None
     ip_list: str
     status: str
     created_at: datetime

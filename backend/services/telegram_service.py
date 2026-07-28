@@ -199,7 +199,8 @@ class BotManager:
                         log_vendor = matched_vendor or (username_parts[0] if username_parts else "unknown")
                         _save_whitelist_log(bot_id, chat_id, chat_name,
                                             log_vendor, "\n".join(ips),
-                                            "success" if success else "failed", db)
+                                            "success" if success else "failed", db,
+                                            full_username="_".join(username_parts))
                         if success:
                             any_success = True
                         if vendor_rejected:
@@ -501,11 +502,11 @@ def _save_no_answer_log(bot_id, chat_id, chat_name, question, db,
         db.rollback()
 
 
-def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status, db):
+def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status, db, full_username=None):
     import models
     log = models.WhitelistLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name,
-        vendor_name=vendor_name, ip_list=ip_list, status=status,
+        vendor_name=vendor_name, full_username=full_username, ip_list=ip_list, status=status,
     )
     db.add(log)
     try:

@@ -15,6 +15,13 @@ const columns = [
   { title: '群組名稱', dataIndex: 'chat_name', key: 'chat_name', ellipsis: true },
   { title: '廠商名稱', dataIndex: 'vendor_name', key: 'vendor_name', width: 100 },
   {
+    title: '代理帳號',
+    dataIndex: 'full_username',
+    key: 'full_username',
+    width: 180,
+    render: (v) => <span style={{ fontFamily: 'monospace' }}>{v || '-'}</span>,
+  },
+  {
     title: 'IP 列表',
     dataIndex: 'ip_list',
     key: 'ip_list',
