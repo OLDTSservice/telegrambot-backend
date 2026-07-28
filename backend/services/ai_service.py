@@ -316,16 +316,18 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
     logger.info(f"Bot {bot_id} 呼叫 Claude，context {len(context)} 字元")
     try:
         client = get_anthropic_client()
+        NO_ANSWER_TOKEN = "NO_ANSWER_FOUND"
         system_prompt = (
             "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
             "不要加入任何額外補充、說明或開場白。"
             "重要規則：\n"
             "1. 只有在知識庫中有【直接對應的答案】時才回答，不可自行推斷、整合或延伸。\n"
             "2. 若訊息是申請單、表單或提交資料（特徵：多行編號欄位如「1. 商戶名字：xxx」、「2. 幣種：MYR」等結構），"
-            "視為提交資料而非提問，請回覆找不到相關資訊。\n"
+            f"視為提交資料而非提問，請只回覆固定字串：{NO_ANSWER_TOKEN}。\n"
             "3. 請使用與問題完全相同的語言回答"
             "（問題為繁體中文→繁體中文、英文→英文、簡體中文→簡體中文、其他語言同理）。\n"
-            "4. 若知識庫中沒有直接對應的資訊，僅以問題的語言簡短告知找不到相關資訊即可。"
+            f"4. 若知識庫中沒有直接對應的資訊，請只回覆固定字串：{NO_ANSWER_TOKEN}，"
+            "不要加任何其他文字、標點或說明，也不要用問題的語言翻譯這個字串。"
         )
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -356,12 +358,7 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
         )
         in_tok, out_tok = message.usage.input_tokens, message.usage.output_tokens
         # 若 Claude 判斷找不到答案，回傳 (None, tokens) 讓上層仍能記錄用量
-        NO_ANSWER_SIGNALS = [
-            "找不到相關資訊", "無法回答", "沒有相關",
-            "I cannot find", "no relevant", "not found", "no information",
-            "找不到相关", "无法回答",  # 簡體中文
-        ]
-        if any(s in reply for s in NO_ANSWER_SIGNALS):
+        if NO_ANSWER_TOKEN in reply:
             logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")
             return None, in_tok, out_tok, cache_read, cache_write
         return reply, in_tok, out_tok, cache_read, cache_write
