@@ -61,8 +61,9 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
             if _TOKEN_RE.match(line):
                 all_usernames.append(line)
     else:
-        # 無「Username:」等標籤格式：逐行掃描，取「單獨一行、看起來像帳號」的行
-        # （純英數字加底線/破折號，不含空白，故關鍵字語句與中文字樣自然不會誤判）
+        # 無法辨識的標籤格式：逐行掃描
+        # 1. 「任意標籤 : 帳號」格式（標籤打錯字，如 USWER、Usre 等，仍容錯解析冒號後的值）
+        # 2. 單獨一行、看起來像帳號的行（純英數字加底線/破折號，不含空白）
         _skip_phrases = set(_BO_KEYWORDS) | set(_API_EXCLUDE)
         for line in text.splitlines():
             line = line.strip()
@@ -74,6 +75,11 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 continue
             if _TOKEN_RE.match(line):
                 all_usernames.append(line)
+                continue
+            if "：" in line or ":" in line:
+                value = re.split(r'[：:]', line, maxsplit=1)[1].strip()
+                if _TOKEN_RE.match(value):
+                    all_usernames.append(value)
 
     all_parts = []
     for u in all_usernames:
