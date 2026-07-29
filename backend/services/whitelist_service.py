@@ -19,7 +19,7 @@ _BO_KEYWORDS = [
     "whitelist bo ip", "bo ip", "backend ip", "whitelist bo",
     "加白后台ip", "加白后台", "後台ip",
     "加白後台", "whitelist backend",
-    "backoffice ip whitelist", "backoffice ip",
+    "backoffice ip whitelist", "backoffice ip", "backoffice whitelist",
     "后台過白", "后台过白", "後台白名單",
 ]
 _API_EXCLUDE = ["api ip", "api whitelist", "加白api", "api white", "apiip"]

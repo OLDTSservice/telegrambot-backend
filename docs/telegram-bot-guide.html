@@ -797,7 +797,7 @@
 
       <h3>自動偵測與比對規則</h3>
       <ol>
-        <li><strong>觸發關鍵字：</strong>訊息需包含如 <span class="code">whitelist bo ip</span>、<span class="code">bo ip</span>、<span class="code">backend ip</span>、<span class="code">加白后台ip</span>、<span class="code">加白后台</span>、<span class="code">後台ip</span>、<span class="code">加白後台</span>、<span class="code">whitelist backend</span>、<span class="code">backoffice ip</span>、<span class="code">后台過白</span>、<span class="code">后台过白</span>、<span class="code">後台白名單</span> 等後台相關字樣，<strong>且訊息中同時含有至少一個 IPv4 位址</strong>才會被視為請求。</li>
+        <li><strong>觸發關鍵字：</strong>訊息需包含如 <span class="code">whitelist bo ip</span>、<span class="code">bo ip</span>、<span class="code">backend ip</span>、<span class="code">加白后台ip</span>、<span class="code">加白后台</span>、<span class="code">後台ip</span>、<span class="code">加白後台</span>、<span class="code">whitelist backend</span>、<span class="code">backoffice ip</span>、<span class="code">backoffice whitelist</span>、<span class="code">后台過白</span>、<span class="code">后台过白</span>、<span class="code">後台白名單</span> 等後台相關字樣，<strong>且訊息中同時含有至少一個 IPv4 位址</strong>才會被視為請求。</li>
         <li><strong>排除規則：</strong>若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足第 1 點也不會觸發。</li>
         <li><strong>帳號與廠商解析：</strong>優先從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / ID</span> 等標籤後方的帳號字串；若訊息<strong>沒有任何標籤</strong>，改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號（例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）；若該行是「任意文字 + 冒號 + 帳號」格式，即使標籤本身打錯字（如誤植 <span class="code">USWER:</span>），只要冒號後方符合帳號格式，一樣容錯解析取得帳號。取得帳號後以底線／破折號拆解各段；一則訊息可能包含多組帳號（多行列出），會逐一嘗試比對廠商。</li>
         <li>
