@@ -115,9 +115,13 @@ class BotManager:
         self._apps[bot_id] = app
 
         async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            if not update.message or not update.message.text:
+            if not update.message:
                 return
-            text = update.message.text.strip()
+            # 純文字訊息用 text；圖片/檔案等帶圖說的訊息用 caption（圖片本身不處理）
+            raw_text = update.message.text or update.message.caption
+            if not raw_text:
+                return
+            text = raw_text.strip()
             db = SessionLocal()
             try:
                 await self._process_message(bot_id, update, text, db)
@@ -130,7 +134,7 @@ class BotManager:
             finally:
                 db.close()
 
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION) & ~filters.COMMAND, handle_message))
 
         try:
             await app.initialize()
@@ -305,6 +309,9 @@ class BotManager:
         # 功能一-b：申請表單格式偵測 → 跳過知識庫，直接 fallback
         if _is_application_form(text):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式，跳過知識庫直接 fallback")
+            if bool(_group_setting.silent_no_answer if _group_setting else False):
+                _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                return
             import re
             fallback_msg = (
                 "您好，人員將會協助確認，請稍後"
@@ -398,7 +405,14 @@ class BotManager:
                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
                 threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name), daemon=True).start()
             else:
-                # 沒有關鍵字規則也沒有知識庫結果 → fallback（含冷卻）
+                # 沒有關鍵字規則也沒有知識庫結果 → fallback
+                if bool(_group_setting.silent_no_answer if _group_setting else False):
+                    # 靜默模式：不回覆、不受冷卻限制，仍記錄無解答 log
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db,
+                                        input_tokens=input_tokens, output_tokens=output_tokens,
+                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
+                    return
+                # 一般模式（含冷卻）
                 if now - last_ts < _COOLDOWN_SECS:
                     logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
                     return

@@ -19,6 +19,7 @@ class GroupOut(BaseModel):
     is_managed: bool = False
     whitelist_vendor_check: bool = False
     whitelist_allowed_vendors: Optional[str] = None
+    silent_no_answer: bool = False
     last_active: Optional[str]
 
     class Config:
@@ -31,6 +32,7 @@ class GroupUpdateIn(BaseModel):
     is_managed: Optional[bool] = None
     whitelist_vendor_check: Optional[bool] = None
     whitelist_allowed_vendors: Optional[str] = None
+    silent_no_answer: Optional[bool] = None
 
 
 @router.get("")
@@ -99,6 +101,7 @@ def list_groups(
             "is_managed": s.is_managed if s else False,
             "whitelist_vendor_check": s.whitelist_vendor_check if s else False,
             "whitelist_allowed_vendors": s.whitelist_allowed_vendors if s else None,
+            "silent_no_answer": s.silent_no_answer if s else False,
             "last_active": g.last_active,
         })
     return {"total": total, "items": items}
@@ -124,6 +127,8 @@ def update_group_setting(
             setting.whitelist_vendor_check = payload.whitelist_vendor_check
         if payload.whitelist_allowed_vendors is not None:
             setting.whitelist_allowed_vendors = payload.whitelist_allowed_vendors
+        if payload.silent_no_answer is not None:
+            setting.silent_no_answer = payload.silent_no_answer
     else:
         db.add(models.TelegramGroupSetting(
             bot_id=payload.bot_id,
@@ -132,6 +137,7 @@ def update_group_setting(
             is_managed=payload.is_managed or False,
             whitelist_vendor_check=payload.whitelist_vendor_check or False,
             whitelist_allowed_vendors=payload.whitelist_allowed_vendors,
+            silent_no_answer=payload.silent_no_answer or False,
         ))
     db.commit()
     return {"message": "已更新"}

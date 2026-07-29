@@ -191,6 +191,16 @@ function GroupManageTab({ user }) {
     }
   }
 
+  const handleToggleSilent = async (chatId, enabled) => {
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, silent_no_answer: enabled })
+      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, silent_no_answer: enabled } : g))
+      message.success(enabled ? '找不到答案時已改為靜默不回覆' : '找不到答案時已恢復固定回覆')
+    } catch {
+      message.error('切換失敗')
+    }
+  }
+
   const openVendorModal = (group) => {
     setEditingGroup(group)
     setVendorCheck(group.whitelist_vendor_check || false)
@@ -278,6 +288,18 @@ function GroupManageTab({ user }) {
                     onChange={checked => handleToggleManaged(record.chat_id, checked)}
                     disabled={!canEdit(user)}
                     checkedChildren="管控中" unCheckedChildren="關閉"
+                  />
+                ),
+              },
+              {
+                title: '找不到答案時靜默',
+                dataIndex: 'silent_no_answer',
+                width: 130,
+                render: (val, record) => (
+                  <Switch checked={!!val} size="small"
+                    onChange={checked => handleToggleSilent(record.chat_id, checked)}
+                    disabled={!canEdit(user)}
+                    checkedChildren="靜默" unCheckedChildren="固定回覆"
                   />
                 ),
               },
