@@ -5,7 +5,7 @@ import {
   Popconfirm, message, Tag, Typography, Card, Tabs, Select,
   Pagination, Empty, Spin, InputNumber, Tooltip,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined, SearchOutlined, SafetyOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, RobotOutlined, SearchOutlined, SafetyOutlined, IdcardOutlined } from '@ant-design/icons'
 import { getBots, createBot, updateBot, deleteBot, getRescueSetting, updateRescueSetting, getNotifySetting, updateNotifySetting } from '../api'
 import api from '../api'
 import { formatDateTime } from '../utils/datetime'
@@ -140,6 +140,13 @@ function GroupManageTab({ user }) {
   const [allowedVendors, setAllowedVendors] = useState('')
   const [vendorSaving, setVendorSaving] = useState(false)
 
+  // 單一總代理 Modal
+  const [singleVendorModal, setSingleVendorModal] = useState(false)
+  const [editingSingleVendorGroup, setEditingSingleVendorGroup] = useState(null)
+  const [singleVendorMode, setSingleVendorMode] = useState(false)
+  const [singleVendorName, setSingleVendorName] = useState('')
+  const [singleVendorSaving, setSingleVendorSaving] = useState(false)
+
   useEffect(() => { getBots().then(r => setBots(r.data)) }, [])
 
   const loadGroups = useCallback(async (botId, p = 1, kw = search) => {
@@ -228,6 +235,36 @@ function GroupManageTab({ user }) {
       message.error('儲存失敗')
     } finally {
       setVendorSaving(false)
+    }
+  }
+
+  const openSingleVendorModal = (group) => {
+    setEditingSingleVendorGroup(group)
+    setSingleVendorMode(group.single_vendor_mode || false)
+    setSingleVendorName(group.single_vendor_name || '')
+    setSingleVendorModal(true)
+  }
+
+  const handleSingleVendorSave = async () => {
+    if (!editingSingleVendorGroup) return
+    setSingleVendorSaving(true)
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(editingSingleVendorGroup.chat_id)}`, {
+        bot_id: selectedBotId,
+        single_vendor_mode: singleVendorMode,
+        single_vendor_name: singleVendorName.trim() || null,
+      })
+      setGroups(prev => prev.map(g =>
+        g.chat_id === editingSingleVendorGroup.chat_id
+          ? { ...g, single_vendor_mode: singleVendorMode, single_vendor_name: singleVendorName.trim() || null }
+          : g
+      ))
+      message.success('單一總代理設定已儲存')
+      setSingleVendorModal(false)
+    } catch {
+      message.error('儲存失敗')
+    } finally {
+      setSingleVendorSaving(false)
     }
   }
 
@@ -336,6 +373,26 @@ function GroupManageTab({ user }) {
                   </Space>
                 ),
               },
+              {
+                title: '單一總代理',
+                width: 150,
+                render: (_, record) => (
+                  <Space size={6}>
+                    <Tag color={record.single_vendor_mode ? 'purple' : 'default'}>
+                      {record.single_vendor_mode ? (record.single_vendor_name || '已啟用') : '未啟用'}
+                    </Tag>
+                    {canEdit(user) && (
+                      <Tooltip title="單一總代理設定">
+                        <Button
+                          size="small"
+                          icon={<IdcardOutlined />}
+                          onClick={() => openSingleVendorModal(record)}
+                        />
+                      </Tooltip>
+                    )}
+                  </Space>
+                ),
+              },
             ]}
             locale={{ emptyText: '無符合條件的群組' }}
           />
@@ -379,6 +436,49 @@ function GroupManageTab({ user }) {
               />
               <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
                 填入廠商名稱或前綴；解析出的廠商名稱以任一前綴<strong>開頭</strong>即視為符合。未啟用開關時此欄位不生效。
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            title={`單一總代理設定 — ${editingSingleVendorGroup?.chat_name || ''}`}
+            open={singleVendorModal}
+            onOk={handleSingleVendorSave}
+            onCancel={() => setSingleVendorModal(false)}
+            okText="儲存"
+            cancelText="取消"
+            confirmLoading={singleVendorSaving}
+            width={500}
+          >
+            <div style={{ marginBottom: 16, color: '#666', fontSize: 13 }}>
+              啟用後，代表此群組只屬於單一總代理。當白名單申請訊息只有「後台關鍵字＋IP」而<strong>沒有帳號</strong>時，
+              會直接以下方設定的總代理名稱比對加白，不會嘗試從訊息解析帳號。
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Space>
+                <Switch
+                  checked={singleVendorMode}
+                  onChange={setSingleVendorMode}
+                  checkedChildren="啟用" unCheckedChildren="關閉"
+                />
+                <Text>單一總代理開關</Text>
+              </Space>
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                總代理名稱
+                <Text type="secondary" style={{ fontWeight: 400, fontSize: 12, marginLeft: 8 }}>
+                  （需與後台系統中的廠商名稱完全一致，不分大小寫，例：gamius）
+                </Text>
+              </div>
+              <Input
+                value={singleVendorName}
+                onChange={e => setSingleVendorName(e.target.value)}
+                disabled={!singleVendorMode}
+                placeholder="gamius"
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
+                未啟用開關時此欄位不生效；訊息本身若已帶有帳號，仍優先以帳號解析，不受此設定影響。
               </div>
             </div>
           </Modal>

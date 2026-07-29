@@ -263,6 +263,46 @@ class BotManager:
                             logger.error(f"Bot {bot_id} 回覆廠商拒絕訊息失敗：{e}", exc_info=True)
                     # 其他失敗（廠商無法解析、登入失敗等）靜默，不回覆
                     return
+                elif ips and _group_setting and _group_setting.single_vendor_mode and _group_setting.single_vendor_name:
+                    # 單一總代理模式：訊息只有 IP + 關鍵字、沒有帳號，直接用此群組設定的總代理名稱加白
+                    logger.info(f"Bot {bot_id} 偵測到白名單請求（無帳號），使用單一總代理模式：{_group_setting.single_vendor_name}")
+                    import re as _re_wl2
+                    _wl_is_chinese2 = bool(_re_wl2.search(r'[一-鿿㐀-䶿]', text))
+                    try:
+                        success, matched_vendor, vendor_rejected = await asyncio.to_thread(
+                            run_whitelist_sync, [], ips, allowed_vendors,
+                            forced_vendor_name=_group_setting.single_vendor_name,
+                        )
+                    except Exception as e:
+                        logger.error(f"Bot {bot_id} 白名單自動化例外（單一總代理模式）：{e}", exc_info=True)
+                        success, matched_vendor, vendor_rejected = False, None, False
+                    _save_whitelist_log(bot_id, chat_id, chat_name,
+                                        matched_vendor or _group_setting.single_vendor_name, "\n".join(ips),
+                                        "success" if success else "failed", db,
+                                        full_username=f"(單一總代理：{_group_setting.single_vendor_name})")
+                    if success:
+                        try:
+                            await update.message.reply_text("Done")
+                            logger.info(f"Bot {bot_id} 已回覆 Done（單一總代理模式）")
+                        except Exception as e:
+                            logger.error(f"Bot {bot_id} 回覆 Done 失敗（單一總代理模式）：{e}", exc_info=True)
+                        threading.Thread(
+                            target=_create_freshdesk_ticket_bg,
+                            args=(text, "Done", chat_name), daemon=True
+                        ).start()
+                    elif vendor_rejected:
+                        _wl_reject_reply2 = (
+                            "您好，人員將會協助確認，請稍後"
+                            if _wl_is_chinese2
+                            else "Hello, our team will assist you shortly. Please wait."
+                        )
+                        try:
+                            await update.message.reply_text(_wl_reject_reply2)
+                            logger.info(f"Bot {bot_id} 廠商驗證拒絕（單一總代理模式），已回覆固定訊息")
+                        except Exception as e:
+                            logger.error(f"Bot {bot_id} 回覆廠商拒絕訊息失敗（單一總代理模式）：{e}", exc_info=True)
+                    # 其他失敗（廠商名稱找不到、登入失敗等）靜默，不回覆
+                    return
                 else:
                     logger.warning(f"Bot {bot_id} 白名單請求解析失敗（無法取得廠商或IP）")
 

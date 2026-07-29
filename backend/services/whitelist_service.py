@@ -92,9 +92,14 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     return vendor_code, all_parts, ips
 
 
-def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None) -> tuple[bool, Optional[str], bool]:
-    """同步 HTTP 流程，直接在 asyncio.to_thread 的執行緒中執行"""
-    logger.info(f"[Whitelist] 開始（HTTP 模式）：username_parts={username_parts}, IPs={ips}")
+def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None,
+                       forced_vendor_name: str = None) -> tuple[bool, Optional[str], bool]:
+    """同步 HTTP 流程，直接在 asyncio.to_thread 的執行緒中執行
+
+    forced_vendor_name：指定時代表「單一總代理」群組模式（訊息沒有帳號，只有 IP+關鍵字），
+    跳過帳號比對邏輯，直接以此名稱精確比對（忽略大小寫）廠商清單。
+    """
+    logger.info(f"[Whitelist] 開始（HTTP 模式）：username_parts={username_parts}, IPs={ips}, forced_vendor_name={forced_vendor_name}")
 
     with httpx.Client(base_url=SITE_BASE, follow_redirects=True, timeout=60) as client:
         try:
@@ -143,84 +148,98 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                 logger.error(f"[Whitelist] 廠商清單解析失敗，前300字：{init_r.text[:300]}")
                 return False, None, False
 
-            # ── Step 4：逐段比對廠商名稱 ──────────────────────
             matched_id = None
             matched_name = None
-            full_username = '_'.join(username_parts).upper()
-            prev_candidates = []
 
-            for i in range(1, len(username_parts) + 1):
-                prefix = '_'.join(username_parts[:i]).upper()
-                candidates = [
-                    (api_id, name)
-                    for api_id, name in all_vendors
-                    if name.upper() == prefix or name.upper().startswith(prefix + '_')
+            if forced_vendor_name:
+                # ── 單一總代理模式：跳過帳號比對，直接精確比對廠商名稱（忽略大小寫）──
+                exact_matches = [
+                    (api_id, name) for api_id, name in all_vendors
+                    if name.strip().upper() == forced_vendor_name.strip().upper()
                 ]
-                logger.info(f"[Whitelist] 前綴 '{prefix}'：找到 {len(candidates)} 筆")
-
-                if len(candidates) == 1:
-                    matched_id, matched_name = candidates[0]
-                    logger.info(f"[Whitelist] 唯一匹配：id={matched_id}, name={matched_name}")
-                    break
-                elif len(candidates) == 0:
-                    # fallback：從上一輪候選中篩選完整帳號以該廠商名稱為前綴的
-                    fallback = [
-                        (api_id, name)
-                        for api_id, name in prev_candidates
-                        if full_username == name.upper() or full_username.startswith(name.upper() + '_')
-                    ]
-                    logger.info(f"[Whitelist] 前綴 '{prefix}' 無匹配，fallback 候選：{[(n) for _, n in fallback]}")
-                    if len(fallback) == 1:
-                        matched_id, matched_name = fallback[0]
-                        logger.info(f"[Whitelist] Fallback 唯一匹配：id={matched_id}, name={matched_name}")
-                    else:
-                        logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
-                    break
-                prev_candidates = candidates
-
-            # ── Step 4b：第二層 fallback — 廠商名稱為帳號第一段的前綴（取最長匹配）
-            if not matched_id:
-                first_segment = username_parts[0].upper()
-                prefix_matches = [
-                    (api_id, name)
-                    for api_id, name in all_vendors
-                    if first_segment.startswith(name.upper()) and len(name) > 1
-                ]
-                if prefix_matches:
-                    # 取廠商名稱最長的那一筆（最精確）
-                    best = max(prefix_matches, key=lambda x: len(x[1]))
-                    # 確認沒有其他同長度的競爭者
-                    best_len = len(best[1])
-                    same_len = [x for x in prefix_matches if len(x[1]) == best_len]
-                    logger.info(f"[Whitelist] 第二層 fallback：第一段='{first_segment}'，候選={[(n) for _, n in prefix_matches]}，最長={best[1]}")
-                    if len(same_len) == 1:
-                        matched_id, matched_name = best
-                        logger.info(f"[Whitelist] 第二層 fallback 匹配：id={matched_id}, name={matched_name}")
-                    else:
-                        logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
+                logger.info(f"[Whitelist] 單一總代理模式：目標='{forced_vendor_name}'，找到 {len(exact_matches)} 筆")
+                if len(exact_matches) == 1:
+                    matched_id, matched_name = exact_matches[0]
+                    logger.info(f"[Whitelist] 單一總代理模式匹配：id={matched_id}, name={matched_name}")
                 else:
-                    logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
+                    logger.error(f"[Whitelist] 單一總代理模式無法確定廠商 '{forced_vendor_name}'（{len(exact_matches)} 筆），中止")
+            else:
+                # ── Step 4：逐段比對廠商名稱 ──────────────────────
+                full_username = '_'.join(username_parts).upper()
+                prev_candidates = []
 
-            # ── Step 4c：廠商名稱各段中是否有任一段等於帳號第一段 ──────────
-            if not matched_id:
-                first_seg = username_parts[0].upper()
-                segment_matches = [
-                    (api_id, name)
-                    for api_id, name in all_vendors
-                    if first_seg in [s.upper() for s in re.split(r'[_\-]', name)]
-                ]
-                logger.info(f"[Whitelist] Step4c 段落比對：first_seg='{first_seg}'，候選={[n for _, n in segment_matches]}")
-                if len(segment_matches) == 1:
-                    matched_id, matched_name = segment_matches[0]
-                    logger.info(f"[Whitelist] Step4c 唯一匹配：id={matched_id}, name={matched_name}")
-                elif len(segment_matches) > 1:
-                    best = max(segment_matches, key=lambda x: len(x[1]))
-                    same_len = [x for x in segment_matches if len(x[1]) == len(best[1])]
-                    if len(same_len) == 1:
-                        matched_id, matched_name = best
-                        logger.info(f"[Whitelist] Step4c 最長匹配：id={matched_id}, name={matched_name}")
+                for i in range(1, len(username_parts) + 1):
+                    prefix = '_'.join(username_parts[:i]).upper()
+                    candidates = [
+                        (api_id, name)
+                        for api_id, name in all_vendors
+                        if name.upper() == prefix or name.upper().startswith(prefix + '_')
+                    ]
+                    logger.info(f"[Whitelist] 前綴 '{prefix}'：找到 {len(candidates)} 筆")
+
+                    if len(candidates) == 1:
+                        matched_id, matched_name = candidates[0]
+                        logger.info(f"[Whitelist] 唯一匹配：id={matched_id}, name={matched_name}")
+                        break
+                    elif len(candidates) == 0:
+                        # fallback：從上一輪候選中篩選完整帳號以該廠商名稱為前綴的
+                        fallback = [
+                            (api_id, name)
+                            for api_id, name in prev_candidates
+                            if full_username == name.upper() or full_username.startswith(name.upper() + '_')
+                        ]
+                        logger.info(f"[Whitelist] 前綴 '{prefix}' 無匹配，fallback 候選：{[(n) for _, n in fallback]}")
+                        if len(fallback) == 1:
+                            matched_id, matched_name = fallback[0]
+                            logger.info(f"[Whitelist] Fallback 唯一匹配：id={matched_id}, name={matched_name}")
+                        else:
+                            logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
+                        break
+                    prev_candidates = candidates
+
+                # ── Step 4b：第二層 fallback — 廠商名稱為帳號第一段的前綴（取最長匹配）
+                if not matched_id:
+                    first_segment = username_parts[0].upper()
+                    prefix_matches = [
+                        (api_id, name)
+                        for api_id, name in all_vendors
+                        if first_segment.startswith(name.upper()) and len(name) > 1
+                    ]
+                    if prefix_matches:
+                        # 取廠商名稱最長的那一筆（最精確）
+                        best = max(prefix_matches, key=lambda x: len(x[1]))
+                        # 確認沒有其他同長度的競爭者
+                        best_len = len(best[1])
+                        same_len = [x for x in prefix_matches if len(x[1]) == best_len]
+                        logger.info(f"[Whitelist] 第二層 fallback：第一段='{first_segment}'，候選={[(n) for _, n in prefix_matches]}，最長={best[1]}")
+                        if len(same_len) == 1:
+                            matched_id, matched_name = best
+                            logger.info(f"[Whitelist] 第二層 fallback 匹配：id={matched_id}, name={matched_name}")
+                        else:
+                            logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
                     else:
-                        logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
+                        logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
+
+                # ── Step 4c：廠商名稱各段中是否有任一段等於帳號第一段 ──────────
+                if not matched_id:
+                    first_seg = username_parts[0].upper()
+                    segment_matches = [
+                        (api_id, name)
+                        for api_id, name in all_vendors
+                        if first_seg in [s.upper() for s in re.split(r'[_\-]', name)]
+                    ]
+                    logger.info(f"[Whitelist] Step4c 段落比對：first_seg='{first_seg}'，候選={[n for _, n in segment_matches]}")
+                    if len(segment_matches) == 1:
+                        matched_id, matched_name = segment_matches[0]
+                        logger.info(f"[Whitelist] Step4c 唯一匹配：id={matched_id}, name={matched_name}")
+                    elif len(segment_matches) > 1:
+                        best = max(segment_matches, key=lambda x: len(x[1]))
+                        same_len = [x for x in segment_matches if len(x[1]) == len(best[1])]
+                        if len(same_len) == 1:
+                            matched_id, matched_name = best
+                            logger.info(f"[Whitelist] Step4c 最長匹配：id={matched_id}, name={matched_name}")
+                        else:
+                            logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
 
             if not matched_id:
                 return False, None, False

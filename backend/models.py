@@ -400,6 +400,8 @@ class TelegramGroupSetting(Base):
     whitelist_vendor_check = Column(Boolean, default=False)   # 白名單廠商驗證開關
     whitelist_allowed_vendors = Column(Text, nullable=True)   # 允許廠商前綴，逗號分隔
     silent_no_answer = Column(Boolean, default=False)         # 找不到答案時靜默不回覆（仍記錄 log）
+    single_vendor_mode = Column(Boolean, default=False)       # 單一總代理模式開關
+    single_vendor_name = Column(String(128), nullable=True)  # 該群組的總代理名稱（訊息無帳號時使用）
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="group_settings")
