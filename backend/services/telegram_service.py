@@ -28,6 +28,36 @@ def _is_application_form(text: str) -> bool:
     return matched >= 3
 
 
+# 純問候／感謝／道別語（不含實際問題內容）；正規化後需與整句「完全相符」才算命中，
+# 避免「Hi Team, would like to ask...」這類「開頭是問候語但後面有實際問題」的訊息被誤擋
+_GREETING_PHRASES = {
+    # 英文問候/感謝/道別
+    "hi", "hello", "hey", "yo", "hiya",
+    "hi team", "hello team", "hey team", "hi all", "hello all", "hi guys", "hello guys",
+    "ok", "okay", "ok thanks", "okay thanks", "got it", "noted", "understood", "roger", "received",
+    "thanks", "thank you", "thanks team", "thank you team", "thx", "ty",
+    "cheers", "appreciate it", "no problem", "np", "you're welcome", "youre welcome", "welcome",
+    "bye", "goodbye", "see you", "good morning", "good afternoon", "good evening", "good night",
+    "great thanks", "perfect thanks", "many thanks", "thanks a lot", "thank you so much", "thank you very much",
+    "noted thanks", "noted with thanks", "understood thanks",
+    # 中文問候/感謝/道別
+    "好的", "收到", "明白了", "明白", "了解", "知道了", "辛苦了",
+    "謝謝", "谢谢", "多謝", "多谢", "感謝", "感谢", "謝謝晒", "谢谢晒", "唔該", "唔该",
+    "你好", "您好", "嗨", "哈囉", "哈罗", "早安", "午安", "晚安", "再見", "再见", "拜拜",
+}
+_GREETING_NORMALIZE_RE = None
+
+
+def _is_greeting_or_thanks(text: str) -> bool:
+    """純問候/感謝/道別語（去除標點與大小寫後，整句需與清單完全相符才算命中）"""
+    global _GREETING_NORMALIZE_RE
+    import re
+    if _GREETING_NORMALIZE_RE is None:
+        _GREETING_NORMALIZE_RE = re.compile(r'[!！.。,，~～、?？\s]+')
+    normalized = _GREETING_NORMALIZE_RE.sub(' ', text.strip().lower()).strip()
+    return normalized in _GREETING_PHRASES
+
+
 class BotManager:
     def __init__(self):
         self._bots: Dict[int, threading.Thread] = {}
@@ -265,6 +295,11 @@ class BotManager:
         # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過
         if len(text.strip()) < _MIN_TEXT_LEN:
             logger.debug(f"Bot {bot_id} 訊息長度 {len(text.strip())} < {_MIN_TEXT_LEN}，略過")
+            return
+
+        # 功能一-a：純問候/感謝/道別語（不含實際問題內容）→ 跳過，不回覆不記錄
+        if _is_greeting_or_thanks(text):
+            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語，略過：「{text[:30]}」")
             return
 
         # 功能一-b：申請表單格式偵測 → 跳過知識庫，直接 fallback

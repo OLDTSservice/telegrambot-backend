@@ -549,13 +549,15 @@
         <div class="flow-step" id="flow-length">
           <div class="flow-num">2</div>
           <div class="flow-body">
-            <div class="flow-title">短訊息過濾 ＋ 申請表單格式偵測</div>
+            <div class="flow-title">短訊息過濾 ＋ 純問候／感謝語過濾 ＋ 申請表單格式偵測</div>
             <div class="flow-desc">
-              <strong>(a) 字數限制：</strong>去除頭尾空白後訊息長度 <strong>小於 10 字元</strong>，且未命中關鍵字規則者，直接略過（不回覆、不記錄），避免機器人對「嗨」「OK」「謝謝」等短句反應。<br>
+              <strong>(a) 字數限制：</strong>去除頭尾空白後訊息長度 <strong>小於 10 字元</strong>，且未命中關鍵字規則者，直接略過（不回覆、不記錄），避免機器人對「嗨」「OK」等短句反應。<br>
+              <strong>(a2) 純問候／感謝／道別語過濾：</strong>訊息去除標點符號與大小寫後，若整句<strong>完全等於</strong>清單中的問候／感謝／道別語（例：<span class="code">thanks team</span>、<span class="code">ok thanks</span>、<span class="code">謝謝</span>、<span class="code">收到</span>、<span class="code">辛苦了</span>），直接略過（不回覆、不記錄）。此判斷<strong>不呼叫 AI</strong>，純字串比對零成本零延遲；只有整句完全符合才會命中，若訊息除問候語外還夾帶實際問題內容（例：<span class="code">Hi Team, would like to ask...</span>），不會被誤擋，仍會正常進入知識庫查詢。此規則與字數限制 (a) 互補——(a) 只擋得住 10 字元以內的短句，(a2) 專門處理像 <span class="code">thanks team</span> 這種字數較長但仍屬無實際問題內容的訊息。<br>
               <strong>(b) 申請表單偵測：</strong>若訊息中有 <strong>3 行以上</strong>符合「數字編號＋句點/頓號＋內容＋冒號＋內容」格式（例：<span class="code">1. 商戶名字：ABC</span>），視為使用者在提交結構化申請資料，而非提出問題。
             </div>
             <div class="flow-outcome">
               <div class="flow-branch"><span class="tag tag-gray">字數不足 10</span> 直接結束，無任何回應</div>
+              <div class="flow-branch"><span class="tag tag-gray">純問候／感謝／道別語</span> 直接結束，無任何回應</div>
               <div class="flow-branch"><span class="tag tag-orange">判定為申請表單</span> 跳過知識庫查詢，直接回覆制式訊息（依內容含中文與否自動切換中／英文），並記錄為「無解答對話紀錄」</div>
             </div>
           </div>
@@ -582,7 +584,11 @@
             <div class="flow-desc">
               將該機器人所有「已啟用」知識庫文件的全部段落，連同問題一併送給 Claude Haiku，由 AI 直接判斷是否有「直接對應」的答案（不做向量相似度篩選，而是把候選片段全部交給 AI 自行判斷語意相關性）。
             </div>
-            <p class="flow-desc">系統提示詞明確要求 AI：① 只回答知識庫裡有直接對應答案的內容，不可推論／整合／延伸；② 若訊息本身是表單提交格式，一律回覆固定識別字串 <span class="code">NO_ANSWER_FOUND</span>；③ 必須用「與提問相同的語言」回答；④ 找不到答案時**只能**回覆固定識別字串 <span class="code">NO_ANSWER_FOUND</span>，不得加任何其他文字或翻譯。程式端以精確比對此固定字串判斷是否為「無答案」，不再依賴猜測各種措辭的關鍵字比對，避免 AI 用詞差異導致誤判為有效回覆。</p>
+            <p class="flow-desc">系統提示詞明確要求 AI：① 只回答知識庫裡有直接對應答案的內容，不可推論／整合／延伸事實內容（不可新增知識庫沒有的資訊）；② 若訊息本身是表單提交格式，一律回覆固定識別字串 <span class="code">NO_ANSWER_FOUND</span>；③ 必須用「與提問相同的語言」回答——若知識庫中找到的答案原文語言跟提問不同，AI 會把答案<strong>翻譯</strong>成提問的語言再回覆（翻譯只是換語言表達同樣內容，不算違反①的「不可延伸事實」），但網址、連結、數字、產品／檔案名稱等專有名詞翻譯時維持原文不變；④ 找不到答案時**只能**回覆固定識別字串 <span class="code">NO_ANSWER_FOUND</span>，不得加任何其他文字或翻譯。程式端以精確比對此固定字串判斷是否為「無答案」，不再依賴猜測各種措辭的關鍵字比對，避免 AI 用詞差異導致誤判為有效回覆。</p>
+            <div class="callout">
+              <strong>知識庫僅有單一語言版本時會自動翻譯</strong>
+              例如知識庫裡某筆答案只寫了中文，使用者用英文提問，AI 找到對應內容後會翻譯成英文回覆，而不是直接照搬中文原文——這樣多語言群組即使知識庫只維護一種語言，也能讓不同語言的使用者都看得懂回覆。
+            </div>
             <div class="flow-outcome">
               <div class="flow-branch"><span class="tag tag-green">AI 給出答案</span> 進入下一步分流</div>
               <div class="flow-branch"><span class="tag tag-gray">AI 回覆固定字串 NO_ANSWER_FOUND</span> 視為無答案，進入 Fallback</div>
@@ -977,6 +983,7 @@
         <thead><tr><th>項目</th><th>數值 / 條件</th><th>說明</th></tr></thead>
         <tbody>
           <tr><td>短訊息略過門檻</td><td>&lt; 10 字元</td><td>未命中關鍵字規則時，訊息過短直接略過不回覆</td></tr>
+          <tr><td>純問候／感謝語過濾</td><td>整句完全符合才命中，不限字數</td><td>純字串比對（不呼叫 AI），命中則略過不回覆；訊息夾帶實際問題內容則不會誤擋</td></tr>
           <tr><td>Fallback 冷卻時間</td><td>6 秒</td><td>同一使用者／聊天室在無解答情況下，6 秒內不重複發送等待訊息</td></tr>
           <tr><td>申請表單判定門檻</td><td>≥ 3 行「編號.內容：值」格式</td><td>符合則跳過知識庫查詢，直接制式回覆</td></tr>
           <tr><td>即時對話訊息載入量</td><td>最新 100 則</td><td>即時對話管控頁面單一聊天室訊息顯示上限</td></tr>
