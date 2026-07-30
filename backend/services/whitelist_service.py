@@ -25,12 +25,51 @@ _BO_KEYWORDS = [
 _API_EXCLUDE = ["api ip", "api whitelist", "加白api", "api white", "apiip"]
 _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
+# 寬鬆規則：白名單 + 後台 + IP 三個概念各自出現（不需相鄰／連續字串），繁簡中文＋英文皆適用
+_WHITELIST_WORDS = ["白名單", "白名单", "whitelist"]
+_BACKEND_WORDS = ["後台", "后台", "backend", "backoffice"]
+
+# 疑問句型態排除：避免「單純在詢問流程/現況」的訊息被寬鬆規則誤判為提交申請
+_QUESTION_MARKERS_CJK = [
+    "？", "怎麼", "怎么", "如何", "流程", "查一下", "查下", "查詢一下", "查询一下",
+    "能否", "可以嗎", "可以吗", "是不是", "有沒有", "有没有", "請問", "请问",
+    "麻煩問", "麻烦问", "幫忙查", "帮忙查",
+]
+_QUESTION_MARKERS_EN = [
+    "?", "how to", "how do i", "how can i", "could you check", "can you check",
+    "please check", "would like to know",
+]
+
+
+def _looks_like_question(text: str) -> bool:
+    lower = text.lower()
+    if any(m in text for m in _QUESTION_MARKERS_CJK):
+        return True
+    if any(m in lower for m in _QUESTION_MARKERS_EN):
+        return True
+    return False
+
 
 def detect_whitelist_request(text: str) -> bool:
     lower = text.lower()
     if any(kw in lower for kw in _API_EXCLUDE):
         return False
-    return any(kw in lower for kw in _BO_KEYWORDS) and bool(_IP_RE.search(text))
+
+    has_ip = bool(_IP_RE.search(text))
+    if not has_ip:
+        return False
+
+    # 規則一：既有的連續詞組比對（優先，較嚴謹）
+    if any(kw in lower for kw in _BO_KEYWORDS):
+        return True
+
+    # 規則二：白名單 + 後台 三個概念各自出現即可（不需相鄰），但排除疑問句型態
+    if (any(w in lower for w in _WHITELIST_WORDS)
+            and any(w in lower for w in _BACKEND_WORDS)
+            and not _looks_like_question(text)):
+        return True
+
+    return False
 
 
 def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], list[str]]:
@@ -64,7 +103,7 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
         # 無法辨識的標籤格式：逐行掃描
         # 1. 「任意標籤 : 帳號」格式（標籤打錯字，如 USWER、Usre 等，仍容錯解析冒號後的值）
         # 2. 單獨一行、看起來像帳號的行（純英數字加底線/破折號，不含空白）
-        _skip_phrases = set(_BO_KEYWORDS) | set(_API_EXCLUDE)
+        _skip_phrases = set(_BO_KEYWORDS) | set(_API_EXCLUDE) | set(_WHITELIST_WORDS) | set(_BACKEND_WORDS)
         for line in text.splitlines():
             line = line.strip()
             if not line:
