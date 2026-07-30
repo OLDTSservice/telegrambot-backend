@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # ── 每人冷卻記錄（bot_id + user_id → 上次「無匹配」回應的時間戳）──────────
 _no_match_ts: Dict[str, float] = {}
-_COOLDOWN_SECS = 6        # 無匹配冷卻秒數
+_COOLDOWN_SECS = 10       # 無匹配冷卻秒數
 _MIN_TEXT_LEN  = 10       # 無匹配時最短回應字元數
 
 def _is_application_form(text: str) -> bool:
