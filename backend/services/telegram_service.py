@@ -45,6 +45,15 @@ _GREETING_PHRASES = {
     "謝謝", "谢谢", "多謝", "多谢", "感謝", "感谢", "謝謝晒", "谢谢晒", "唔該", "唔该",
     "你好", "您好", "嗨", "哈囉", "哈罗", "早安", "午安", "晚安", "再見", "再见", "拜拜",
 }
+# 常見道別/感謝短語常會加上 "team" 尾綴稱呼群組（如 "ok thanks team"），
+# 與其窮舉所有排列組合，改為自動衍生 "{短語} team" 版本一併納入完全比對清單。
+_GREETING_TEAM_SUFFIXABLE = {
+    "ok", "okay", "ok thanks", "okay thanks", "thanks", "thank you",
+    "got it", "noted", "understood", "roger", "received", "cheers",
+    "great thanks", "perfect thanks", "many thanks", "thanks a lot",
+    "bye", "goodbye", "good morning", "good afternoon", "good evening", "good night",
+}
+_GREETING_PHRASES |= {f"{p} team" for p in _GREETING_TEAM_SUFFIXABLE}
 _GREETING_NORMALIZE_RE = None
 
 
