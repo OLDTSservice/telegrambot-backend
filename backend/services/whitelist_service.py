@@ -28,6 +28,13 @@ _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 # 寬鬆規則：白名單 + 後台 + IP 三個概念各自出現（不需相鄰／連續字串），繁簡中文＋英文皆適用
 _WHITELIST_WORDS = ["白名單", "白名单", "whitelist"]
 _BACKEND_WORDS = ["後台", "后台", "backend", "backoffice", "kiosk"]
+# "bo" 為 backoffice 常見縮寫，僅 2 個字母不能用一般子字串比對（會誤判 about/box/labor 等字），
+# 改用單字邊界比對，確保只匹配獨立出現的 "bo"（前後為空白/標點或字串起訖）
+_BO_ABBR_RE = re.compile(r'\bbo\b', re.IGNORECASE)
+
+
+def _has_backend_indicator(text: str, lower: str) -> bool:
+    return any(w in lower for w in _BACKEND_WORDS) or bool(_BO_ABBR_RE.search(text))
 
 # 疑問句型態排除：避免「單純在詢問流程/現況」的訊息被寬鬆規則誤判為提交申請
 _QUESTION_MARKERS_CJK = [
@@ -65,7 +72,7 @@ def detect_whitelist_request(text: str) -> bool:
 
     # 規則二：白名單 + 後台 三個概念各自出現即可（不需相鄰），但排除疑問句型態
     if (any(w in lower for w in _WHITELIST_WORDS)
-            and any(w in lower for w in _BACKEND_WORDS)
+            and _has_backend_indicator(text, lower)
             and not _looks_like_question(text)):
         return True
 
