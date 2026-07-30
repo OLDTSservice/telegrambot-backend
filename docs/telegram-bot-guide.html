@@ -859,6 +859,12 @@
 
       <h4>④ 廠商比對（五層漸進式演算法）</h4>
       <p style="margin-bottom:8px">登入內部白名單管理後台取得完整廠商清單後，依序嘗試下列步驟，一旦唯一確認廠商即停止：</p>
+      <div class="callout" style="margin-bottom:10px">
+        <strong>提前消歧：群組允許清單優先於「找不到就中止」</strong>
+        Step 4a、4b、4c、4c-2 任一步驟若剛好找到<strong>多筆</strong>候選、無法自動唯一判定時，
+        只要此群組已在「群組管理 Tab」開啟廠商驗證並設定允許清單，會先用該清單篩選候選——若篩選後剛好只剩一筆即直接採用，
+        不必等到 Step 4d 才判斷；篩選後仍有多筆或群組未設定允許清單，才維持原本「安全中止不猜測」的行為。
+      </div>
       <table>
         <thead><tr><th style="width:150px">步驟</th><th>判斷方式</th></tr></thead>
         <tbody>

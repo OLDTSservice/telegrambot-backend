@@ -208,6 +208,25 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
             matched_id = None
             matched_name = None
 
+            # 分隔符號感知比對：前綴 P 允許廠商名稱 == P、P_* 或 P-*
+            # 避免 "ON9" 誤放行 "On9gaming"（沒有分隔符號，屬於不同廠商）
+            def _vendor_matches(vendor_upper: str, prefix_upper: str) -> bool:
+                return (
+                    vendor_upper == prefix_upper
+                    or vendor_upper.startswith(prefix_upper + '_')
+                    or vendor_upper.startswith(prefix_upper + '-')
+                )
+
+            def _disambiguate_by_allowed(candidates):
+                """多筆候選歧義時，嘗試用群組「白名單廠商驗證」允許清單篩選出唯一一筆。"""
+                if not allowed_vendor_prefixes:
+                    return None
+                filtered = [
+                    c for c in candidates
+                    if any(_vendor_matches(c[1].upper(), p.strip().upper()) for p in allowed_vendor_prefixes)
+                ]
+                return filtered[0] if len(filtered) == 1 else None
+
             if forced_vendor_name:
                 # ── 單一總代理模式：跳過帳號比對，直接精確比對廠商名稱（忽略大小寫）──
                 exact_matches = [
@@ -250,7 +269,12 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                             matched_id, matched_name = fallback[0]
                             logger.info(f"[Whitelist] Fallback 唯一匹配：id={matched_id}, name={matched_name}")
                         else:
-                            logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
+                            picked = _disambiguate_by_allowed(fallback)
+                            if picked:
+                                matched_id, matched_name = picked
+                                logger.info(f"[Whitelist] Fallback 依群組允許清單消歧：{matched_name}")
+                            else:
+                                logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
                         break
                     else:
                         # 候選 ≥2 筆：嘗試 Transfer / Seamless 消歧（同品牌前綴僅差這兩條線，
@@ -288,7 +312,12 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                             matched_id, matched_name = best
                             logger.info(f"[Whitelist] 第二層 fallback 匹配：id={matched_id}, name={matched_name}")
                         else:
-                            logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
+                            picked = _disambiguate_by_allowed(same_len)
+                            if picked:
+                                matched_id, matched_name = picked
+                                logger.info(f"[Whitelist] 第二層 fallback 依群組允許清單消歧：{matched_name}")
+                            else:
+                                logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
                     else:
                         logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
 
@@ -311,7 +340,12 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                             matched_id, matched_name = best
                             logger.info(f"[Whitelist] Step4c 最長匹配：id={matched_id}, name={matched_name}")
                         else:
-                            logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
+                            picked = _disambiguate_by_allowed(same_len)
+                            if picked:
+                                matched_id, matched_name = picked
+                                logger.info(f"[Whitelist] Step4c 依群組允許清單消歧：{matched_name}")
+                            else:
+                                logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
 
                 # ── Step 4c-2：廠商名稱後綴比對（帳號第一段是廠商名稱的結尾，
                 # 兩者間無底線/破折號分隔時適用，例如帳號 "TR1_xxx" 對應廠商 "TitanTR1"）──
@@ -327,21 +361,17 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                         matched_id, matched_name = suffix_matches[0]
                         logger.info(f"[Whitelist] Step4c-2 唯一匹配：id={matched_id}, name={matched_name}")
                     elif len(suffix_matches) > 1:
-                        logger.error(f"[Whitelist] Step4c-2 後綴比對有歧義（{[n for _, n in suffix_matches]}），中止")
+                        picked = _disambiguate_by_allowed(suffix_matches)
+                        if picked:
+                            matched_id, matched_name = picked
+                            logger.info(f"[Whitelist] Step4c-2 依群組允許清單消歧：{matched_name}")
+                        else:
+                            logger.error(f"[Whitelist] Step4c-2 後綴比對有歧義（{[n for _, n in suffix_matches]}），中止")
 
             if not matched_id:
                 return False, None, False
 
             # ── Step 4d：群組廠商白名單驗證 ──────────────────────────────
-            # 使用分隔符號感知比對：前綴 P 允許廠商名稱 == P、P_* 或 P-*
-            # 避免 "ON9" 誤放行 "On9gaming"（沒有分隔符號，屬於不同廠商）
-            def _vendor_matches(vendor_upper: str, prefix_upper: str) -> bool:
-                return (
-                    vendor_upper == prefix_upper
-                    or vendor_upper.startswith(prefix_upper + '_')
-                    or vendor_upper.startswith(prefix_upper + '-')
-                )
-
             if allowed_vendor_prefixes:
                 upper_name = matched_name.upper()
                 if not any(_vendor_matches(upper_name, p.strip().upper()) for p in allowed_vendor_prefixes):
