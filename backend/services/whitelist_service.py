@@ -298,6 +298,22 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                         else:
                             logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
 
+                # ── Step 4c-2：廠商名稱後綴比對（帳號第一段是廠商名稱的結尾，
+                # 兩者間無底線/破折號分隔時適用，例如帳號 "TR1_xxx" 對應廠商 "TitanTR1"）──
+                if not matched_id:
+                    first_seg = username_parts[0].upper()
+                    suffix_matches = [
+                        (api_id, name)
+                        for api_id, name in all_vendors
+                        if name.upper().endswith(first_seg) and len(name) > len(first_seg)
+                    ]
+                    logger.info(f"[Whitelist] Step4c-2 後綴比對：first_seg='{first_seg}'，候選={[n for _, n in suffix_matches]}")
+                    if len(suffix_matches) == 1:
+                        matched_id, matched_name = suffix_matches[0]
+                        logger.info(f"[Whitelist] Step4c-2 唯一匹配：id={matched_id}, name={matched_name}")
+                    elif len(suffix_matches) > 1:
+                        logger.error(f"[Whitelist] Step4c-2 後綴比對有歧義（{[n for _, n in suffix_matches]}），中止")
+
             if not matched_id:
                 return False, None, False
 

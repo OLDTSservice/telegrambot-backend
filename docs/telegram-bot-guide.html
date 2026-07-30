@@ -816,11 +816,12 @@
         <li><strong>排除規則：</strong>若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足規則一、規則二或規則三也不會觸發。</li>
         <li><strong>帳號與廠商解析：</strong>優先從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / ID</span> 等標籤後方的帳號字串；若訊息<strong>沒有任何標籤</strong>，改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號（例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）；若該行是「任意文字 + 冒號 + 帳號」格式，即使標籤本身打錯字（如誤植 <span class="code">USWER:</span>），只要冒號後方符合帳號格式，一樣容錯解析取得帳號。取得帳號後以底線／破折號拆解各段；一則訊息可能包含多組帳號（多行列出），會逐一嘗試比對廠商。</li>
         <li>
-          <strong>廠商比對（四層漸進式演算法）：</strong>登入內部白名單管理後台取得完整廠商清單後，依序嘗試下列四個步驟，一旦唯一確認廠商即停止：
+          <strong>廠商比對（五層漸進式演算法）：</strong>登入內部白名單管理後台取得完整廠商清單後，依序嘗試下列步驟，一旦唯一確認廠商即停止：
           <ul style="margin:6px 0">
             <li><strong>Step 4a 前綴逐層比對：</strong>從帳號第一段開始，每次多加一段組成前綴，篩選廠商名稱等於或以該前綴為起頭的清單。若某層剛好只剩一筆即命中；若某層結果為 0 筆，嘗試用上一層候選清單再做 fallback（回推帳號完整名是否以候選廠商名稱為起頭），唯一則命中。</li>
             <li><strong>Step 4b 第一段前綴反向比對：</strong>若 4a 仍未確定，改以帳號<em>第一段</em>為基準，尋找廠商名稱是該第一段<strong>前綴</strong>的所有廠商（即廠商名 ⊆ 帳號第一段），取名稱最長且唯一者。</li>
             <li><strong>Step 4c 段落成員比對：</strong>若 4b 仍未確定，將所有廠商名稱以底線／破折號拆成多段，找出其中<em>任一段</em>等於帳號第一段的廠商。例如帳號 <span class="code">SCFLY_spinpokies29_MYR</span> 第一段 <span class="code">SCFLY</span> 是廠商 <span class="code">TitanTR1_SCFLY</span> 的第二段，此步驟即可命中；取最長且唯一者。</li>
+            <li><strong>Step 4c-2 廠商名稱後綴比對：</strong>若 4c 仍未確定，改判斷帳號第一段是否為某個廠商名稱的<strong>結尾</strong>（廠商名稱與帳號第一段之間<em>沒有</em>底線／破折號分隔，前面幾個 Step 因此都比對不到）。例如帳號 <span class="code">TR1_EZBet77_MYR</span> 第一段 <span class="code">TR1</span> 剛好是廠商 <span class="code">TitanTR1</span> 的結尾（<span class="code">Titan</span> + <span class="code">TR1</span> 中間無分隔符號），此步驟即可命中；唯一命中才算數，找到多個候選則安全中止不猜測。</li>
             <li><strong>Step 4d 群組廠商驗證：</strong>確認廠商後，若此群組已在「群組管理 Tab」開啟廠商驗證並填有允許前綴，則判斷解析到的廠商名稱是否以允許前綴之一開頭；不符合則視為本群組無權提交該廠商的加白申請，靜默拒絕（詳見下方「群組廠商驗證」說明）。</li>
           </ul>
         </li>
