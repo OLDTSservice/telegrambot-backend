@@ -15,6 +15,12 @@ SITE_BASE = os.getenv("WHITELIST_SITE_BASE", "https://wb-api4.jlfafafa3.com")
 SITE_USER = os.getenv("WHITELIST_SITE_USER", "TESTwhitelist")
 SITE_PASS = os.getenv("WHITELIST_SITE_PASS", "Igs22995048")
 
+# 內部後台系統網址（逗號分隔，可設定多個），訊息中出現即視為強烈的「後台白名單」信號。
+# 未設定（空字串）時規則三完全不啟用，不影響既有規則一/規則二的判斷。
+_ADMIN_DOMAINS = [
+    d.strip().lower() for d in os.getenv("WHITELIST_ADMIN_DOMAINS", "").split(",") if d.strip()
+]
+
 _BO_KEYWORDS = [
     "whitelist bo ip", "bo ip", "backend ip", "whitelist bo",
     "加白后台ip", "加白后台", "後台ip",
@@ -74,6 +80,11 @@ def detect_whitelist_request(text: str) -> bool:
     if (any(w in lower for w in _WHITELIST_WORDS)
             and _has_backend_indicator(text, lower)
             and not _looks_like_question(text)):
+        return True
+
+    # 規則三：訊息含內部後台系統網址（環境變數 WHITELIST_ADMIN_DOMAINS 設定時才啟用）。
+    # 網址本身辨識度已足夠高，不需再額外要求「白名單」字樣同時出現；仍排除疑問句型態。
+    if _ADMIN_DOMAINS and any(d in lower for d in _ADMIN_DOMAINS) and not _looks_like_question(text):
         return True
 
     return False
