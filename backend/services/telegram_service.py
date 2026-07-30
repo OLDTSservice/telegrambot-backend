@@ -213,7 +213,7 @@ class BotManager:
                 if v.strip()
             ]
 
-        if bot_record.whitelist_enabled:
+        if bot_record.whitelist_enabled and not _is_application_form(text):
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
             if detect_whitelist_request(text):
                 vendor_code, all_parts, ips = parse_whitelist_request(text)

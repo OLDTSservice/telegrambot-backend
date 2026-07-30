@@ -514,14 +514,19 @@
           <div class="flow-body">
             <div class="flow-title">後台白名單自動處理（僅該機器人開啟此功能時執行）</div>
             <div class="flow-desc">
-              偵測訊息是否為「後台 IP 加白」請求（關鍵字＋IP 格式皆符合），符合則自動登入內部白名單管理系統執行加白，詳見 <a href="#whitelist-page">後台白名單處理頁面</a>。
+              先檢查訊息是否符合<a href="#flow-length">「申請表單格式」</a>（≥3 行「數字編號＋冒號欄位」，例如結構化的 AGENT 開戶申請單）——<strong>若是，直接跳過白名單流程</strong>，交給後續的申請表單偵測處理，避免把表單裡的欄位值（如 Brand Name、Environment、Wallet Type 等）誤當成代理帳號逐一嘗試比對廠商。非表單格式的訊息，才繼續偵測是否為「後台 IP 加白」請求（關鍵字＋IP 格式皆符合），符合則自動登入內部白名單管理系統執行加白，詳見 <a href="#whitelist-page">後台白名單處理頁面</a>。
             </div>
             <div class="flow-outcome">
               <div class="flow-branch"><span class="tag tag-green">至少一組帳號成功</span> 回覆固定文字 <span class="code">Done</span>，並背景建立 Freshdesk 工單</div>
               <div class="flow-branch"><span class="tag tag-red">廠商驗證不通過</span> 解析出的廠商名稱不在此群組的允許清單內 → 不執行加白、不建工單；依訊息語言回覆固定訊息（中文：「您好，人員將會協助確認，請稍後」／英文：「Hello, our team will assist you shortly. Please wait.」），詳見 <a href="#bots-tab-groups">群組管理 Tab</a></div>
               <div class="flow-branch"><span class="tag tag-gray">全部失敗 / 無法解析</span> 靜默不回覆、不建工單</div>
+              <div class="flow-branch"><span class="tag tag-orange">符合申請表單格式</span> 完全不進入白名單流程，直接交由 <a href="#flow-length">申請表單偵測</a> 處理（回覆制式等待訊息，記錄為無解答對話）</div>
             </div>
             <p style="margin-top:8px" class="flow-desc">⚠️ 此步驟<strong>不受「即時對話管控模式」影響</strong>——即使該機器人開啟了管控模式，只要訊息符合白名單請求格式，機器人仍會自動處理並直接回覆，不會進入待審佇列。</p>
+            <div class="callout warn">
+              <strong>為什麼要先排除申請表單格式</strong>
+              早期版本沒有這層排除，曾發生過結構化的「AGENT 開戶申請單」（含 Brand Name、Domain URL、Environment、Wallet Type 等多個編號欄位，其中一欄剛好也提到 Backoffice IP）被誤判為白名單請求，程式把表單裡每個欄位的值（例如 <span class="code">CreditKhmer168</span>、<span class="code">Transfer</span>、<span class="code">Production</span>）都當成候選代理帳號，逐一登入後台系統比對真實廠商清單（每次比對都要重新登入＋下載完整廠商清單，相當耗費資源），且若某個誤比對到的廠商剛好也在該群組的允許清單內，會導致<strong>加錯廠商的白名單</strong>。加上這層排除後，凡符合申請表單格式的訊息一律不進入白名單流程。
+            </div>
           </div>
         </div>
 
@@ -804,6 +809,7 @@
 
       <h3>自動偵測與比對規則</h3>
       <ol>
+        <li><strong>申請表單格式排除（最優先）：</strong>訊息若符合<a href="#flow-length">「申請表單格式」</a>（≥3 行「數字編號＋冒號欄位」，例如結構化的 AGENT 開戶申請單），一律<strong>不進入</strong>白名單偵測與比對，即使訊息裡也提到後台/白名單/IP 相關字樣，避免表單欄位值被誤當成代理帳號逐一嘗試比對廠商。此檢查在觸發關鍵字（規則一/規則二）之前執行。</li>
         <li><strong>觸發關鍵字（規則一：連續詞組比對）：</strong>訊息需包含如 <span class="code">whitelist bo ip</span>、<span class="code">bo ip</span>、<span class="code">backend ip</span>、<span class="code">加白后台ip</span>、<span class="code">加白后台</span>、<span class="code">後台ip</span>、<span class="code">加白後台</span>、<span class="code">whitelist backend</span>、<span class="code">backoffice ip</span>、<span class="code">backoffice whitelist</span>、<span class="code">后台過白</span>、<span class="code">后台过白</span>、<span class="code">後台白名單</span> 等後台相關**連續字串**，<strong>且訊息中同時含有至少一個 IPv4 位址</strong>才會被視為請求。</li>
         <li><strong>觸發關鍵字（規則二：三詞共現比對，較寬鬆）：</strong>若規則一未命中，改檢查訊息中是否<strong>各自出現</strong>（不需相鄰、不需連續）「白名單類字樣」（<span class="code">白名單</span>／<span class="code">白名单</span>／<span class="code">whitelist</span>）與「後台類字樣」（<span class="code">後台</span>／<span class="code">后台</span>／<span class="code">backend</span>／<span class="code">backoffice</span>／<span class="code">kiosk</span>），且訊息含 IPv4 位址；用於涵蓋像「商戶：xxx／環境：正式／類型：後台／IP：1.2.3.4」這種欄位式格式（關鍵字分散在不同欄位、不是連續字串，規則一比對不到）。此規則額外排除<strong>疑問句型態</strong>的訊息（訊息含「？」「?」「怎麼」「如何」「流程」「請問」「查一下」「how to」「can you check」等字樣時不觸發），避免把「單純詢問白名單狀態/流程」的訊息誤判成提交申請。<span class="tag tag-gray" style="margin-left:4px">注意：此問句排除僅套用於規則二，規則一（連續詞組，含「後台白名單」）本身沒有問句排除，例如「請問如何加到後台白名單？」仍會被規則一直接命中</span></li>
         <li><strong>排除規則：</strong>若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足規則一或規則二也不會觸發。</li>
