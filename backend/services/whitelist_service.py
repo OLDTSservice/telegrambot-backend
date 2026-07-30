@@ -252,6 +252,21 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                         else:
                             logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
                         break
+                    else:
+                        # 候選 ≥2 筆：嘗試 Transfer / Seamless 消歧（同品牌前綴僅差這兩條線，
+                        # 依帳號段數判斷：3 段（含幣別）視為 Transfer，2 段視為 Seamless）
+                        suffixes = {name.upper()[len(prefix):].lstrip('_-') for _, name in candidates}
+                        if suffixes == {"TRANSFER", "SEAMLESS"}:
+                            seg_count = len(username_parts)
+                            target_suffix = "TRANSFER" if seg_count >= 3 else ("SEAMLESS" if seg_count == 2 else None)
+                            if target_suffix:
+                                pick = next((c for c in candidates if c[1].upper().endswith(target_suffix)), None)
+                                if pick:
+                                    matched_id, matched_name = pick
+                                    logger.info(
+                                        f"[Whitelist] Transfer/Seamless 消歧：帳號共 {seg_count} 段 → 判定為 {matched_name}"
+                                    )
+                                    break
                     prev_candidates = candidates
 
                 # ── Step 4b：第二層 fallback — 廠商名稱為帳號第一段的前綴（取最長匹配）
