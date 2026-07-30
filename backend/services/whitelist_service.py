@@ -27,7 +27,7 @@ _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
 # 寬鬆規則：白名單 + 後台 + IP 三個概念各自出現（不需相鄰／連續字串），繁簡中文＋英文皆適用
 _WHITELIST_WORDS = ["白名單", "白名单", "whitelist"]
-_BACKEND_WORDS = ["後台", "后台", "backend", "backoffice"]
+_BACKEND_WORDS = ["後台", "后台", "backend", "backoffice", "kiosk"]
 
 # 疑問句型態排除：避免「單純在詢問流程/現況」的訊息被寬鬆規則誤判為提交申請
 _QUESTION_MARKERS_CJK = [
