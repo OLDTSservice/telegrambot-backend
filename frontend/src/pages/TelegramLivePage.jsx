@@ -134,15 +134,9 @@ export default function TelegramLivePage({ user }) {
   const pollRef = useRef(null)
   const selectedChatIdRef = useRef(null)  // 供 setInterval closure 讀取最新值
 
-  // 載入機器人列表
+  // 載入機器人列表（不自動選取，需使用者手動選擇機器人才顯示內容）
   useEffect(() => {
-    getBots().then(r => {
-      setBots(r.data)
-      if (r.data.length > 0) {
-        setSelectedBotId(r.data[0].id)
-        setIsManaged(!!r.data[0].is_managed)
-      }
-    })
+    getBots().then(r => setBots(r.data))
   }, [])
 
   // 切換機器人時更新管控狀態

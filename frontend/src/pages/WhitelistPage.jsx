@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button } from 'antd'
+import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button, Empty } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { getBots, updateBot, getWhitelistLogs } from '../api'
 import { formatDateTime } from '../utils/datetime'
@@ -49,13 +49,7 @@ export default function WhitelistPage({ user }) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    getBots().then(r => {
-      setBots(r.data)
-      if (r.data.length > 0) {
-        setSelectedBotId(r.data[0].id)
-        setWhitelistEnabled(!!r.data[0].whitelist_enabled)
-      }
-    })
+    getBots().then(r => setBots(r.data))
   }, [])
 
   useEffect(() => {
@@ -123,27 +117,35 @@ export default function WhitelistPage({ user }) {
         </Space>
       </Card>
 
-      {/* 說明 */}
-      <Card size="small" bodyStyle={{ padding: '10px 16px', background: '#fffbe6', border: '1px solid #ffe58f' }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          啟用後，當群組訊息包含 <Text code>BO IP</Text> / <Text code>whitelist BO IP</Text> / <Text code>加白后台IP</Text> 等關鍵字，
-          機器人會自動解析廠商代碼（Username 第一段）與 IP，登入後台網站新增白名單，並回覆「已添加完畢」。
-          API IP 請求不在處理範圍內。
-        </Text>
-      </Card>
+      {!selectedBotId ? (
+        <Card>
+          <Empty description="請先選擇機器人" style={{ padding: 48 }} />
+        </Card>
+      ) : (
+        <>
+          {/* 說明 */}
+          <Card size="small" bodyStyle={{ padding: '10px 16px', background: '#fffbe6', border: '1px solid #ffe58f' }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              啟用後，當群組訊息包含 <Text code>BO IP</Text> / <Text code>whitelist BO IP</Text> / <Text code>加白后台IP</Text> 等關鍵字，
+              機器人會自動解析廠商代碼（Username 第一段）與 IP，登入後台網站新增白名單，並回覆「已添加完畢」。
+              API IP 請求不在處理範圍內。
+            </Text>
+          </Card>
 
-      {/* 最近 10 筆記錄 */}
-      <Card title="最近 50 筆白名單處理記錄">
-        <Table
-          dataSource={logs}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-          size="small"
-          locale={{ emptyText: '尚無記錄' }}
-        />
-      </Card>
+          {/* 最近 50 筆記錄 */}
+          <Card title="最近 50 筆白名單處理記錄">
+            <Table
+              dataSource={logs}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+              pagination={false}
+              size="small"
+              locale={{ emptyText: '尚無記錄' }}
+            />
+          </Card>
+        </>
+      )}
     </div>
   )
 }
