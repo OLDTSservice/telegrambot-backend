@@ -53,6 +53,11 @@ _QUESTION_MARKERS_EN = [
     "please check", "would like to know",
 ]
 
+# 規則四（放寬，僅群組開啟「Bo白名單添加放寬」時套用）：
+# 訊息含「標籤：帳號」格式的行（例如 "Jili : JK481A_MYR"），不限定標籤詞，
+# 用來涵蓋只說「whitelist IP」卻沒提「後台」兩個字的口語化請求。
+_LABELED_ACCOUNT_RE = re.compile(r'[:：]\s*[A-Za-z0-9][A-Za-z0-9_\-]{3,}')
+
 
 def _looks_like_question(text: str) -> bool:
     lower = text.lower()
@@ -63,7 +68,7 @@ def _looks_like_question(text: str) -> bool:
     return False
 
 
-def detect_whitelist_request(text: str) -> bool:
+def detect_whitelist_request(text: str, relaxed: bool = False) -> bool:
     lower = text.lower()
     if any(kw in lower for kw in _API_EXCLUDE):
         return False
@@ -85,6 +90,13 @@ def detect_whitelist_request(text: str) -> bool:
     # 規則三：訊息含內部後台系統網址（環境變數 WHITELIST_ADMIN_DOMAINS 設定時才啟用）。
     # 網址本身辨識度已足夠高，不需再額外要求「白名單」字樣同時出現；仍排除疑問句型態。
     if _ADMIN_DOMAINS and any(d in lower for d in _ADMIN_DOMAINS) and not _looks_like_question(text):
+        return True
+
+    # 規則四：白名單字樣 + 帳號標籤格式（無需「後台」字樣），僅該群組開啟放寬開關時生效
+    if (relaxed
+            and any(w in lower for w in _WHITELIST_WORDS)
+            and _LABELED_ACCOUNT_RE.search(text)
+            and not _looks_like_question(text)):
         return True
 
     return False

@@ -402,6 +402,7 @@ class TelegramGroupSetting(Base):
     silent_no_answer = Column(Boolean, default=False)         # 找不到答案時靜默不回覆（仍記錄 log）
     single_vendor_mode = Column(Boolean, default=False)       # 單一總代理模式開關
     single_vendor_name = Column(String(128), nullable=True)  # 該群組的總代理名稱（訊息無帳號時使用）
+    relaxed_bo_detect = Column(Boolean, default=False)        # Bo白名單添加放寬（規則四：無需「後台」字樣也可觸發）
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="group_settings")

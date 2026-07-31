@@ -224,7 +224,8 @@ class BotManager:
 
         if bot_record.whitelist_enabled and not _is_application_form(text):
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
-            if detect_whitelist_request(text):
+            _relaxed_bo = bool(_group_setting.relaxed_bo_detect if _group_setting else False)
+            if detect_whitelist_request(text, relaxed=_relaxed_bo):
                 vendor_code, all_parts, ips = parse_whitelist_request(text)
                 if all_parts and ips:
                     logger.info(f"Bot {bot_id} 偵測到白名單請求：帳號數={len(all_parts)}, IPs={ips}")

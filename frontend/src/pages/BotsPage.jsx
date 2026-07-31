@@ -198,6 +198,16 @@ function GroupManageTab({ user }) {
     }
   }
 
+  const handleToggleRelaxedBo = async (chatId, enabled) => {
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, relaxed_bo_detect: enabled })
+      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, relaxed_bo_detect: enabled } : g))
+      message.success(enabled ? 'Bo白名單添加放寬已啟用' : 'Bo白名單添加放寬已關閉')
+    } catch {
+      message.error('切換失敗')
+    }
+  }
+
   const handleToggleSilent = async (chatId, enabled) => {
     try {
       await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, silent_no_answer: enabled })
@@ -391,6 +401,20 @@ function GroupManageTab({ user }) {
                       </Tooltip>
                     )}
                   </Space>
+                ),
+              },
+              {
+                title: 'Bo白名單添加放寬',
+                dataIndex: 'relaxed_bo_detect',
+                width: 130,
+                render: (val, record) => (
+                  <Tooltip title='開啟後，訊息只要含「whitelist/白名單」+ IP + 帳號標籤格式，即使沒提「後台」字樣也會觸發後台白名單自動處理'>
+                    <Switch checked={!!val} size="small"
+                      onChange={checked => handleToggleRelaxedBo(record.chat_id, checked)}
+                      disabled={!canEdit(user)}
+                      checkedChildren="放寬" unCheckedChildren="嚴格"
+                    />
+                  </Tooltip>
                 ),
               },
             ]}

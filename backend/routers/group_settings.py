@@ -22,6 +22,7 @@ class GroupOut(BaseModel):
     silent_no_answer: bool = False
     single_vendor_mode: bool = False
     single_vendor_name: Optional[str] = None
+    relaxed_bo_detect: bool = False
     last_active: Optional[str]
 
     class Config:
@@ -37,6 +38,7 @@ class GroupUpdateIn(BaseModel):
     silent_no_answer: Optional[bool] = None
     single_vendor_mode: Optional[bool] = None
     single_vendor_name: Optional[str] = None
+    relaxed_bo_detect: Optional[bool] = None
 
 
 @router.get("")
@@ -108,6 +110,7 @@ def list_groups(
             "silent_no_answer": s.silent_no_answer if s else False,
             "single_vendor_mode": s.single_vendor_mode if s else False,
             "single_vendor_name": s.single_vendor_name if s else None,
+            "relaxed_bo_detect": s.relaxed_bo_detect if s else False,
             "last_active": g.last_active,
         })
     return {"total": total, "items": items}
@@ -139,6 +142,8 @@ def update_group_setting(
             setting.single_vendor_mode = payload.single_vendor_mode
         if payload.single_vendor_name is not None:
             setting.single_vendor_name = payload.single_vendor_name
+        if payload.relaxed_bo_detect is not None:
+            setting.relaxed_bo_detect = payload.relaxed_bo_detect
     else:
         db.add(models.TelegramGroupSetting(
             bot_id=payload.bot_id,
@@ -150,6 +155,7 @@ def update_group_setting(
             silent_no_answer=payload.silent_no_answer or False,
             single_vendor_mode=payload.single_vendor_mode or False,
             single_vendor_name=payload.single_vendor_name,
+            relaxed_bo_detect=payload.relaxed_bo_detect or False,
         ))
     db.commit()
     return {"message": "已更新"}

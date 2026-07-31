@@ -841,11 +841,20 @@
             <td><span class="tag tag-blue">規則三</span><br><span style="font-size:12px;color:var(--text-secondary)">內部網址比對（選用）</span></td>
             <td>訊息若包含環境變數 <span class="code">WHITELIST_ADMIN_DOMAINS</span> 設定的內部後台系統網址（逗號分隔可設定多個），即視為請求，不需額外出現「白名單」字樣，但仍會排除問句型態。<strong>此環境變數預設未設定，未設定時規則三完全不啟用。</strong></td>
           </tr>
+          <tr>
+            <td><span class="tag tag-orange">規則四</span><br><span style="font-size:12px;color:var(--text-secondary)">帳號標籤格式比對（選用，群組獨立開關）</span></td>
+            <td>
+              訊息含「白名單/whitelist」字樣 + 「標籤：帳號」格式的行（例如 <span class="code">Jili : JK481A_MYR</span>，不限定標籤詞），
+              即使完全沒提「後台」兩個字也視為請求；仍會排除問句型態與 API 排除字樣。<br>
+              用於涵蓋廠商只說「whitelist IP」卻沒特別強調「後台」的口語化請求（例如「tolong whitelist IP」）。<br>
+              <strong>此規則預設不啟用</strong>，需在「群組管理 Tab」個別開啟「Bo白名單添加放寬」開關才會對該群組生效，其餘群組不受影響。
+            </td>
+          </tr>
         </tbody>
       </table>
       <div class="callout warn">
         <strong>排除規則（優先權高於以上三條規則）</strong>
-        若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足規則一、二、三也不會觸發。
+        若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足規則一、二、三、四也不會觸發。
       </div>
 
       <h4>③ 帳號與廠商解析</h4>
@@ -958,6 +967,29 @@
       <div class="callout danger">
         <strong>與寬鬆觸發規則（規則二）疊加的風險</strong>
         若某群組同時開啟「單一總代理模式」，且訊息被<a href="#whitelist-page">觸發規則二（三詞共現）</a>誤判為白名單請求、又剛好沒解析到帳號，系統會<strong>直接以該群組設定的總代理名稱真的執行加白</strong>，而非像未開啟單一總代理模式的群組那樣靜默失敗、繼續走正常問答流程。換句話說，「單一總代理模式」是唯一會把「觸發規則誤判」從「無傷害的靜默失敗」放大成「真的寫入後台系統」的地方，替這類群組開啟此模式時請特別留意。
+      </div>
+
+      <h3>Bo白名單添加放寬（規則四開關）</h3>
+      <p>
+        每個群組可獨立開啟<a href="#whitelist-page">「規則四」</a>：訊息只要含「白名單/whitelist」字樣 + IP + 「標籤：帳號」格式的行，
+        即使完全沒提「後台」兩個字也視為請求。適用於多數廠商提供資訊都齊全、但少部分只講「whitelist IP」沒特別強調「後台」的情境。
+      </p>
+      <table>
+        <thead><tr><th>欄位</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Bo白名單添加放寬開關</td>
+            <td>預設<strong>關閉（嚴格）</strong>。開啟後（顯示「放寬」），此群組的白名單觸發判斷會多套用規則四；其餘群組不受影響，仍維持原本規則一～三的嚴格判斷。</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>設定入口</strong>：群組管理 Tab → 找到目標群組 →「Bo白名單添加放寬」欄位直接切換開關，無需額外彈窗設定。
+      </div>
+      <div class="callout warn">
+        <strong>放寬後的風險</strong>
+        規則四不要求「後台」字樣，只要訊息含白名單/whitelist 字樣與帳號標籤格式即觸發，可能把原本想問「API 白名單」但忘了講 API 的訊息也導向後台流程。
+        若訊息完全沒有可解析的帳號，仍會安全失敗（記錄 log、不回覆），不會亂猜；但若群組同時開啟「單一總代理模式」，請參考上方「與寬鬆觸發規則疊加的風險」說明。
       </div>
 
       <div class="callout danger">
