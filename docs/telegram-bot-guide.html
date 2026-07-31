@@ -873,7 +873,10 @@
 
       <h4>③ 帳號與廠商解析</h4>
       <div class="callout" style="margin-top:8px">
-        優先從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / ID</span> 等標籤後方的帳號字串；若訊息<strong>沒有任何標籤</strong>，
+        優先從訊息中擷取 <span class="code">Username / 帳號 / 后台账号 / 商户 / 商戶 / ID</span> 等標籤後方的帳號字串；
+        標籤後方若以逗號（全形<span class="code">，</span>或半形<span class="code">,</span>）列出多個帳號，會全部個別解析
+        （例如 <span class="code">商户： SEA_NYG88_INR， SEA_NYG88_INR_SUB</span> 會拆成兩組帳號分別比對廠商）。<br>
+        若訊息<strong>沒有任何標籤</strong>，
         改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號
         （例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）。<br>
         若該行是「標籤 + 冒號 + 帳號」格式，即使標籤本身打錯字（如誤植 <span class="code">USWER:</span>、<span class="code">Usre:</span>），

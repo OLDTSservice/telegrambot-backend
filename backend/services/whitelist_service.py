@@ -135,18 +135,30 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     list_of_username_parts 可能含多組（訊息內多個代理帳號）
     """
     _USERNAME_RE = re.compile(
-        r'(?:Username|代理[帐账]号|User(?:name)?|后台帐号|帳號|后台账号|ID)\s*[：:]\s*([A-Za-z0-9_\-]+)',
+        r'(?:Username|代理[帐账]号|User(?:name)?|后台帐号|帳號|后台账号|商[户戶]|ID)'
+        r'\s*[：:]\s*([A-Za-z0-9_\-，, \t]+)',
         re.IGNORECASE
     )
     _TOKEN_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_\-]{3,}$')
+
+    def _extract_account_tokens(value: str) -> list[str]:
+        """從可能以逗號（全形/半形）分隔多個帳號的字串中，取出所有符合帳號格式的 token。"""
+        tokens = []
+        for part in re.split(r'[，,]\s*', value.strip()):
+            part = part.strip()
+            if not part or part.lower() in _CLOSING_STOPWORDS:
+                continue
+            if _TOKEN_RE.match(part):
+                tokens.append(part)
+        return tokens
 
     all_usernames: list[str] = []
 
     m = _USERNAME_RE.search(text)
     if m:
-        all_usernames.append(m.group(1).strip())
-        # 找 label 之後的行，若像帳號格式（英數底線）也納入；遇到 IP 行跳過但繼續掃描後續行，
-        # 因為帳號清單不一定都排在 IP 之前
+        all_usernames.extend(_extract_account_tokens(m.group(1)))
+        # 找 label 之後的行，若像帳號格式（英數底線，含逗號分隔多帳號）也納入；
+        # 遇到 IP 行跳過但繼續掃描後續行，因為帳號清單不一定都排在 IP 之前
         rest = text[m.end():]
         for line in rest.splitlines():
             line = line.strip()
@@ -156,13 +168,12 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 continue
             if line.lower() in _CLOSING_STOPWORDS:
                 continue
-            if _TOKEN_RE.match(line):
-                all_usernames.append(line)
+            all_usernames.extend(_extract_account_tokens(line))
     else:
         # 無法辨識的標籤格式：逐行掃描
-        # 1. 「像帳號的標籤 : 帳號」格式（標籤打錯字，如 USWER、Usre 等仍容錯解析；
+        # 1. 「像帳號的標籤 : 帳號（可逗號分隔多個）」格式（標籤打錯字，如 USWER、Usre 等仍容錯解析；
         #    但 Product/Site 這類明顯與帳號無關的標籤不納入，避免誤判）
-        # 2. 單獨一行、看起來像帳號的行（純英數字加底線/破折號，不含空白）
+        # 2. 單獨一行、看起來像帳號的行（純英數字加底線/破折號，不含空白，可逗號分隔多個）
         # 遇到 IP 行只跳過該行、不中止整體掃描，因為帳號清單可能排在 IP 之後
         _skip_phrases = set(_BO_KEYWORDS) | set(_API_EXCLUDE) | set(_WHITELIST_WORDS) | set(_BACKEND_WORDS)
         for line in text.splitlines():
@@ -173,14 +184,12 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 continue
             if line.lower() in _skip_phrases or line.lower() in _CLOSING_STOPWORDS:
                 continue
-            if _TOKEN_RE.match(line):
-                all_usernames.append(line)
-                continue
             if "：" in line or ":" in line:
                 label, value = re.split(r'[：:]', line, maxsplit=1)
-                value = value.strip()
-                if _TOKEN_RE.match(value) and _label_looks_like_account_field(label):
-                    all_usernames.append(value)
+                if _label_looks_like_account_field(label):
+                    all_usernames.extend(_extract_account_tokens(value))
+                continue
+            all_usernames.extend(_extract_account_tokens(line))
 
     all_parts = []
     for u in all_usernames:
