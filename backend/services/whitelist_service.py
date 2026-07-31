@@ -102,6 +102,33 @@ def detect_whitelist_request(text: str, relaxed: bool = False) -> bool:
     return False
 
 
+_ACCOUNT_LABEL_WORDS_EN = ("username", "user", "id")
+_ACCOUNT_LABEL_CHARS_CJK = ("帳", "账")
+
+# 訊息結尾常見的客套/簽名字樣：掃描邏輯改為「遇到 IP 行跳過繼續掃」後，
+# 需要排除這些單獨成行的詞，避免被誤判成帳號 token。
+_CLOSING_STOPWORDS = {
+    "thanks", "thank you", "thankyou", "regards", "best regards", "br",
+    "cheers", "sincerely", "best", "kind regards", "many thanks",
+    "谢谢", "謝謝", "多謝", "多谢", "辛苦了", "拜托", "拜託", "感謝", "感谢",
+}
+
+
+def _label_looks_like_account_field(label: str) -> bool:
+    """判斷標籤是否「像」帳號欄位（含手誤容錯），排除 Product/Site/Game 等明顯不相關欄位。"""
+    label = label.strip()
+    if not label:
+        return False
+    if any(c in label for c in _ACCOUNT_LABEL_CHARS_CJK):
+        return True
+    label_lower = label.lower()
+    import difflib
+    return any(
+        difflib.SequenceMatcher(None, label_lower, known).ratio() >= 0.6
+        for known in _ACCOUNT_LABEL_WORDS_EN
+    )
+
+
 def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], list[str]]:
     """
     回傳 (vendor_code, list_of_username_parts, ip_list)
@@ -118,36 +145,41 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     m = _USERNAME_RE.search(text)
     if m:
         all_usernames.append(m.group(1).strip())
-        # 找 label 之後的行，若像帳號格式（英數底線）也納入
+        # 找 label 之後的行，若像帳號格式（英數底線）也納入；遇到 IP 行跳過但繼續掃描後續行，
+        # 因為帳號清單不一定都排在 IP 之前
         rest = text[m.end():]
         for line in rest.splitlines():
             line = line.strip()
             if not line:
                 continue
-            # 遇到 IP 行或關鍵字行就停止
             if _IP_RE.search(line):
-                break
+                continue
+            if line.lower() in _CLOSING_STOPWORDS:
+                continue
             if _TOKEN_RE.match(line):
                 all_usernames.append(line)
     else:
         # 無法辨識的標籤格式：逐行掃描
-        # 1. 「任意標籤 : 帳號」格式（標籤打錯字，如 USWER、Usre 等，仍容錯解析冒號後的值）
+        # 1. 「像帳號的標籤 : 帳號」格式（標籤打錯字，如 USWER、Usre 等仍容錯解析；
+        #    但 Product/Site 這類明顯與帳號無關的標籤不納入，避免誤判）
         # 2. 單獨一行、看起來像帳號的行（純英數字加底線/破折號，不含空白）
+        # 遇到 IP 行只跳過該行、不中止整體掃描，因為帳號清單可能排在 IP 之後
         _skip_phrases = set(_BO_KEYWORDS) | set(_API_EXCLUDE) | set(_WHITELIST_WORDS) | set(_BACKEND_WORDS)
         for line in text.splitlines():
             line = line.strip()
             if not line:
                 continue
             if _IP_RE.search(line):
-                break
-            if line.lower() in _skip_phrases:
+                continue
+            if line.lower() in _skip_phrases or line.lower() in _CLOSING_STOPWORDS:
                 continue
             if _TOKEN_RE.match(line):
                 all_usernames.append(line)
                 continue
             if "：" in line or ":" in line:
-                value = re.split(r'[：:]', line, maxsplit=1)[1].strip()
-                if _TOKEN_RE.match(value):
+                label, value = re.split(r'[：:]', line, maxsplit=1)
+                value = value.strip()
+                if _TOKEN_RE.match(value) and _label_looks_like_account_field(label):
                     all_usernames.append(value)
 
     all_parts = []
