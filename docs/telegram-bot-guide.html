@@ -879,9 +879,11 @@
         若訊息<strong>沒有任何標籤</strong>，
         改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號
         （例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）。<br>
-        若該行是「標籤 + 冒號 + 帳號」格式，即使標籤本身打錯字（如誤植 <span class="code">USWER:</span>、<span class="code">Usre:</span>），
-        只要標籤與 <span class="code">Username/User/ID/帳號</span> 等詞夠相近（文字相似度比對，容許少量手誤），一樣容錯解析取得帳號；
-        但 <span class="code">Product:</span>、<span class="code">Site:</span> 這類明顯與帳號無關的欄位標籤<strong>不會</strong>被誤判為帳號，避免抓到錯誤的值。<br>
+        若該行是「標籤 + 冒號 + 帳號」格式，只要符合以下任一條件即會解析：① 標籤與 <span class="code">Username/User/ID/帳號</span>
+        等詞夠相近（文字相似度比對，容許 <span class="code">USWER:</span>、<span class="code">Usre:</span> 等少量手誤）；
+        ② 標籤即使完全不相關（如任意品牌代碼 <span class="code">GMSJE:</span>），但冒號後的值本身是<strong>多段格式</strong>
+        （含底線／破折號，例如 <span class="code">Con99_VCEM_MYR</span>），因為真實帳號幾乎都是多段組成。
+        兩者皆不符合時（例如 <span class="code">Product : Jili</span>，標籤不相關且值只是單一詞彙）才不會被誤判為帳號。<br>
         掃描時若某行含 IP，只跳過該行、<strong>不會中止整體掃描</strong>，因為帳號清單有時會排在 IP 後面才列出；
         單獨成行的常見客套結尾字樣（如 <span class="code">Thanks</span>、<span class="code">Regards</span>）會被排除，不會誤判為帳號。<br>
         取得帳號後以底線／破折號拆解各段；一則訊息可能包含多組帳號（多行列出），會逐一嘗試比對廠商。

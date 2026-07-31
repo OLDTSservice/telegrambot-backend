@@ -186,7 +186,11 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 continue
             if "：" in line or ":" in line:
                 label, value = re.split(r'[：:]', line, maxsplit=1)
-                if _label_looks_like_account_field(label):
+                # 標籤像帳號欄位（含手誤容錯）→ 直接信任；
+                # 標籤不像帳號欄位時，只有當值本身是「多段」格式（含底線/破折號，
+                # 例如 Con99_VCEM_MYR）才信任，因為真實帳號幾乎都是多段組成，
+                # 可排除 Product/Site 這類標籤後面接單一詞彙（如 "Jili"）的情況。
+                if _label_looks_like_account_field(label) or re.search(r'[_\-]', value):
                     all_usernames.extend(_extract_account_tokens(value))
                 continue
             all_usernames.extend(_extract_account_tokens(line))
