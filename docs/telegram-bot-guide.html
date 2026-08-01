@@ -501,10 +501,11 @@
             <div class="flow-title">忽略名單檢查</div>
             <div class="flow-desc">
               比對發送者的 <span class="code">user_id</span> 或 <span class="code">@username</span>（不分大小寫）是否命中該機器人「忽略名單」中已啟用的項目。
+              若該筆忽略設定有填「例外關鍵字」，且訊息內容包含其中任一關鍵字（逗號分隔可填多個，不分大小寫），則視為<strong>未命中</strong>，該則訊息照常往下處理。
             </div>
             <div class="flow-outcome">
-              <div class="flow-branch"><span class="tag tag-red">命中</span> 直接結束，完全不回覆、不留任何統計或對話紀錄</div>
-              <div class="flow-branch"><span class="tag tag-gray">未命中</span> 繼續下一步</div>
+              <div class="flow-branch"><span class="tag tag-red">命中且無例外關鍵字符合</span> 直接結束，完全不回覆、不留任何統計或對話紀錄</div>
+              <div class="flow-branch"><span class="tag tag-gray">未命中，或命中但訊息含例外關鍵字</span> 繼續下一步</div>
             </div>
           </div>
         </div>
@@ -764,11 +765,12 @@
           <tr><td><span class="btn-chip">新增忽略帳號</span></td><td>輸入識別碼即新增至目前選擇的機器人。識別碼可填 <span class="code">@username</span>（用戶名稱）或數字 <span class="code">user_id</span>（可用 Telegram 上的 @userinfobot 查詢），同一機器人下識別碼不可重複新增。</td></tr>
           <tr><td>啟用開關</td><td>暫時取消忽略但保留紀錄，不需重新輸入。</td></tr>
           <tr><td>備註欄</td><td>選填，方便標註「為什麼忽略這個帳號」。</td></tr>
-          <tr><td><span class="btn-chip">複製到其他機器人</span>（📋 圖示）</td><td>將此筆忽略帳號的識別碼與備註複製成一筆<strong>新紀錄</strong>並綁定到另一個選定的機器人；下拉選單只列出<strong>非目前來源機器人</strong>的其他機器人。若目標機器人已存在相同識別碼則複製失敗（後端不允許同機器人重複識別碼）。原紀錄不受影響。</td></tr>
+          <tr><td><span class="btn-chip">例外關鍵字</span>（🔑 圖示）</td><td>選填。此帳號的訊息預設完全被忽略，但只要訊息內容包含這裡設定的任一關鍵字（逗號分隔可填多個，不分大小寫），該則訊息就會照常處理（走關鍵字規則、知識庫問答等正常流程），不再被忽略。留空則維持完全忽略，行為不變。</td></tr>
+          <tr><td><span class="btn-chip">複製到其他機器人</span>（📋 圖示）</td><td>將此筆忽略帳號的識別碼、備註與例外關鍵字複製成一筆<strong>新紀錄</strong>並綁定到另一個選定的機器人；下拉選單只列出<strong>非目前來源機器人</strong>的其他機器人。若目標機器人已存在相同識別碼則複製失敗（後端不允許同機器人重複識別碼）。原紀錄不受影響。</td></tr>
         </tbody>
       </table>
       <div class="callout">
-        忽略名單同時也會讓「AI 救援」機制跳過該使用者，不會被記錄為救援候選（因忽略名單檢查發生在最前面，AI 救援的候選記錄邏輯在其之後才會執行到）。
+        忽略名單同時也會讓「AI 救援」機制跳過該使用者，不會被記錄為救援候選（因忽略名單檢查發生在最前面，AI 救援的候選記錄邏輯在其之後才會執行到）；但若訊息命中例外關鍵字而未被忽略，則會照常進入 AI 救援的判斷流程。
       </div>
     </section>
 

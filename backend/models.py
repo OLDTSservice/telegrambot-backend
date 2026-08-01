@@ -170,6 +170,7 @@ class TelegramIgnore(Base):
     bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
     identifier = Column(String(255), nullable=False)   # Telegram user_id 或 @username
     note = Column(String(500), nullable=True)           # 備註說明
+    exception_keyword = Column(String(500), nullable=True)  # 例外關鍵字（逗號分隔），訊息含此字樣時不忽略
     is_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

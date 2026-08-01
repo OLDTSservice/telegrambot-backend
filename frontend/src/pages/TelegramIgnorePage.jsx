@@ -3,7 +3,7 @@ import {
   Table, Button, Switch, Modal, Form, Input, Select,
   Popconfirm, message, Space, Card, Typography, Alert, Empty,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, StopOutlined, CopyOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, StopOutlined, CopyOutlined, KeyOutlined } from '@ant-design/icons'
 import { getTelegramIgnores, createTelegramIgnore, updateTelegramIgnore, deleteTelegramIgnore, getBots } from '../api'
 import { formatDateTime } from '../utils/datetime'
 
@@ -22,6 +22,10 @@ export default function TelegramIgnorePage({ user }) {
   const [copyingItem, setCopyingItem] = useState(null)
   const [copyTargetBotId, setCopyTargetBotId] = useState(null)
   const [copying, setCopying] = useState(false)
+  const [exceptionModalOpen, setExceptionModalOpen] = useState(false)
+  const [exceptionItem, setExceptionItem] = useState(null)
+  const [exceptionKeyword, setExceptionKeyword] = useState('')
+  const [savingException, setSavingException] = useState(false)
 
   const load = async () => {
     try {
@@ -102,6 +106,7 @@ export default function TelegramIgnorePage({ user }) {
         bot_id: copyTargetBotId,
         identifier: copyingItem.identifier,
         note: copyingItem.note || null,
+        exception_keyword: copyingItem.exception_keyword || null,
       })
       message.success('已複製到目標機器人')
       setCopyModalOpen(false)
@@ -110,6 +115,27 @@ export default function TelegramIgnorePage({ user }) {
       message.error(err.response?.data?.detail || '複製失敗')
     } finally {
       setCopying(false)
+    }
+  }
+
+  const openExceptionModal = (item) => {
+    setExceptionItem(item)
+    setExceptionKeyword(item.exception_keyword || '')
+    setExceptionModalOpen(true)
+  }
+
+  const handleExceptionSave = async () => {
+    if (!exceptionItem) return
+    setSavingException(true)
+    try {
+      await updateTelegramIgnore(exceptionItem.id, { exception_keyword: exceptionKeyword.trim() })
+      message.success('例外關鍵字已儲存')
+      setExceptionModalOpen(false)
+      if (selectedBotId) loadItems(selectedBotId)
+    } catch {
+      message.error('儲存失敗')
+    } finally {
+      setSavingException(false)
     }
   }
 
@@ -133,6 +159,21 @@ export default function TelegramIgnorePage({ user }) {
     {
       title: '新增時間', dataIndex: 'created_at', width: 160,
       render: t => formatDateTime(t),
+    },
+    {
+      title: '例外關鍵字',
+      dataIndex: 'exception_keyword',
+      width: 160,
+      render: (v, record) => (
+        <Space size={6}>
+          {v
+            ? <Text code style={{ fontSize: 12 }}>{v}</Text>
+            : <Text type="secondary" style={{ fontSize: 12 }}>未設定</Text>}
+          <Button size="small" icon={<KeyOutlined />}
+            onClick={() => openExceptionModal(record)} disabled={!canEdit(user)}
+            title="設定例外關鍵字" />
+        </Space>
+      ),
     },
     {
       title: '操作', width: 140,
@@ -260,6 +301,26 @@ export default function TelegramIgnorePage({ user }) {
             </Text>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title={`例外關鍵字 — ${exceptionItem?.identifier || ''}`}
+        open={exceptionModalOpen}
+        onOk={handleExceptionSave}
+        onCancel={() => setExceptionModalOpen(false)}
+        okText="儲存"
+        cancelText="取消"
+        confirmLoading={savingException}
+        width={480}
+      >
+        <div style={{ marginBottom: 12, color: '#666', fontSize: 13 }}>
+          此帳號的訊息預設會被完全忽略；若訊息內容包含以下任一關鍵字（逗號分隔可填多個），機器人仍會照常處理該則訊息。留空則維持完全忽略。
+        </div>
+        <Input
+          value={exceptionKeyword}
+          onChange={e => setExceptionKeyword(e.target.value)}
+          placeholder="例如：whitelist, 緊急"
+        />
       </Modal>
     </Card>
   )

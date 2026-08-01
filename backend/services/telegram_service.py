@@ -191,6 +191,12 @@ class BotManager:
             for ig in ignores:
                 val = ig.identifier.lstrip("@").lower()
                 if sender_id == val or sender_username == val:
+                    # 例外關鍵字（逗號分隔）：訊息含其中任一關鍵字時，此則訊息不忽略、照常處理
+                    if ig.exception_keyword:
+                        keywords = [k.strip() for k in ig.exception_keyword.split(',') if k.strip()]
+                        if any(k.lower() in text.lower() for k in keywords):
+                            logger.info(f"Bot {bot_id} 來自 {ig.identifier} 的訊息命中例外關鍵字，照常處理")
+                            break
                     logger.info(f"Bot {bot_id} 忽略來自 {ig.identifier} 的訊息")
                     return
 

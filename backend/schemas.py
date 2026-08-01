@@ -292,11 +292,13 @@ class TelegramIgnoreCreate(BaseModel):
     bot_id: int
     identifier: str
     note: Optional[str] = None
+    exception_keyword: Optional[str] = None
 
 
 class TelegramIgnoreUpdate(BaseModel):
     identifier: Optional[str] = None
     note: Optional[str] = None
+    exception_keyword: Optional[str] = None
     is_enabled: Optional[bool] = None
 
 
@@ -305,6 +307,7 @@ class TelegramIgnoreOut(BaseModel):
     bot_id: int
     identifier: str
     note: Optional[str]
+    exception_keyword: Optional[str] = None
     is_enabled: bool
     created_at: datetime
 
