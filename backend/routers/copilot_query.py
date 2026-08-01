@@ -4,18 +4,18 @@ Copilot Studio 透過 HTTP 動作 POST 到此端點，取得回覆後傳送給 T
 """
 import asyncio
 import logging
-from datetime import date
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from timezone_utils import taipei_today
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/copilot", tags=["Copilot查詢"])
 
 
 def _record_stat(bot_id: int, conversation_id: str, conversation_name: str, db: Session):
-    today = date.today().isoformat()
+    today = taipei_today().isoformat()
     stat = db.query(models.CopilotGroupStat).filter(
         models.CopilotGroupStat.bot_id == bot_id,
         models.CopilotGroupStat.conversation_id == conversation_id,

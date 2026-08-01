@@ -7,7 +7,6 @@
 import os
 import asyncio
 import logging
-from datetime import date
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -82,6 +81,12 @@ def _parse_excel_qa(file_path: str) -> list[dict]:
 def _is_cjk(text: str) -> bool:
     cjk = sum(1 for c in text if '一' <= c <= '鿿')
     return len(text) > 0 and cjk / len(text) > 0.2
+
+
+def _contains_cjk(text: str) -> bool:
+    """是否包含任一中文字（不論比例），用於回覆語言判斷：
+    有中文字 → 用中文回覆；完全沒有中文字 → 一律用英文回覆（不論問題實際是哪種語言）。"""
+    return any('一' <= c <= '鿿' for c in text)
 
 
 def parse_qa_text(text: str) -> list[dict]:
@@ -317,6 +322,15 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
     try:
         client = get_anthropic_client()
         NO_ANSWER_TOKEN = "NO_ANSWER_FOUND"
+        if _contains_cjk(question):
+            language_rule = (
+                "3. 問題包含中文字，請用中文回答（繁體對繁體、簡體對簡體）。"
+            )
+        else:
+            language_rule = (
+                "3. 問題不包含任何中文字（無論問題實際使用英文、馬來文、印尼文、越南文或其他任何語言皆同），"
+                "一律使用【英文】回答，不要使用問題原本的語言，也不要使用中文。"
+            )
         system_prompt = (
             "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
             "不要加入任何額外補充、說明或開場白。"
@@ -325,13 +339,12 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
             "（不可新增知識庫沒有的資訊、不可補充原本沒有的細節）。\n"
             "2. 若訊息是申請單、表單或提交資料（特徵：多行編號欄位如「1. 商戶名字：xxx」、「2. 幣種：MYR」等結構），"
             f"視為提交資料而非提問，請只回覆固定字串：{NO_ANSWER_TOKEN}。\n"
-            "3. 請使用與問題完全相同的語言回答"
-            "（問題為繁體中文→繁體中文、英文→英文、簡體中文→簡體中文、其他語言同理）。"
-            "若知識庫中找到的答案語言與問題不同，請將該答案【翻譯】成問題的語言後再回覆——"
+            f"{language_rule}"
+            "若知識庫中找到的答案語言與規則 3 判定的目標語言不同，請將該答案【翻譯】成目標語言後再回覆——"
             "翻譯只是換一種語言表達同樣內容，不算違反規則 1 的「延伸事實內容」；"
             "翻譯時網址、連結、數字、產品/檔案名稱等專有名詞維持原文不變，不要翻譯或改寫。\n"
             f"4. 若知識庫中沒有直接對應的資訊，請只回覆固定字串：{NO_ANSWER_TOKEN}，"
-            "不要加任何其他文字、標點或說明，也不要用問題的語言翻譯這個字串。"
+            "不要加任何其他文字、標點或說明，也不要翻譯這個字串。"
         )
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -376,7 +389,8 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
 def record_usage(bot_id: int, input_tokens: int, output_tokens: int, db,
                  cache_read_tokens: int = 0, cache_write_tokens: int = 0):
     import models
-    today = date.today().isoformat()
+    from timezone_utils import taipei_today
+    today = taipei_today().isoformat()
     # 實際計費等效 token：input + output + cache_read×10% + cache_write×125%
     effective = input_tokens + output_tokens + round(cache_read_tokens * 0.1) + round(cache_write_tokens * 1.25)
     stat = db.query(models.UsageStat).filter(

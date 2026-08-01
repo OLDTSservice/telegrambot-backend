@@ -1167,7 +1167,8 @@
           <tr><td>白名單廠商驗證預設行為</td><td>關閉（不限制）</td><td>需手動至群組管理 Tab 開啟並設定允許前綴；未設定時任何廠商皆可加白</td></tr>
           <tr><td>Freshdesk 自動建單條件</td><td>僅限「一般模式」下的關鍵字回覆 / 知識庫回覆 / 白名單成功處理</td><td>管控模式人工發送、Fallback、AI 救援回覆皆不建單</td></tr>
           <tr><td>Freshdesk 建單請求逾時</td><td>90 秒</td><td>呼叫外部 Freshdesk 建單 API 的逾時上限</td></tr>
-          <tr><td>後台時間顯示時區</td><td>固定 Asia/Taipei（UTC+8）</td><td>資料庫皆以 UTC 儲存，前端統一轉換為台灣時間顯示，不受使用者裝置時區影響</td></tr>
+          <tr><td>後台時間顯示時區</td><td>固定 Asia/Taipei（UTC+8）</td><td>時間戳記（created_at）皆以 UTC 儲存，前端統一轉換為台灣時間顯示，不受使用者裝置時區影響</td></tr>
+          <tr><td>統計日期分桶時區</td><td>固定 Asia/Taipei（UTC+8）</td><td>回覆統計、使用量統計等「今天/近N日」的日期分桶改用台灣日曆日判斷（<span class="code">timezone_utils.taipei_today()</span>），不受 Render 伺服器 UTC 系統時間影響</td></tr>
         </tbody>
       </table>
     </section>

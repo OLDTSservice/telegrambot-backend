@@ -53,8 +53,8 @@ def _query_teams_knowledge(bot_id: int, question: str, db=None) -> tuple | None:
 
 def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, db):
     import models as m
-    from datetime import date
-    today = date.today().isoformat()
+    from timezone_utils import taipei_today
+    today = taipei_today().isoformat()
     stat = db.query(m.TeamsGroupStat).filter(
         m.TeamsGroupStat.bot_id == bot_id,
         m.TeamsGroupStat.conversation_id == conversation_id,
@@ -78,7 +78,8 @@ def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, 
 
 def _record_teams_usage(bot_id: int, input_tokens: int, output_tokens: int, db):
     import models as m
-    today = date.today().isoformat()
+    from timezone_utils import taipei_today
+    today = taipei_today().isoformat()
     stat = db.query(m.TeamsUsageStat).filter(
         m.TeamsUsageStat.bot_id == bot_id,
         m.TeamsUsageStat.date == today

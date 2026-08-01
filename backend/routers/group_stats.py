@@ -158,13 +158,16 @@ def ticket_counts(
     _=Depends(require_viewer),
 ):
     """知識庫工單數 + 白名單工單數"""
-    # SQLite 的 CAST(datetime AS DATE) 不截斷字串，直接比對 datetime 字串
-    # 需以 date_to 的隔天作為排除上界，否則 date_to 當天資料全被過濾
+    # created_at 以 UTC 儲存，但 date_from/date_to 是前端送來的台灣日曆日期，
+    # 需先把台灣日期範圍換算成對應的 UTC 時間範圍，再拿去跟 created_at 比較，
+    # 否則台灣時間每天 00:00–08:00 的資料會被歸類到前一天，統計對不上。
     def apply(q, col):
         if date_from and date_to:
             from datetime import datetime, timedelta
-            date_to_next = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
-            q = q.filter(col >= date_from, col < date_to_next)
+            taipei_offset = timedelta(hours=8)
+            start_utc = datetime.strptime(date_from, '%Y-%m-%d') - taipei_offset
+            end_utc = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) - taipei_offset
+            q = q.filter(col >= start_utc, col < end_utc)
         return q
 
     kb_q = db.query(func.count(models.ConversationLog.id))

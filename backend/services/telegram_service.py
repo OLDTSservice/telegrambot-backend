@@ -519,9 +519,9 @@ def _refresh_chat_name(bot_id: int, chat_id: str, chat_name: str, db):
 
 
 def _record_group_stat(bot_id: int, chat_id: str, chat_name: str, chat_type: str, db):
-    from datetime import date
+    from timezone_utils import taipei_today
     import models
-    today = date.today().isoformat()
+    today = taipei_today().isoformat()
     stat = db.query(models.TelegramGroupStat).filter(
         models.TelegramGroupStat.bot_id == bot_id,
         models.TelegramGroupStat.chat_id == chat_id,

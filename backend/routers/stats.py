@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
-from datetime import date, timedelta, datetime
+from datetime import timedelta, datetime
 from database import get_db
 import models, schemas
 from auth import require_viewer
 from pydantic import BaseModel
+from timezone_utils import taipei_today
 
 router = APIRouter(prefix="/api/stats", tags=["使用量統計"])
 
@@ -17,9 +18,10 @@ def get_stats(
     db: Session = Depends(get_db),
     _=Depends(require_viewer),
 ):
-    today = date.today().isoformat()
-    this_month = date.today().strftime("%Y-%m")
-    start_date = (date.today() - timedelta(days=days)).isoformat()
+    _today_date = taipei_today()
+    today = _today_date.isoformat()
+    this_month = _today_date.strftime("%Y-%m")
+    start_date = (_today_date - timedelta(days=days)).isoformat()
 
     # 今日統計
     today_row = db.query(

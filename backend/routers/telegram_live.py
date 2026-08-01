@@ -227,7 +227,8 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(requi
 
     # 更新回覆統計
     if last_msg:
-        today = date.today().isoformat()
+        from timezone_utils import taipei_today
+        today = taipei_today().isoformat()
         stat = db.query(models.TelegramGroupStat).filter(
             models.TelegramGroupStat.bot_id == pending.bot_id,
             models.TelegramGroupStat.chat_id == pending.chat_id,
