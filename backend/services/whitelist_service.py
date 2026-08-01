@@ -168,7 +168,10 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 continue
             if line.lower() in _CLOSING_STOPWORDS:
                 continue
-            all_usernames.extend(_extract_account_tokens(line))
+            # 只有含底線/破折號的多段格式才信任，避免像 "JILI" 這種單一品牌/遊戲
+            # 名稱單獨成行時被誤判成帳號
+            if re.search(r'[_\-]', line):
+                all_usernames.extend(_extract_account_tokens(line))
     else:
         # 無法辨識的標籤格式：逐行掃描
         # 1. 「像帳號的標籤 : 帳號（可逗號分隔多個）」格式（標籤打錯字，如 USWER、Usre 等仍容錯解析；
@@ -193,7 +196,10 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 if _label_looks_like_account_field(label) or re.search(r'[_\-]', value):
                     all_usernames.extend(_extract_account_tokens(value))
                 continue
-            all_usernames.extend(_extract_account_tokens(line))
+            # 無標籤、單獨成行：只有含底線/破折號的多段格式才信任（例如 TitanSW39_AZ_THB），
+            # 避免像 "JILI" 這種單一品牌/遊戲名稱單獨成行時被誤判成帳號
+            if re.search(r'[_\-]', line):
+                all_usernames.extend(_extract_account_tokens(line))
 
     all_parts = []
     for u in all_usernames:

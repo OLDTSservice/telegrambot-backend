@@ -880,7 +880,9 @@
         （例如 <span class="code">商户： SEA_NYG88_INR， SEA_NYG88_INR_SUB</span> 會拆成兩組帳號分別比對廠商）。<br>
         若訊息<strong>沒有任何標籤</strong>，
         改為逐行掃描，取「單獨一行、格式像帳號（英數字＋底線／破折號，無空白）」的行當作帳號
-        （例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）。<br>
+        （例如 <span class="code">Ogpro_SS9AU_MYR</span> 單獨成行，前面沒有 <span class="code">Username:</span> 之類文字，一樣抓得到）；
+        但單獨成行時<strong>必須含底線／破折號（多段格式）</strong>才會被當作帳號，只有單一詞彙的行（例如訊息開頭單獨一行的品牌／遊戲名稱
+        <span class="code">JILI</span>）不會被誤判成帳號。<br>
         若該行是「標籤 + 冒號 + 帳號」格式，只要符合以下任一條件即會解析：① 標籤與 <span class="code">Username/User/ID/帳號</span>
         等詞夠相近（文字相似度比對，容許 <span class="code">USWER:</span>、<span class="code">Usre:</span> 等少量手誤）；
         ② 標籤即使完全不相關（如任意品牌代碼 <span class="code">GMSJE:</span>），但冒號後的值本身是<strong>多段格式</strong>
