@@ -850,7 +850,7 @@
               若規則一未命中，改檢查訊息中是否<strong>各自出現</strong>（不需相鄰、不需連續）「白名單類字樣」（<span class="code">白名單</span>／<span class="code">白名单</span>／<span class="code">whitelist</span>）與「後台類字樣」（<span class="code">後台</span>／<span class="code">后台</span>／<span class="code">backend</span>／<span class="code">backoffice</span>／<span class="code">kiosk</span>／獨立出現的縮寫 <span class="code">bo</span>）。<br>
               用於涵蓋像「商戶：xxx／環境：正式／類型：後台／IP：1.2.3.4」這種欄位式格式（關鍵字分散在不同欄位、不是連續字串，規則一比對不到）。<br>
               <span class="tag tag-gray">bo 縮寫</span>採單字邊界比對，不會誤判 <span class="code">about</span>／<span class="code">box</span>／<span class="code">labor</span> 等字。<br>
-              <span class="tag tag-orange">問句排除</span>訊息含「？」「怎麼」「如何」「請問」「how to」等疑問句型態時<strong>不觸發</strong>此規則，避免把單純詢問流程的訊息誤判成提交申請。此排除<strong>僅套用於規則二</strong>，規則一（含「後台白名單」等連續詞組）沒有問句排除，例如「請問如何加到後台白名單？」仍會被規則一直接命中。
+              <span class="tag tag-orange">問句排除</span>訊息含「怎麼」「如何」「請問」「how to」等疑問語意詞彙、或整句<strong>結尾</strong>是「？」「?」時<strong>不觸發</strong>此規則，避免把單純詢問流程的訊息誤判成提交申請。<span class="tag tag-gray">結尾判斷</span>「？」「?」符號本身<strong>只有出現在整句結尾才算疑問句</strong>，句子中間出現的孤立問號（例如格式誤植的 <span class="code">IPv4: ? 1.2.3.4</span>）不會觸發問句排除，避免把這類訊息誤判成疑問句而漏接。此排除<strong>僅套用於規則二／規則四</strong>，規則一（含「後台白名單」等連續詞組）沒有問句排除，例如「請問如何加到後台白名單？」仍會被規則一直接命中。
             </td>
           </tr>
           <tr>

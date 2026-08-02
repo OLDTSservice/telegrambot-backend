@@ -43,13 +43,16 @@ def _has_backend_indicator(text: str, lower: str) -> bool:
     return any(w in lower for w in _BACKEND_WORDS) or bool(_BO_ABBR_RE.search(text))
 
 # 疑問句型態排除：避免「單純在詢問流程/現況」的訊息被寬鬆規則誤判為提交申請
+# 注意：「？」「?」純符號不放在這兩個清單裡——它們可能只是格式誤植（例如某欄位
+# 打錯格式變成 "IPv4: ? 1.2.3.4"），只有出現在整句「結尾」才視為疑問句，
+# 出現在句子中間不算（見 _looks_like_question 的結尾判斷）。
 _QUESTION_MARKERS_CJK = [
-    "？", "怎麼", "怎么", "如何", "流程", "查一下", "查下", "查詢一下", "查询一下",
+    "怎麼", "怎么", "如何", "流程", "查一下", "查下", "查詢一下", "查询一下",
     "能否", "可以嗎", "可以吗", "是不是", "有沒有", "有没有", "請問", "请问",
     "麻煩問", "麻烦问", "幫忙查", "帮忙查",
 ]
 _QUESTION_MARKERS_EN = [
-    "?", "how to", "how do i", "how can i", "could you check", "can you check",
+    "how to", "how do i", "how can i", "could you check", "can you check",
     "please check", "would like to know",
 ]
 
@@ -64,6 +67,10 @@ def _looks_like_question(text: str) -> bool:
     if any(m in text for m in _QUESTION_MARKERS_CJK):
         return True
     if any(m in lower for m in _QUESTION_MARKERS_EN):
+        return True
+    # 「?」「？」只有出現在整句結尾才視為疑問句，避免句中孤立問號（格式誤植）誤判
+    stripped = text.strip()
+    if stripped.endswith('?') or stripped.endswith('？'):
         return True
     return False
 
