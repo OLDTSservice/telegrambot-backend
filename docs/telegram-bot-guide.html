@@ -896,10 +896,12 @@
       <h4>④ 廠商比對（五層漸進式演算法）</h4>
       <p style="margin-bottom:8px">登入內部白名單管理後台取得完整廠商清單後，依序嘗試下列步驟，一旦唯一確認廠商即停止：</p>
       <div class="callout" style="margin-bottom:10px">
-        <strong>提前消歧：群組允許清單優先於「找不到就中止」</strong>
+        <strong>提前消歧：群組允許清單優先於任何猜測性 fallback</strong>
         Step 4a、4b、4c、4c-2 任一步驟若剛好找到<strong>多筆</strong>候選、無法自動唯一判定時，
-        只要此群組已在「群組管理 Tab」開啟廠商驗證並設定允許清單，會先用該清單篩選候選——若篩選後剛好只剩一筆即直接採用，
-        不必等到 Step 4d 才判斷；篩選後仍有多筆或群組未設定允許清單，才維持原本「安全中止不猜測」的行為。
+        只要此群組已在「群組管理 Tab」開啟廠商驗證並設定允許清單，會<strong>優先</strong>用該清單篩選候選——若篩選後剛好只剩一筆即直接採用，
+        不必等到 Step 4d 才判斷。<strong>只有在群組允許清單無法篩出唯一結果時（清單未設定、或篩選後仍有多筆），才會退而使用 Transfer/Seamless 段數猜測等其他 fallback 策略</strong>；
+        猜測結果依然中止則維持原本「安全中止不猜測」的行為。此優先順序確保「群組管理員的明確設定」永遠比「依命名慣例的猜測」更權威，
+        避免猜測結果與群組實際允許的廠商衝突（衝突時猜測可能被 Step 4d 誤擋，或在群組未設定驗證時猜錯而無安全網攔截）。
       </div>
       <table>
         <thead><tr><th style="width:150px">步驟</th><th>判斷方式</th></tr></thead>
@@ -908,7 +910,7 @@
             <td><span class="tag tag-blue">Step 4a</span><br><span style="font-size:12px;color:var(--text-secondary)">前綴逐層比對</span></td>
             <td>
               從帳號第一段開始，每次多加一段組成前綴，篩選廠商名稱等於或以該前綴為起頭的清單。若某層剛好只剩一筆即命中；若某層結果為 0 筆，嘗試用上一層候選清單再做 fallback（回推帳號完整名是否以候選廠商名稱為起頭），唯一則命中。<br><br>
-              <span class="tag tag-orange">Transfer / Seamless 消歧</span>若某層剛好找到 2 筆候選，且兩者恰好是同一品牌前綴下的 <span class="code">{品牌}_Transfer</span> 與 <span class="code">{品牌}_Seamless</span> 兩條線，則依帳號<strong>段數</strong>判斷：共 <strong>3 段</strong>（品牌_子代理_幣別，如 <span class="code">Con99_XXX_MYR</span>）判定為 <span class="code">Transfer</span>；共 <strong>2 段</strong>（品牌_子代理，如 <span class="code">Con99_XXX</span>）判定為 <span class="code">Seamless</span>。此為多數廠商通用命名慣例；段數不符或候選非此組合則不套用，繼續原本逐層比對流程。
+              <span class="tag tag-orange">Transfer / Seamless 段數猜測（最後 fallback）</span>若某層剛好找到 2 筆候選，且兩者恰好是同一品牌前綴下的 <span class="code">{品牌}_Transfer</span> 與 <span class="code">{品牌}_Seamless</span> 兩條線：<strong>先嘗試用群組允許清單消歧</strong>（見上方提示），若清單無法篩出唯一結果，才依帳號<strong>段數</strong>猜測：共 <strong>3 段</strong>（品牌_子代理_幣別，如 <span class="code">Con99_XXX_MYR</span>）判定為 <span class="code">Transfer</span>；共 <strong>2 段</strong>（品牌_子代理，如 <span class="code">Con99_XXX</span>）判定為 <span class="code">Seamless</span>。此為多數廠商通用命名慣例，屬於猜測性質，僅在群組允許清單無法提供更明確依據時才會使用；段數不符或候選非此組合則不套用，繼續原本逐層比對流程。
             </td>
           </tr>
           <tr>

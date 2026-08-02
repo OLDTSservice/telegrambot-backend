@@ -340,8 +340,14 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                                 logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
                         break
                     else:
-                        # 候選 ≥2 筆：嘗試 Transfer / Seamless 消歧（同品牌前綴僅差這兩條線，
-                        # 依帳號段數判斷：3 段（含幣別）視為 Transfer，2 段視為 Seamless）
+                        # 候選 ≥2 筆：優先用群組「允許廠商清單」消歧（明確設定，優先權最高）；
+                        # 清單解不出唯一結果時，才退而用 Transfer / Seamless 段數猜測當最後 fallback
+                        # （同品牌前綴僅差這兩條線，依帳號段數判斷：3 段含幣別視為 Transfer，2 段視為 Seamless）
+                        picked = _disambiguate_by_allowed(candidates)
+                        if picked:
+                            matched_id, matched_name = picked
+                            logger.info(f"[Whitelist] 候選 {len(candidates)} 筆，依群組允許清單消歧：{matched_name}")
+                            break
                         suffixes = {name.upper()[len(prefix):].lstrip('_-') for _, name in candidates}
                         if suffixes == {"TRANSFER", "SEAMLESS"}:
                             seg_count = len(username_parts)
