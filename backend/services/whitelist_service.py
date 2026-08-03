@@ -161,12 +161,15 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
 
     all_usernames: list[str] = []
 
-    m = _USERNAME_RE.search(text)
-    if m:
-        all_usernames.extend(_extract_account_tokens(m.group(1)))
-        # 找 label 之後的行，若像帳號格式（英數底線，含逗號分隔多帳號）也納入；
+    # 用 finditer 找出訊息裡「所有」符合標籤格式的帳號（同一則訊息可能有多組
+    # 重複的「代理账号/Username：xxx」區塊，例如多個代理各自一段申請內容）
+    matches = list(_USERNAME_RE.finditer(text))
+    if matches:
+        for _m in matches:
+            all_usernames.extend(_extract_account_tokens(_m.group(1)))
+        # 找最後一個 label 之後的行，若像帳號格式（英數底線，含逗號分隔多帳號）也納入；
         # 遇到 IP 行跳過但繼續掃描後續行，因為帳號清單不一定都排在 IP 之前
-        rest = text[m.end():]
+        rest = text[matches[-1].end():]
         for line in rest.splitlines():
             line = line.strip()
             if not line:
@@ -443,6 +446,34 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                             logger.info(f"[Whitelist] Step4c-2 依群組允許清單消歧：{matched_name}")
                         else:
                             logger.error(f"[Whitelist] Step4c-2 後綴比對有歧義（{[n for _, n in suffix_matches]}），中止")
+
+                # ── Step 4c-3：廠商名稱前綴比對（帳號第一段是廠商名稱的開頭，
+                # 兩者間無底線/破折號分隔時適用，例如帳號 "HWTYBMSTR_xxx" 對應廠商 "HWTYBMSTRMYR"）。
+                # 取「最短」且唯一者：避免帳號簡寫剛好也是另一個更長廠商名稱的前綴子集時誤判
+                # （例如 first_seg="HWTYBMSTR" 同時是 "HWTYBMSTRMYR" 與 "HWTYBMSTR1to1MYR" 的前綴，
+                # 正確答案是最短、最貼近的 "HWTYBMSTRMYR"）──
+                if not matched_id:
+                    first_seg = username_parts[0].upper()
+                    prefix_affix_matches = [
+                        (api_id, name)
+                        for api_id, name in all_vendors
+                        if name.upper().startswith(first_seg) and len(name) > len(first_seg)
+                    ]
+                    logger.info(f"[Whitelist] Step4c-3 前綴比對：first_seg='{first_seg}'，候選={[n for _, n in prefix_affix_matches]}")
+                    if prefix_affix_matches:
+                        shortest = min(prefix_affix_matches, key=lambda x: len(x[1]))
+                        shortest_len = len(shortest[1])
+                        same_len = [x for x in prefix_affix_matches if len(x[1]) == shortest_len]
+                        if len(same_len) == 1:
+                            matched_id, matched_name = shortest
+                            logger.info(f"[Whitelist] Step4c-3 唯一匹配：id={matched_id}, name={matched_name}")
+                        else:
+                            picked = _disambiguate_by_allowed(same_len)
+                            if picked:
+                                matched_id, matched_name = picked
+                                logger.info(f"[Whitelist] Step4c-3 依群組允許清單消歧：{matched_name}")
+                            else:
+                                logger.error(f"[Whitelist] Step4c-3 最短匹配有歧義（{[n for _, n in same_len]}），中止")
 
             if not matched_id:
                 return False, None, False
