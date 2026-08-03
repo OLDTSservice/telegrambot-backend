@@ -50,6 +50,8 @@ def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(ge
         bot.is_managed = payload.is_managed
     if payload.whitelist_enabled is not None:
         bot.whitelist_enabled = payload.whitelist_enabled
+    if payload.game_asset_enabled is not None:
+        bot.game_asset_enabled = payload.game_asset_enabled
     if payload.is_enabled is not None:
         bot.is_enabled = payload.is_enabled
         if payload.is_enabled:

@@ -56,6 +56,7 @@ class BotUpdate(BaseModel):
     is_enabled: Optional[bool] = None
     is_managed: Optional[bool] = None
     whitelist_enabled: Optional[bool] = None
+    game_asset_enabled: Optional[bool] = None
 
 
 class BotOut(BotBase):
@@ -63,6 +64,7 @@ class BotOut(BotBase):
     is_enabled: bool
     is_managed: bool = False
     whitelist_enabled: bool = False
+    game_asset_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 

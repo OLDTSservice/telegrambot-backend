@@ -43,6 +43,7 @@ def _migrate_columns():
         "ALTER TABLE telegram_group_settings ADD COLUMN single_vendor_name VARCHAR(128)",
         "ALTER TABLE telegram_group_settings ADD COLUMN relaxed_bo_detect BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_ignores ADD COLUMN exception_keyword VARCHAR(500)",
+        "ALTER TABLE telegram_bots ADD COLUMN game_asset_enabled BOOLEAN DEFAULT 0",
     ]
     with engine.connect() as conn:
         for sql in migrations:

@@ -54,6 +54,11 @@ function BotListTab({ user }) {
     catch { message.error('切換失敗') }
   }
 
+  const handleToggleGameAsset = async (bot, checked) => {
+    try { await updateBot(bot.id, { game_asset_enabled: checked }); message.success(checked ? 'JILI遊戲素材查詢已啟用' : 'JILI遊戲素材查詢已關閉'); load() }
+    catch { message.error('切換失敗') }
+  }
+
   const handleDelete = async (id) => {
     try { await deleteBot(id); message.success('已刪除'); load() }
     catch { message.error('刪除失敗') }
@@ -67,17 +72,23 @@ function BotListTab({ user }) {
       ),
     },
     {
-      title: '機器人名稱', dataIndex: 'name',
+      title: '機器人名稱', dataIndex: 'name', width: 200, ellipsis: true,
       render: (name, record) => (
-        <Space>
-          <RobotOutlined style={{ color: record.is_enabled ? '#52c41a' : '#bbb' }} />
-          <Text strong>{name}</Text>
-          {record.is_enabled && <Tag color="green" style={{ fontSize: 11 }}>運行中</Tag>}
+        <Space size={4}>
+          <RobotOutlined style={{ color: record.is_enabled ? '#52c41a' : '#bbb', flexShrink: 0 }} />
+          <Text strong ellipsis style={{ maxWidth: 110 }} title={name}>{name}</Text>
+          {record.is_enabled && <Tag color="green" style={{ fontSize: 11, flexShrink: 0 }}>運行中</Tag>}
         </Space>
       ),
     },
     {
-      title: 'Token', dataIndex: 'token', ellipsis: true,
+      title: 'JILI遊戲素材查詢', dataIndex: 'game_asset_enabled', width: 140,
+      render: (val, record) => (
+        <Switch checked={!!val} onChange={checked => handleToggleGameAsset(record, checked)} disabled={!canEdit(user)} size="small" />
+      ),
+    },
+    {
+      title: 'Token', dataIndex: 'token', width: 200, ellipsis: true,
       render: token => <Text code style={{ fontSize: 12 }}>{token.slice(0, 20)}…</Text>,
     },
     {
@@ -106,6 +117,7 @@ function BotListTab({ user }) {
         )}
       </div>
       <Table rowKey="id" dataSource={bots} columns={columns} loading={loading}
+        scroll={{ x: 920 }}
         pagination={{ pageSize: 10 }} locale={{ emptyText: '尚未新增任何機器人' }} />
       <Modal title={editingBot ? '編輯機器人' : '新增機器人'} open={modalOpen}
         onOk={handleSubmit} onCancel={() => setModalOpen(false)}

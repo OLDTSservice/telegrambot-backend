@@ -355,6 +355,41 @@ class BotManager:
                 else:
                     logger.warning(f"Bot {bot_id} 白名單請求解析失敗（無法取得廠商或IP）")
 
+        # 0.6 JILI 遊戲素材查詢（僅該機器人開啟此功能時執行，優先於關鍵字/知識庫）
+        if bot_record.game_asset_enabled:
+            from services.game_asset_service import (
+                detect_game_asset_request, get_cached_game_list,
+                match_game_name, search_game,
+            )
+            if detect_game_asset_request(text):
+                game_list = await asyncio.to_thread(get_cached_game_list)
+                matched_name, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
+                    await asyncio.to_thread(match_game_name, text, game_list)
+                )
+                if ga_in_tok or ga_cache_read:
+                    record_usage(bot_id, ga_in_tok, ga_out_tok, db,
+                                cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
+                if matched_name:
+                    game_result = await asyncio.to_thread(search_game, matched_name)
+                    if game_result.get("found"):
+                        icon = game_result.get("icon_url") or "（無）"
+                        material = game_result.get("material_url") or "（無）"
+                        reply_text = (
+                            f"{game_result['name']} (ID: {game_result['game_id']})\n\n"
+                            f"🖼 Icon：{icon}\n"
+                            f"📦 Material：{material}"
+                        )
+                        await update.message.reply_text(reply_text)
+                        logger.info(f"Bot {bot_id} 遊戲素材查詢成功：{game_result['name']}")
+                        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                        threading.Thread(
+                            target=_create_freshdesk_ticket_bg,
+                            args=(text, reply_text, chat_name), daemon=True
+                        ).start()
+                        return
+                # 抓不到遊戲或查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
+                logger.info(f"Bot {bot_id} 遊戲素材查詢未比對到遊戲，改走知識庫查詢")
+
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
             models.KeywordRule.bot_id == bot_id,
