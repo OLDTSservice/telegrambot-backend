@@ -230,16 +230,12 @@ class BotManager:
                             is_admin = True
                             break
                 if is_admin:
+                    # 完全靜默：成功或失敗都不回覆任何訊息，避免在群組留下多餘通知
                     try:
                         await replied.delete()
-                        await update.message.reply_text("✅ 已收回該則訊息")
                         logger.info(f"Bot {bot_id} 管理員（{sender_id or sender_username}）收回訊息 msg_id={replied.message_id}")
                     except Exception as e:
                         logger.error(f"Bot {bot_id} 收回訊息失敗：{e}", exc_info=True)
-                        try:
-                            await update.message.reply_text("⚠️ 收回失敗，可能訊息已超過可刪除時限或已被刪除")
-                        except Exception:
-                            pass
                 else:
                     logger.info(f"Bot {bot_id} 非管理員（{sender_id or sender_username}）嘗試收回訊息，已忽略")
                 return
