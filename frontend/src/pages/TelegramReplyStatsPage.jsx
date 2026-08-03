@@ -116,6 +116,14 @@ export default function TelegramReplyStatsPage() {
       render: v => <Text strong style={{ color: '#1677ff', fontSize: 15 }}>{v.toLocaleString()}</Text>,
     },
     {
+      title: '知識庫工單', dataIndex: 'kb_tickets', width: 110,
+      render: v => <Text style={{ color: '#722ed1' }}>{(v || 0).toLocaleString()}</Text>,
+    },
+    {
+      title: '白名單工單', dataIndex: 'whitelist_tickets', width: 110,
+      render: v => <Text style={{ color: '#13c2c2' }}>{(v || 0).toLocaleString()}</Text>,
+    },
+    {
       title: '佔比', width: 100,
       render: (_, record) => (
         <Text type="secondary">

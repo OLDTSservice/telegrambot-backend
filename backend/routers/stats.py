@@ -11,17 +11,46 @@ from timezone_utils import taipei_today
 
 router = APIRouter(prefix="/api/stats", tags=["使用量統計"])
 
+# claude-haiku-4-5 定價（USD / 1M tokens），僅供費用預估參考，與前端 StatsPage.jsx 的 PRICE 常數一致
+_PRICE = {"input": 0.80, "output": 4.00, "cache_write": 1.00, "cache_read": 0.08}
+
+
+def _calc_usd(input_tok: int, output_tok: int, cache_read: int, cache_write: int) -> float:
+    return (
+        input_tok * _PRICE["input"] +
+        output_tok * _PRICE["output"] +
+        cache_read * _PRICE["cache_read"] +
+        cache_write * _PRICE["cache_write"]
+    ) / 1_000_000
+
+
+def _month_token_totals(db: Session, month_str: str):
+    row = db.query(
+        func.sum(models.UsageStat.input_tokens),
+        func.sum(models.UsageStat.output_tokens),
+        func.sum(models.UsageStat.cache_read_tokens),
+        func.sum(models.UsageStat.cache_write_tokens),
+    ).filter(models.UsageStat.date.like(f"{month_str}%")).first()
+    return [x or 0 for x in row]
+
 
 @router.get("", response_model=schemas.StatsSummary)
 def get_stats(
     days: int = Query(30, ge=1, le=365),
+    date_from: str = Query(None),
+    date_to: str = Query(None),
     db: Session = Depends(get_db),
     _=Depends(require_viewer),
 ):
     _today_date = taipei_today()
     today = _today_date.isoformat()
     this_month = _today_date.strftime("%Y-%m")
-    start_date = (_today_date - timedelta(days=days)).isoformat()
+    last_month_date = _today_date.replace(day=1) - timedelta(days=1)
+    last_month = last_month_date.strftime("%Y-%m")
+    # 每日/機器人分布圖表：優先使用前端傳入的日期範圍（與回覆統計一致的快捷/自訂選擇），
+    # 未指定時 fallback 回舊有的「近 N 天」模式
+    start_date = date_from if (date_from and date_to) else (_today_date - timedelta(days=days)).isoformat()
+    end_date = date_to if (date_from and date_to) else today
 
     # 今日統計
     today_row = db.query(
@@ -35,6 +64,10 @@ def get_stats(
         func.sum(models.UsageStat.request_count),
     ).filter(models.UsageStat.date.like(f"{this_month}%")).first()
 
+    # 本月 / 上月合計費用（依實際 token 組成精確估算，非近 N 筆的粗略估算）
+    month_cost_usd = _calc_usd(*_month_token_totals(db, this_month))
+    last_month_cost_usd = _calc_usd(*_month_token_totals(db, last_month))
+
     # 每日統計
     daily_rows = db.query(
         models.UsageStat.date,
@@ -43,7 +76,7 @@ def get_stats(
         func.sum(models.UsageStat.output_tokens).label("output_tokens"),
         func.sum(models.UsageStat.request_count).label("request_count"),
     ).filter(
-        models.UsageStat.date >= start_date
+        models.UsageStat.date >= start_date, models.UsageStat.date <= end_date
     ).group_by(models.UsageStat.date).order_by(models.UsageStat.date).all()
 
     # 各機器人統計
@@ -55,18 +88,20 @@ def get_stats(
     ).join(
         models.TelegramBot, models.TelegramBot.id == models.UsageStat.bot_id
     ).filter(
-        models.UsageStat.date >= start_date
+        models.UsageStat.date >= start_date, models.UsageStat.date <= end_date
     ).group_by(models.UsageStat.bot_id, models.TelegramBot.name).all()
 
-    return _build_summary(today_row, month_row, daily_rows, bot_rows)
+    return _build_summary(today_row, month_row, daily_rows, bot_rows, month_cost_usd, last_month_cost_usd)
 
 
-def _build_summary(today_row, month_row, daily_rows, bot_rows):
+def _build_summary(today_row, month_row, daily_rows, bot_rows, month_cost_usd, last_month_cost_usd):
     return schemas.StatsSummary(
         total_tokens_today=today_row[0] or 0,
         total_tokens_month=month_row[0] or 0,
         total_requests_today=today_row[1] or 0,
         total_requests_month=month_row[1] or 0,
+        month_cost_usd=month_cost_usd,
+        last_month_cost_usd=last_month_cost_usd,
         daily=[
             schemas.DailyStatOut(
                 date=r.date,

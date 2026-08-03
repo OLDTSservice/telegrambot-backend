@@ -203,6 +203,8 @@ class StatsSummary(BaseModel):
     total_tokens_month: int
     total_requests_today: int
     total_requests_month: int
+    month_cost_usd: float
+    last_month_cost_usd: float
     daily: List[DailyStatOut]
     by_bot: List[BotStatOut]
 

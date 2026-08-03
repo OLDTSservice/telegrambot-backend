@@ -1,17 +1,31 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Card, Row, Col, Statistic, Select, Spin, Empty, Typography, Tag, Tooltip as AntTooltip,
+  Card, Row, Col, Statistic, Spin, Empty, Typography, Tag, Tooltip as AntTooltip, Space, Button, DatePicker,
 } from 'antd'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { ThunderboltOutlined, ApiOutlined, CalendarOutlined, RobotOutlined, DollarOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
 import { getStats } from '../api'
 import { formatDateTime } from '../utils/datetime'
 import api from '../api'
 
 const { Text } = Typography
+const { RangePicker } = DatePicker
+
+// 快捷時間範圍（與回覆統計頁面相同）
+const PRESETS = [
+  { label: '今日',   getRange: () => [dayjs(), dayjs()] },
+  { label: '昨日',   getRange: () => [dayjs().subtract(1,'day'), dayjs().subtract(1,'day')] },
+  { label: '近7日',  getRange: () => [dayjs().subtract(6,'day'), dayjs()] },
+  { label: '近30日', getRange: () => [dayjs().subtract(29,'day'), dayjs()] },
+  { label: '本月',   getRange: () => [dayjs().startOf('month'), dayjs().endOf('month')] },
+  { label: '上個月', getRange: () => [dayjs().subtract(1,'month').startOf('month'), dayjs().subtract(1,'month').endOf('month')] },
+  { label: '今年',   getRange: () => [dayjs().startOf('year'), dayjs().endOf('year')] },
+  { label: '去年',   getRange: () => [dayjs().subtract(1,'year').startOf('year'), dayjs().subtract(1,'year').endOf('year')] },
+]
 
 const COLORS = ['#1677ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2']
 
@@ -35,14 +49,24 @@ function calcUSD(input, output, cacheRead, cacheWrite) {
 export default function StatsPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [days, setDays] = useState(30)
+  const today = dayjs()
+  const [dateRange, setDateRange] = useState([today.subtract(29, 'day'), today])
+  const [activePreset, setActivePreset] = useState('近30日')
   const [recentQueries, setRecentQueries] = useState([])
+
+  const buildParams = useCallback(() => {
+    const [from, to] = dateRange
+    return {
+      date_from: from.format('YYYY-MM-DD'),
+      date_to: to.format('YYYY-MM-DD'),
+    }
+  }, [dateRange])
 
   const load = async () => {
     setLoading(true)
     try {
       const [statsRes, recentRes] = await Promise.all([
-        getStats(days),
+        getStats(buildParams()),
         api.get('/stats/recent-queries', { params: { limit: 10 } }),
       ])
       setStats(statsRes.data)
@@ -54,20 +78,55 @@ export default function StatsPage() {
     }
   }
 
-  useEffect(() => { load() }, [days])
+  useEffect(() => { load() }, [dateRange])
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>
+  const handlePreset = (preset) => {
+    setActivePreset(preset.label)
+    setDateRange(preset.getRange())
+  }
+
+  const handleRangeChange = (dates) => {
+    if (dates) {
+      setActivePreset(null)
+      setDateRange(dates)
+    }
+  }
+
+  if (loading && !stats) return <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <h2>使用量統計</h2>
-        <Select value={days} onChange={setDays} style={{ width: 130 }}>
-          <Select.Option value={7}>最近 7 天</Select.Option>
-          <Select.Option value={30}>最近 30 天</Select.Option>
-          <Select.Option value={90}>最近 90 天</Select.Option>
-        </Select>
       </div>
+
+      {/* 時間範圍篩選（與回覆統計頁面相同） */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <span style={{ fontWeight: 600, color: '#333' }}>快捷選擇：</span>
+            {PRESETS.map(p => (
+              <Button
+                key={p.label}
+                size="small"
+                type={activePreset === p.label ? 'primary' : 'default'}
+                onClick={() => handlePreset(p)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </Space>
+          <Space wrap>
+            <span style={{ fontWeight: 600, color: '#333' }}>自訂範圍：</span>
+            <RangePicker
+              value={dateRange}
+              onChange={handleRangeChange}
+              allowClear={false}
+              format="YYYY/MM/DD"
+            />
+          </Space>
+        </Space>
+      </Card>
 
       {/* 摘要卡片 */}
       <Row gutter={16} style={{ marginBottom: 20 }}>
@@ -77,7 +136,7 @@ export default function StatsPage() {
           { title: '今日請求次數', value: stats?.total_requests_today ?? 0, icon: <ApiOutlined />, color: '#faad14' },
           { title: '本月請求次數', value: stats?.total_requests_month ?? 0, icon: <RobotOutlined />, color: '#f5222d' },
         ].map(({ title, value, icon, color }) => (
-          <Col span={6} key={title}>
+          <Col span={6} key={title} style={{ marginBottom: 16 }}>
             <Card className="stat-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
@@ -93,33 +152,47 @@ export default function StatsPage() {
             </Card>
           </Col>
         ))}
-        {/* 本月預估費用 */}
-        {recentQueries.length > 0 && (() => {
-          const monthUSD = recentQueries.reduce((sum, q) =>
-            sum + calcUSD(q.input_tokens, q.output_tokens, q.cache_read_tokens, q.cache_write_tokens), 0)
-          return (
-            <Col span={6} key="usd">
-              <Card className="stat-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 10,
-                    background: '#13c2c218', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, color: '#13c2c2',
-                  }}>
-                    <DollarOutlined />
-                  </div>
-                  <Statistic
-                    title="最近 10 筆合計費用"
-                    value={`$${monthUSD.toFixed(4)}`}
-                    valueStyle={{ fontSize: 22, color: '#13c2c2' }}
-                    suffix="USD"
-                  />
-                </div>
-              </Card>
-            </Col>
-          )
-        })()}
+        {/* 本月 / 上月合計費用 */}
+        <Col span={6} style={{ marginBottom: 16 }}>
+          <Card className="stat-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: '#13c2c218', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                fontSize: 20, color: '#13c2c2',
+              }}>
+                <DollarOutlined />
+              </div>
+              <Statistic
+                title="本月合計費用"
+                value={`$${(stats?.month_cost_usd ?? 0).toFixed(4)}`}
+                valueStyle={{ fontSize: 22, color: '#13c2c2' }}
+                suffix="USD"
+              />
+            </div>
+          </Card>
+        </Col>
+        <Col span={6} style={{ marginBottom: 16 }}>
+          <Card className="stat-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: '#72169018', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                fontSize: 20, color: '#722ed1',
+              }}>
+                <DollarOutlined />
+              </div>
+              <Statistic
+                title="上月合計費用"
+                value={`$${(stats?.last_month_cost_usd ?? 0).toFixed(4)}`}
+                valueStyle={{ fontSize: 22, color: '#722ed1' }}
+                suffix="USD"
+              />
+            </div>
+          </Card>
+        </Col>
       </Row>
 
       <Row gutter={16} style={{ marginBottom: 20 }}>

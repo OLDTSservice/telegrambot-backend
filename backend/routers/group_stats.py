@@ -18,6 +18,18 @@ def _apply_date_filter(query, date_col, period: str, value: str,
     return query.filter(date_col.like(f"{value}%"))
 
 
+def _taipei_range_to_utc(date_from: str, date_to: str):
+    """把台灣日曆日期範圍換算成對應的 UTC datetime 範圍，用於比對 created_at（UTC 儲存）欄位。
+    未提供 date_from/date_to 時回傳 (None, None)，呼叫端應略過此過濾條件。"""
+    if not (date_from and date_to):
+        return None, None
+    from datetime import datetime, timedelta
+    taipei_offset = timedelta(hours=8)
+    start_utc = datetime.strptime(date_from, '%Y-%m-%d') - taipei_offset
+    end_utc = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) - taipei_offset
+    return start_utc, end_utc
+
+
 @router.get("/telegram")
 def telegram_group_stats(
     period: str = Query("monthly"),
@@ -42,9 +54,31 @@ def telegram_group_stats(
         models.TelegramGroupStat.chat_name,
         models.TelegramGroupStat.chat_type,
     ).order_by(func.sum(models.TelegramGroupStat.reply_count).desc()).all()
+
+    # 依群組分別統計知識庫工單數 / 白名單工單數（僅在有指定日期範圍時套用，與整體 ticket-counts 邏輯一致）
+    start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)
+
+    kb_q = db.query(models.ConversationLog.chat_id, func.count(models.ConversationLog.id))
+    if bot_id:
+        kb_q = kb_q.filter(models.ConversationLog.bot_id == bot_id)
+    if start_utc:
+        kb_q = kb_q.filter(models.ConversationLog.created_at >= start_utc, models.ConversationLog.created_at < end_utc)
+    kb_by_chat = dict(kb_q.group_by(models.ConversationLog.chat_id).all())
+
+    wl_q = db.query(models.WhitelistLog.chat_id, func.count(models.WhitelistLog.id)).filter(
+        models.WhitelistLog.status == "success"
+    )
+    if bot_id:
+        wl_q = wl_q.filter(models.WhitelistLog.bot_id == bot_id)
+    if start_utc:
+        wl_q = wl_q.filter(models.WhitelistLog.created_at >= start_utc, models.WhitelistLog.created_at < end_utc)
+    wl_by_chat = dict(wl_q.group_by(models.WhitelistLog.chat_id).all())
+
     return [
         {"chat_id": r.chat_id, "chat_name": r.chat_name,
-         "chat_type": r.chat_type, "reply_count": r.total}
+         "chat_type": r.chat_type, "reply_count": r.total,
+         "kb_tickets": kb_by_chat.get(r.chat_id, 0),
+         "whitelist_tickets": wl_by_chat.get(r.chat_id, 0)}
         for r in rows
     ]
 
@@ -161,12 +195,10 @@ def ticket_counts(
     # created_at 以 UTC 儲存，但 date_from/date_to 是前端送來的台灣日曆日期，
     # 需先把台灣日期範圍換算成對應的 UTC 時間範圍，再拿去跟 created_at 比較，
     # 否則台灣時間每天 00:00–08:00 的資料會被歸類到前一天，統計對不上。
+    start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)
+
     def apply(q, col):
-        if date_from and date_to:
-            from datetime import datetime, timedelta
-            taipei_offset = timedelta(hours=8)
-            start_utc = datetime.strptime(date_from, '%Y-%m-%d') - taipei_offset
-            end_utc = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) - taipei_offset
+        if start_utc:
             q = q.filter(col >= start_utc, col < end_utc)
         return q
 

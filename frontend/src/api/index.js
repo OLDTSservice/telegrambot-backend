@@ -55,7 +55,7 @@ export const updateDoc = (id, d) => api.put(`/knowledge/${id}`, d)
 export const deleteDoc = id => api.delete(`/knowledge/${id}`)
 
 // ── Stats ──────────────────────────────────────
-export const getStats = (days = 30) => api.get(`/stats?days=${days}`)
+export const getStats = (params = { days: 30 }) => api.get('/stats', { params })
 
 // ── Teams Bots ─────────────────────────────────
 export const getTeamsBots = () => api.get('/teams-bots')
