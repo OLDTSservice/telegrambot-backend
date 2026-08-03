@@ -76,7 +76,7 @@ export default function App() {
         { key: '/telegram/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
         { key: '/telegram/ignores', icon: <StopOutlined />, label: '忽略名單' },
         { key: '/telegram/bot-admins', icon: <SafetyCertificateOutlined />, label: '機器人管理員名單' },
-        { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
+        { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆工單統計' },
         { key: '/telegram/live', icon: <MessageOutlined />, label: '即時對話管控' },
         { key: '/telegram/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
       ],

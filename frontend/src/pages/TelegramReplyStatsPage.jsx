@@ -34,8 +34,7 @@ const PRESETS = [
 ]
 
 export default function TelegramReplyStatsPage() {
-  const today = dayjs()
-  const [dateRange, setDateRange] = useState([today.startOf('month'), today])
+  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')])
   const [activePreset, setActivePreset] = useState('本月')
   const [botId, setBotId] = useState(null)
   const [bots, setBots] = useState([])
@@ -99,12 +98,12 @@ export default function TelegramReplyStatsPage() {
       ),
     },
     {
-      title: '群組 / 聊天室', dataIndex: 'chat_name',
+      title: '群組 / 聊天室', dataIndex: 'chat_name', width: 200, ellipsis: true,
       render: (name, record) => (
-        <Space>
-          <Text strong>{name}</Text>
+        <Space size={4}>
+          <Text strong ellipsis style={{ maxWidth: 130 }} title={name}>{name}</Text>
           {CHAT_TYPE_TAG[record.chat_type] && (
-            <Tag color={CHAT_TYPE_TAG[record.chat_type].color} style={{ fontSize: 11 }}>
+            <Tag color={CHAT_TYPE_TAG[record.chat_type].color} style={{ fontSize: 11, flexShrink: 0 }}>
               {CHAT_TYPE_TAG[record.chat_type].label}
             </Tag>
           )}
@@ -137,7 +136,7 @@ export default function TelegramReplyStatsPage() {
     <div>
       <Title level={4} style={{ marginBottom: 20 }}>
         <MessageOutlined style={{ marginRight: 8, color: '#1677ff' }} />
-        Telegram 機器人回覆統計
+        Telegram 機器人回覆工單統計
       </Title>
 
       {/* 篩選列 */}
@@ -268,6 +267,7 @@ export default function TelegramReplyStatsPage() {
                 columns={rankColumns}
                 pagination={{ pageSize: 8, size: 'small' }}
                 size="small"
+                scroll={{ x: 720, y: 320 }}
                 locale={{ emptyText: '此期間無回覆記錄' }}
               />
             </Card>
