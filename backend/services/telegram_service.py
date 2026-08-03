@@ -645,7 +645,7 @@ def _save_rescue_candidate(bot_id, chat_id, chat_name, chat_type,
         db.rollback()
 
 
-def _send_notify_message(ticket_id, group_name: str, question: str, error_msg: str = None):
+def _send_notify_message(ticket_id, group_name: str, question: str, error_msg: str = None, answer: str = None):
     """發送 Freshdesk 工單建立通知到指定 Telegram 群組"""
     try:
         from database import SessionLocal
@@ -661,6 +661,7 @@ def _send_notify_message(ticket_id, group_name: str, question: str, error_msg: s
             lines = [
                 f"群組名稱：{group_name}",
                 f"問題訊息：{question}",
+                f"回覆內容：{answer or ''}",
                 f"建立狀態：{'✅ 成功' if success else '❌ 失敗'}",
             ]
             if success:
@@ -694,4 +695,4 @@ def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
     except Exception as e:
         error_msg = str(e)
         logger.error(f"[Freshdesk] 建單例外: {e}")
-    _send_notify_message(ticket_id, group_name, question, error_msg)
+    _send_notify_message(ticket_id, group_name, question, error_msg, answer=answer)

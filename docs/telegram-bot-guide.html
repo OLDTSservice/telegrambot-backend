@@ -469,6 +469,7 @@
         <div style="background:var(--code-bg); padding:10px 14px; border-radius:6px; margin:6px 0;">
           群組名稱：（觸發回覆的 Telegram 群組名稱）<br>
           問題訊息：（觸發開單的原始問題內容）<br>
+          回覆內容：（機器人實際回覆給使用者的內容）<br>
           建立狀態：✅ 成功<br>
           工單編號：#12345
         </div>
@@ -476,10 +477,11 @@
         <div style="background:var(--code-bg); padding:10px 14px; border-radius:6px; margin:6px 0;">
           群組名稱：（觸發回覆的 Telegram 群組名稱）<br>
           問題訊息：（觸發開單的原始問題內容）<br>
+          回覆內容：（機器人實際回覆給使用者的內容）<br>
           建立狀態：❌ 失敗<br>
           失敗原因：HTTP 500: Internal Server Error
         </div>
-        <p class="flow-desc" style="margin-top:8px">新增「問題訊息」欄位是為了在同一群組短時間內有多筆提問時，方便對照失敗通知究竟對應哪一則問題。</p>
+        <p class="flow-desc" style="margin-top:8px">「問題訊息」欄位是為了在同一群組短時間內有多筆提問時，方便對照失敗通知究竟對應哪一則問題；「回覆內容」欄位則是機器人當下實際送出的文字（例如關鍵字規則的固定回覆、知識庫查詢到的答案，或白名單處理成功時的 <span class="code">Done</span>），方便在通知群組直接核對回覆是否恰當，不需要再回頭查對話紀錄。</p>
       </div>
 
       <div class="callout warn">
