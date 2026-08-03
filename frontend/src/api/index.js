@@ -87,6 +87,11 @@ export const createTelegramIgnore = d => api.post('/telegram-ignores', d)
 export const updateTelegramIgnore = (id, d) => api.put(`/telegram-ignores/${id}`, d)
 export const deleteTelegramIgnore = id => api.delete(`/telegram-ignores/${id}`)
 
+export const getTelegramBotAdmins = (params) => api.get('/telegram-bot-admins', { params })
+export const createTelegramBotAdmin = d => api.post('/telegram-bot-admins', d)
+export const updateTelegramBotAdmin = (id, d) => api.put(`/telegram-bot-admins/${id}`, d)
+export const deleteTelegramBotAdmin = id => api.delete(`/telegram-bot-admins/${id}`)
+
 // ── Group Stats ────────────────────────────────
 export const getTelegramGroupStats = (params) =>
   api.get('/group-stats/telegram', { params })

@@ -328,6 +328,7 @@
       <a class="toc-link" href="#rules-page">關鍵字規則</a>
       <a class="toc-link" href="#knowledge-page">知識庫管理</a>
       <a class="toc-link" href="#ignore-page">忽略名單</a>
+      <a class="toc-link" href="#bot-admin-page">機器人管理員名單</a>
       <a class="toc-link" href="#live-page">即時對話管控</a>
       <a class="toc-link" href="#whitelist-page">後台白名單處理</a>
       <a class="toc-link" href="#rescue-detail">AI機器人救援（運作細節）</a>
@@ -773,6 +774,35 @@
       </table>
       <div class="callout">
         忽略名單同時也會讓「AI 救援」機制跳過該使用者，不會被記錄為救援候選（因忽略名單檢查發生在最前面，AI 救援的候選記錄邏輯在其之後才會執行到）；但若訊息命中例外關鍵字而未被忽略，則會照常進入 AI 救援的判斷流程。
+      </div>
+    </section>
+
+    <!-- ═══════════ 機器人管理員名單頁面 ═══════════ -->
+    <section id="bot-admin-page">
+      <h2>機器人管理員名單頁面</h2>
+      <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 機器人管理員名單</span></p>
+      <p>用於控制「誰可以在群組裡對機器人下達管理指令」，目前唯一支援的指令是<strong>收回訊息</strong>：在群組裡<strong>回覆</strong>機器人自己發送過的訊息，並輸入 <span class="code">收回</span>／<span class="code">撤回</span>／<span class="code">undo</span>／<span class="code">recall</span>（不分大小寫，整句需完全符合），機器人會呼叫 Telegram <span class="code">deleteMessage</span> API 把那則自己發的訊息刪除。</p>
+      <table>
+        <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
+        <tbody>
+          <tr><td>選擇機器人</td><td>需先選擇機器人才會載入其管理員名單，也才能新增；不同機器人的管理員名單互相獨立。</td></tr>
+          <tr><td><span class="btn-chip">新增管理員</span></td><td>輸入識別碼即新增至目前選擇的機器人。識別碼可填 <span class="code">@username</span>（用戶名稱）或數字 <span class="code">user_id</span>（可用 Telegram 上的 @userinfobot 查詢），同一機器人下識別碼不可重複新增。</td></tr>
+          <tr><td>啟用開關</td><td>暫時取消該人員的收回權限但保留紀錄，不需重新輸入。</td></tr>
+          <tr><td>備註欄</td><td>選填，方便標註「這是誰、負責什麼」。</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>權限判斷邏輯（缺一不可）</strong>
+        收回指令要同時符合以下三個條件才會真正執行，任一條件不符都會被靜默忽略（不回覆、不刪除、不留痕跡給非管理員看到）：
+        <ol style="margin:6px 0">
+          <li>訊息內容<strong>完全等於</strong>收回關鍵字之一（不是包含，是整句相符）</li>
+          <li>訊息是<strong>回覆</strong>某一則訊息，且被回覆的那則訊息<strong>是機器人自己發的</strong>（不能收回真人或其他機器人發的訊息）</li>
+          <li>下指令的人（依 user_id 或 @username 比對）<strong>在此機器人的管理員名單內</strong>且該筆記錄為啟用狀態</li>
+        </ol>
+      </div>
+      <div class="callout">
+        <strong>刪除是真的刪除，不是「假裝收回」</strong>
+        呼叫的是 Telegram 官方的刪除訊息 API，訊息會從所有人的畫面上直接消失，不像部分平台會留下「訊息已刪除」的提示痕跡。機器人刪除<strong>自己發送的訊息</strong>不需要任何額外的群組管理員權限；若該則訊息已超過 Telegram 允許刪除的時限（一般為 48 小時）或已被刪除過，會刪除失敗並回覆錯誤提示，不會中斷其他功能。
       </div>
     </section>
 

@@ -315,6 +315,31 @@ class TelegramIgnoreOut(BaseModel):
         from_attributes = True
 
 
+# ── TelegramBotAdmin（機器人管理員名單，可下達 收回/undo 等指令）─────────
+class TelegramBotAdminCreate(BaseModel):
+    bot_id: int
+    identifier: str
+    note: Optional[str] = None
+
+
+class TelegramBotAdminUpdate(BaseModel):
+    identifier: Optional[str] = None
+    note: Optional[str] = None
+    is_enabled: Optional[bool] = None
+
+
+class TelegramBotAdminOut(BaseModel):
+    id: int
+    bot_id: int
+    identifier: str
+    note: Optional[str]
+    is_enabled: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ── TeamsIgnore ────────────────────────────────────
 class TeamsIgnoreCreate(BaseModel):
     bot_id: int

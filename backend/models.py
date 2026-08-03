@@ -34,6 +34,7 @@ class TelegramBot(Base):
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("UsageStat", back_populates="bot", cascade="all, delete-orphan")
     ignores = relationship("TelegramIgnore", back_populates="bot", cascade="all, delete-orphan")
+    bot_admins = relationship("TelegramBotAdmin", back_populates="bot", cascade="all, delete-orphan")
     group_stats = relationship("TelegramGroupStat", back_populates="bot", cascade="all, delete-orphan")
     group_settings = relationship("TelegramGroupSetting", back_populates="bot", cascade="all, delete-orphan")
     live_messages = relationship("TelegramMessage", back_populates="bot", cascade="all, delete-orphan")
@@ -175,6 +176,20 @@ class TelegramIgnore(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="ignores")
+
+
+# ── Telegram 機器人管理員名單（可下達 收回/undo 等管理指令）───────────────
+class TelegramBotAdmin(Base):
+    __tablename__ = "telegram_bot_admins"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    identifier = Column(String(255), nullable=False)   # Telegram user_id 或 @username
+    note = Column(String(500), nullable=True)           # 備註說明
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="bot_admins")
 
 
 # ── Telegram Live Messages ────────────────────────────────────────────────

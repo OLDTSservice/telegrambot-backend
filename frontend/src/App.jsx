@@ -5,7 +5,7 @@ import {
   RobotOutlined, KeyOutlined, BookOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   SendOutlined, TeamOutlined, StopOutlined, LineChartOutlined, MessageOutlined,
-  SafetyOutlined,
+  SafetyOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { getMe } from './api'
 import LoginPage from './pages/LoginPage'
@@ -23,6 +23,7 @@ import TelegramReplyStatsPage from './pages/TelegramReplyStatsPage'
 import TelegramLivePage from './pages/TelegramLivePage'
 import WhitelistPage from './pages/WhitelistPage'
 import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
+import TelegramBotAdminPage from './pages/TelegramBotAdminPage'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
@@ -74,6 +75,7 @@ export default function App() {
         { key: '/telegram/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
         { key: '/telegram/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
         { key: '/telegram/ignores', icon: <StopOutlined />, label: '忽略名單' },
+        { key: '/telegram/bot-admins', icon: <SafetyCertificateOutlined />, label: '機器人管理員名單' },
         { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
         { key: '/telegram/live', icon: <MessageOutlined />, label: '即時對話管控' },
         { key: '/telegram/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
@@ -161,6 +163,7 @@ export default function App() {
             <Route path="/telegram/rules" element={<RulesPage user={user} />} />
             <Route path="/telegram/knowledge" element={<KnowledgePage user={user} />} />
             <Route path="/telegram/ignores" element={<TelegramIgnorePage user={user} />} />
+            <Route path="/telegram/bot-admins" element={<TelegramBotAdminPage user={user} />} />
             <Route path="/telegram/reply-stats" element={<TelegramReplyStatsPage />} />
             <Route path="/telegram/live" element={<TelegramLivePage user={user} />} />
             <Route path="/telegram/whitelist" element={<WhitelistPage user={user} />} />

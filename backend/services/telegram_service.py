@@ -14,6 +14,9 @@ _no_match_ts: Dict[str, float] = {}
 _COOLDOWN_SECS = 10       # 無匹配冷卻秒數
 _MIN_TEXT_LEN  = 10       # 無匹配時最短回應字元數
 
+# 收回指令（回覆機器人自己的訊息 + 打出以下任一詞，且發送者在管理員名單內才會生效）
+_UNDO_COMMANDS = {"收回", "撤回", "undo", "recall"}
+
 def _is_application_form(text: str) -> bool:
     """
     偵測結構化申請表單：多行含「數字編號 + 冒號欄位」格式
@@ -206,6 +209,40 @@ class BotManager:
         chat_name = chat.title or chat.full_name or chat.username or f"Chat {chat.id}"
         chat_type = chat.type or "unknown"
         sender_name = update.message.from_user.full_name if update.message.from_user else None
+
+        # 0.2 收回指令：回覆機器人自己發送的訊息 + 特定關鍵字，且發送者在「機器人管理員名單」內，
+        # 才會真的刪除該則訊息（deleteMessage）。非管理員或未回覆機器人訊息時完全不處理，
+        # 不影響後續一般流程。
+        if text.strip().lower() in _UNDO_COMMANDS and update.message.reply_to_message:
+            replied = update.message.reply_to_message
+            bot_user = update.get_bot()
+            replied_is_self = bool(replied.from_user) and replied.from_user.id == bot_user.id
+            if replied_is_self:
+                is_admin = False
+                if sender_id or sender_username:
+                    admins = db.query(models.TelegramBotAdmin).filter(
+                        models.TelegramBotAdmin.bot_id == bot_id,
+                        models.TelegramBotAdmin.is_enabled == True
+                    ).all()
+                    for ad in admins:
+                        val = ad.identifier.lstrip("@").lower()
+                        if sender_id == val or sender_username == val:
+                            is_admin = True
+                            break
+                if is_admin:
+                    try:
+                        await replied.delete()
+                        await update.message.reply_text("✅ 已收回該則訊息")
+                        logger.info(f"Bot {bot_id} 管理員（{sender_id or sender_username}）收回訊息 msg_id={replied.message_id}")
+                    except Exception as e:
+                        logger.error(f"Bot {bot_id} 收回訊息失敗：{e}", exc_info=True)
+                        try:
+                            await update.message.reply_text("⚠️ 收回失敗，可能訊息已超過可刪除時限或已被刪除")
+                        except Exception:
+                            pass
+                else:
+                    logger.info(f"Bot {bot_id} 非管理員（{sender_id or sender_username}）嘗試收回訊息，已忽略")
+                return
 
         # 每次收到訊息都更新群組名稱（確保改名後能同步）
         _refresh_chat_name(bot_id, chat_id, chat_name, db)
