@@ -315,6 +315,7 @@ function GroupManageTab({ user }) {
             rowKey="chat_id"
             dataSource={groups}
             pagination={false}
+            scroll={{ x: 1150, y: 480 }}
             columns={[
               {
                 title: 'AI 問答',
@@ -353,7 +354,9 @@ function GroupManageTab({ user }) {
               {
                 title: '群組名稱',
                 dataIndex: 'chat_name',
-                render: name => <Text strong>{name}</Text>,
+                width: 180,
+                ellipsis: true,
+                render: name => <Text strong ellipsis style={{ maxWidth: 160 }} title={name}>{name}</Text>,
               },
               {
                 title: '類型', dataIndex: 'chat_type', width: 100,
