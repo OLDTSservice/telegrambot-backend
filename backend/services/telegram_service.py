@@ -253,6 +253,9 @@ class BotManager:
         # 管控模式：Bot 層級（全域主開關）OR 群組層級（個別群組）
         is_managed = bool(bot_record.is_managed) or bool(_group_setting.is_managed if _group_setting else False)
 
+        # 自動建立工單開關（群組層級，預設開啟）；關閉時完全不建單，Notify 通知也連帶不會觸發
+        _ticket_creation_enabled = bool(_group_setting.ticket_creation_enabled if _group_setting else True)
+
         allowed_vendors: list = []
         if (_group_setting and _group_setting.whitelist_vendor_check
                 and _group_setting.whitelist_allowed_vendors):
@@ -295,10 +298,11 @@ class BotManager:
                             logger.info(f"Bot {bot_id} 已回覆 Done")
                         except Exception as e:
                             logger.error(f"Bot {bot_id} 回覆 Done 失敗：{e}", exc_info=True)
-                        threading.Thread(
-                            target=_create_freshdesk_ticket_bg,
-                            args=(text, "Done", chat_name), daemon=True
-                        ).start()
+                        if _ticket_creation_enabled:
+                            threading.Thread(
+                                target=_create_freshdesk_ticket_bg,
+                                args=(text, "Done", chat_name), daemon=True
+                            ).start()
                     elif any_vendor_rejected:
                         _wl_reject_reply = (
                             "您好，人員將會協助確認，請稍後"
@@ -335,10 +339,11 @@ class BotManager:
                             logger.info(f"Bot {bot_id} 已回覆 Done（單一總代理模式）")
                         except Exception as e:
                             logger.error(f"Bot {bot_id} 回覆 Done 失敗（單一總代理模式）：{e}", exc_info=True)
-                        threading.Thread(
-                            target=_create_freshdesk_ticket_bg,
-                            args=(text, "Done", chat_name), daemon=True
-                        ).start()
+                        if _ticket_creation_enabled:
+                            threading.Thread(
+                                target=_create_freshdesk_ticket_bg,
+                                args=(text, "Done", chat_name), daemon=True
+                            ).start()
                     elif vendor_rejected:
                         _wl_reject_reply2 = (
                             "您好，人員將會協助確認，請稍後"
@@ -392,10 +397,11 @@ class BotManager:
                     await update.message.reply_text(reply_text)
                     logger.info(f"Bot {bot_id} 遊戲素材查詢成功：{len(found_blocks)}/{len(all_names)} 款")
                     _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                    threading.Thread(
-                        target=_create_freshdesk_ticket_bg,
-                        args=(text, reply_text, chat_name), daemon=True
-                    ).start()
+                    if _ticket_creation_enabled:
+                        threading.Thread(
+                            target=_create_freshdesk_ticket_bg,
+                            args=(text, reply_text, chat_name), daemon=True
+                        ).start()
                     return
                 # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
                 logger.info(f"Bot {bot_id} 遊戲素材查詢未比對到任何遊戲，改走知識庫查詢")
@@ -427,7 +433,8 @@ class BotManager:
                 else:
                     await update.message.reply_text(reply_text)
                     _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply_text, chat_name), daemon=True).start()
+                    if _ticket_creation_enabled:
+                        threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply_text, chat_name), daemon=True).start()
                 return
 
         # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過
@@ -537,7 +544,8 @@ class BotManager:
                 _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
                                        input_tokens=input_tokens, output_tokens=output_tokens,
                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
-                threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name), daemon=True).start()
+                if _ticket_creation_enabled:
+                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name), daemon=True).start()
             else:
                 # 沒有關鍵字規則也沒有知識庫結果 → fallback
                 if bool(_group_setting.silent_no_answer if _group_setting else False):

@@ -429,6 +429,11 @@
             </ul>
             未填允許前綴或關閉開關時，此群組不受廠商限制，任何廠商都可加白。
           </td></tr>
+          <tr><td><strong>自動建立工單</strong> 開關</td><td>
+            對應 <span class="code">TelegramGroupSetting.ticket_creation_enabled</span>（預設<strong>開啟</strong>）。關閉後，此群組所有「一般模式下自動送出」的成功回覆
+            （關鍵字規則命中、知識庫回答成功、白名單加白成功、JILI遊戲素材查詢成功、管控模式人工發送）一律<strong>不建立</strong> Freshdesk 工單，該群組的回覆內容不受影響、照常發送。
+            由於 Notify 通知是掛在「工單建立完成後」才觸發，關閉此開關等同該群組完全不會有任何 Notify 通知。
+          </td></tr>
         </tbody>
       </table>
       <div class="callout warn">
@@ -655,7 +660,9 @@
 
       <div class="callout">
         <strong>關於「Freshdesk 工單自動建立」</strong>
-        只有在<strong>一般模式（非管控模式）</strong>下，機器人「自動送出」的關鍵字回覆、知識庫回覆、白名單成功處理這三種情境，才會在背景執行緒呼叫外部 Freshdesk 建單 API 留存記錄；管控模式下由人工發送、以及 Fallback 無解答回覆、AI 救援回覆，都不會建立工單。
+        在<strong>一般模式（非管控模式）</strong>下，機器人「自動送出」的關鍵字回覆、知識庫回覆、白名單成功處理、JILI遊戲素材查詢成功這四種情境，
+        會在背景執行緒呼叫外部 Freshdesk 建單 API 留存記錄；管控模式下由人工發送同樣會建單，但 Fallback 無解答回覆、AI 救援回覆不會建單。
+        每個群組可在「群組管理 Tab」關閉「自動建立工單」開關（預設開啟），關閉後上述所有情境一律不建單，Notify 通知也連帶不會觸發。
       </div>
     </section>
 
@@ -1218,7 +1225,7 @@
           <tr><td>知識庫回覆 Token 上限</td><td>max_tokens = 1024</td><td>單次 AI 回答長度上限</td></tr>
           <tr><td>白名單請求判斷</td><td>需含後台關鍵字 + 至少一個 IPv4，且不含「API」排除字樣</td><td>否則不視為白名單請求</td></tr>
           <tr><td>白名單廠商驗證預設行為</td><td>關閉（不限制）</td><td>需手動至群組管理 Tab 開啟並設定允許前綴；未設定時任何廠商皆可加白</td></tr>
-          <tr><td>Freshdesk 自動建單條件</td><td>僅限「一般模式」下的關鍵字回覆 / 知識庫回覆 / 白名單成功處理</td><td>管控模式人工發送、Fallback、AI 救援回覆皆不建單</td></tr>
+          <tr><td>Freshdesk 自動建單條件</td><td>僅限「一般模式」下的關鍵字回覆 / 知識庫回覆 / 白名單成功處理 / JILI遊戲素材查詢成功</td><td>管控模式人工發送、Fallback、AI 救援回覆皆不建單；且該群組「自動建立工單」開關需為開啟（預設開啟）</td></tr>
           <tr><td>Freshdesk 建單請求逾時</td><td>90 秒</td><td>呼叫外部 Freshdesk 建單 API 的逾時上限</td></tr>
           <tr><td>後台時間顯示時區</td><td>固定 Asia/Taipei（UTC+8）</td><td>時間戳記（created_at）皆以 UTC 儲存，前端統一轉換為台灣時間顯示，不受使用者裝置時區影響</td></tr>
           <tr><td>統計日期分桶時區</td><td>固定 Asia/Taipei（UTC+8）</td><td>回覆統計、使用量統計等「今天/近N日」的日期分桶改用台灣日曆日判斷（<span class="code">timezone_utils.taipei_today()</span>），不受 Render 伺服器 UTC 系統時間影響</td></tr>

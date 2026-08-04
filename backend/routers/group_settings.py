@@ -23,6 +23,7 @@ class GroupOut(BaseModel):
     single_vendor_mode: bool = False
     single_vendor_name: Optional[str] = None
     relaxed_bo_detect: bool = False
+    ticket_creation_enabled: bool = True
     last_active: Optional[str]
 
     class Config:
@@ -39,6 +40,7 @@ class GroupUpdateIn(BaseModel):
     single_vendor_mode: Optional[bool] = None
     single_vendor_name: Optional[str] = None
     relaxed_bo_detect: Optional[bool] = None
+    ticket_creation_enabled: Optional[bool] = None
 
 
 @router.get("")
@@ -111,6 +113,7 @@ def list_groups(
             "single_vendor_mode": s.single_vendor_mode if s else False,
             "single_vendor_name": s.single_vendor_name if s else None,
             "relaxed_bo_detect": s.relaxed_bo_detect if s else False,
+            "ticket_creation_enabled": s.ticket_creation_enabled if s else True,
             "last_active": g.last_active,
         })
     return {"total": total, "items": items}
@@ -144,6 +147,8 @@ def update_group_setting(
             setting.single_vendor_name = payload.single_vendor_name
         if payload.relaxed_bo_detect is not None:
             setting.relaxed_bo_detect = payload.relaxed_bo_detect
+        if payload.ticket_creation_enabled is not None:
+            setting.ticket_creation_enabled = payload.ticket_creation_enabled
     else:
         db.add(models.TelegramGroupSetting(
             bot_id=payload.bot_id,
@@ -156,6 +161,9 @@ def update_group_setting(
             single_vendor_mode=payload.single_vendor_mode or False,
             single_vendor_name=payload.single_vendor_name,
             relaxed_bo_detect=payload.relaxed_bo_detect or False,
+            ticket_creation_enabled=(
+                payload.ticket_creation_enabled if payload.ticket_creation_enabled is not None else True
+            ),
         ))
     db.commit()
     return {"message": "已更新"}

@@ -163,11 +163,16 @@ def send_message(payload: schemas.LiveSendRequest, db: Session = Depends(get_db)
         .first()
     )
     question = user_msg.text if user_msg else payload.text
-    threading.Thread(
-        target=_create_freshdesk_ticket_bg,
-        args=(question, payload.text, chat_name),
-        daemon=True,
-    ).start()
+    group_setting = db.query(models.TelegramGroupSetting).filter(
+        models.TelegramGroupSetting.bot_id == payload.bot_id,
+        models.TelegramGroupSetting.chat_id == payload.chat_id,
+    ).first()
+    if group_setting is None or group_setting.ticket_creation_enabled:
+        threading.Thread(
+            target=_create_freshdesk_ticket_bg,
+            args=(question, payload.text, chat_name),
+            daemon=True,
+        ).start()
 
     return {"ok": True}
 
@@ -254,13 +259,18 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(requi
 
     # 自動開單（與 AI 回覆相同流程）
     if last_msg:
-        import threading
-        from services.telegram_service import _create_freshdesk_ticket_bg
-        threading.Thread(
-            target=_create_freshdesk_ticket_bg,
-            args=(last_msg.text, pending.reply_text, last_msg.chat_name),
-            daemon=True,
-        ).start()
+        group_setting = db.query(models.TelegramGroupSetting).filter(
+            models.TelegramGroupSetting.bot_id == pending.bot_id,
+            models.TelegramGroupSetting.chat_id == pending.chat_id,
+        ).first()
+        if group_setting is None or group_setting.ticket_creation_enabled:
+            import threading
+            from services.telegram_service import _create_freshdesk_ticket_bg
+            threading.Thread(
+                target=_create_freshdesk_ticket_bg,
+                args=(last_msg.text, pending.reply_text, last_msg.chat_name),
+                daemon=True,
+            ).start()
 
     return {"ok": True}
 

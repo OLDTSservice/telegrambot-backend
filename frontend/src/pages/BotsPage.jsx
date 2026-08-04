@@ -220,6 +220,16 @@ function GroupManageTab({ user }) {
     }
   }
 
+  const handleToggleTicketCreation = async (chatId, enabled) => {
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, ticket_creation_enabled: enabled })
+      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, ticket_creation_enabled: enabled } : g))
+      message.success(enabled ? '自動建立工單已啟用' : '自動建立工單已關閉')
+    } catch {
+      message.error('切換失敗')
+    }
+  }
+
   const handleToggleSilent = async (chatId, enabled) => {
     try {
       await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, silent_no_answer: enabled })
@@ -327,7 +337,7 @@ function GroupManageTab({ user }) {
             rowKey="chat_id"
             dataSource={groups}
             pagination={false}
-            scroll={{ x: 1150, y: 480 }}
+            scroll={{ x: 1270, y: 480 }}
             columns={[
               {
                 title: 'AI 問答',
@@ -430,6 +440,18 @@ function GroupManageTab({ user }) {
                       checkedChildren="放寬" unCheckedChildren="嚴格"
                     />
                   </Tooltip>
+                ),
+              },
+              {
+                title: '自動建立工單',
+                dataIndex: 'ticket_creation_enabled',
+                width: 120,
+                render: (val, record) => (
+                  <Switch checked={val !== false} size="small"
+                    onChange={checked => handleToggleTicketCreation(record.chat_id, checked)}
+                    disabled={!canEdit(user)}
+                    checkedChildren="開啟" unCheckedChildren="關閉"
+                  />
                 ),
               },
             ]}
