@@ -190,15 +190,34 @@ def create_qa(payload: QACreate, db: Session = Depends(get_db), _=Depends(requir
         order_index=max_order,
     )
     db.add(qa)
-    # 同步寫入 chunk 讓查詢時能用到
+    # 同步寫入 chunk 讓查詢時能用到，並用 chunk_id 建立雙向連結，供編輯/刪除時同步
     chunk_text = f"Q: {payload.question}\n{payload.keywords or ''}\nA: {payload.answer}".strip()
-    db.add(models.KnowledgeChunk(
+    chunk = models.KnowledgeChunk(
         doc_id=payload.doc_id, bot_id=doc.bot_id,
         chunk_text=chunk_text, chunk_index=max_order,
-    ))
+    )
+    db.add(chunk)
+    db.flush()  # 取得 chunk.id
+    qa.chunk_id = chunk.id
     db.commit()
     db.refresh(qa)
     return qa
+
+
+def _get_or_adopt_chunk(qa: "models.KnowledgeQA", db: Session):
+    """取得此 QA 對應的 chunk；若是舊資料沒有 chunk_id（此修正上線前建立的），
+    嘗試用 doc_id + chunk_index 找回對應的 chunk 並補上連結；找不到則視為沒有對應 chunk。"""
+    if qa.chunk_id:
+        chunk = db.query(models.KnowledgeChunk).filter(models.KnowledgeChunk.id == qa.chunk_id).first()
+        if chunk:
+            return chunk
+    chunk = db.query(models.KnowledgeChunk).filter(
+        models.KnowledgeChunk.doc_id == qa.doc_id,
+        models.KnowledgeChunk.chunk_index == qa.order_index,
+    ).first()
+    if chunk:
+        qa.chunk_id = chunk.id
+    return chunk
 
 
 @router.put("/qas/{qa_id}", response_model=QAOut)
@@ -208,6 +227,21 @@ def update_qa(qa_id: int, payload: QAUpdate, db: Session = Depends(get_db), _=De
         raise HTTPException(status_code=404, detail="Q&A 不存在")
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(qa, field, value)
+
+    # 同步更新查詢用的 chunk 內容，否則 AI 實際查詢時仍會用到編輯前的舊內容
+    chunk = _get_or_adopt_chunk(qa, db)
+    chunk_text = f"Q: {qa.question}\n{qa.keywords or ''}\nA: {qa.answer}".strip()
+    if chunk:
+        chunk.chunk_text = chunk_text
+    else:
+        new_chunk = models.KnowledgeChunk(
+            doc_id=qa.doc_id, bot_id=qa.bot_id,
+            chunk_text=chunk_text, chunk_index=qa.order_index,
+        )
+        db.add(new_chunk)
+        db.flush()
+        qa.chunk_id = new_chunk.id
+
     db.commit()
     db.refresh(qa)
     return qa
@@ -218,6 +252,9 @@ def delete_qa(qa_id: int, db: Session = Depends(get_db), _=Depends(require_edito
     qa = db.query(models.KnowledgeQA).filter(models.KnowledgeQA.id == qa_id).first()
     if not qa:
         raise HTTPException(status_code=404, detail="Q&A 不存在")
+    chunk = _get_or_adopt_chunk(qa, db)
     db.delete(qa)
+    if chunk:
+        db.delete(chunk)
     db.commit()
     return {"message": "已刪除"}

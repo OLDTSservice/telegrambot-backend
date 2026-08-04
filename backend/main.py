@@ -45,6 +45,7 @@ def _migrate_columns():
         "ALTER TABLE telegram_ignores ADD COLUMN exception_keyword VARCHAR(500)",
         "ALTER TABLE telegram_bots ADD COLUMN game_asset_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_group_settings ADD COLUMN ticket_creation_enabled BOOLEAN DEFAULT 1",
+        "ALTER TABLE knowledge_qas ADD COLUMN chunk_id INTEGER",
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -57,10 +58,54 @@ def _migrate_columns():
                 pass  # 欄位已存在時 SQLite 會拋例外，直接略過
 
 
+def _resync_qa_chunks():
+    """一次性/每次啟動修復：把每筆知識庫 QA 目前的內容同步回對應的查詢用 chunk。
+    修正 chunk_id 關聯上線前，編輯/刪除 QA 不會同步更新 chunk 的問題——啟動時
+    全部重新比對一次，確保過去被編輯過但沒有觸發同步的舊資料也能修好。"""
+    db = SessionLocal()
+    try:
+        qas = db.query(models.KnowledgeQA).all()
+        fixed = 0
+        for qa in qas:
+            chunk_text = f"Q: {qa.question}\n{qa.keywords or ''}\nA: {qa.answer}".strip()
+            chunk = None
+            if qa.chunk_id:
+                chunk = db.query(models.KnowledgeChunk).filter(models.KnowledgeChunk.id == qa.chunk_id).first()
+            if not chunk:
+                chunk = db.query(models.KnowledgeChunk).filter(
+                    models.KnowledgeChunk.doc_id == qa.doc_id,
+                    models.KnowledgeChunk.chunk_index == qa.order_index,
+                ).first()
+            if chunk:
+                if chunk.chunk_text != chunk_text:
+                    chunk.chunk_text = chunk_text
+                    fixed += 1
+                if qa.chunk_id != chunk.id:
+                    qa.chunk_id = chunk.id
+            else:
+                new_chunk = models.KnowledgeChunk(
+                    doc_id=qa.doc_id, bot_id=qa.bot_id,
+                    chunk_text=chunk_text, chunk_index=qa.order_index,
+                )
+                db.add(new_chunk)
+                db.flush()
+                qa.chunk_id = new_chunk.id
+                fixed += 1
+        db.commit()
+        if fixed:
+            logger.info(f"[KnowledgeQA] 已修復 {fixed} 筆過去編輯未同步的知識庫 chunk")
+    except Exception as e:
+        logger.error(f"[KnowledgeQA] chunk 同步修復失敗：{e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def init_db():
     try:
         models.Base.metadata.create_all(bind=engine)
         _migrate_columns()
+        _resync_qa_chunks()
         db = SessionLocal()
         try:
             if not db.query(models.User).filter(models.User.username == "admin").first():

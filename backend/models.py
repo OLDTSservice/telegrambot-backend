@@ -103,6 +103,7 @@ class KnowledgeQA(Base):
     keywords = Column(Text, nullable=True)   # 問題的其他說法或關鍵字（換行分隔）
     answer = Column(Text, nullable=False)
     order_index = Column(Integer, default=0)
+    chunk_id = Column(Integer, ForeignKey("knowledge_chunks.id"), nullable=True)  # 對應的查詢用 chunk，編輯/刪除時需同步
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
