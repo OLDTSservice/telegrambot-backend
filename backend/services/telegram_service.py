@@ -79,8 +79,10 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
         return None
 
     game_list = await asyncio.to_thread(get_list_fn)
-    # 獨立出現的純數字先用本地清單精確比對 Game ID（不經 AI，避免猜成相似的其他遊戲）
-    id_matched_names = find_games_by_id(text, game_list)
+    # 獨立出現的純數字先用本地清單精確比對 Game ID（不經 AI，避免猜成相似的其他遊戲）。
+    # 這裡刻意保留數字 ID 本身去查詢 search API（精確比對），不要轉換成名稱再查——
+    # 名稱查詢是模糊比對，曾發生 "Charge Buffalo" 被誤配到 "3 Charge Buffalo" 的情況。
+    id_queries = find_games_by_id(text, game_list)
     matched_names, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
         await asyncio.to_thread(match_game_names, text, game_list)
     )
@@ -88,12 +90,12 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
         from services.ai_service import record_usage
         record_usage(bot_id, ga_in_tok, ga_out_tok, db,
                     cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
-    all_names = id_matched_names + [n for n in matched_names if n not in id_matched_names]
+    all_queries = id_queries + [n for n in matched_names if n not in id_queries]
 
     found_blocks = []
     seen_game_ids = set()
-    for name in all_names:
-        game_result = await asyncio.to_thread(search_fn, name)
+    for query in all_queries:
+        game_result = await asyncio.to_thread(search_fn, query)
         if game_result.get("found") and game_result.get("game_id") not in seen_game_ids:
             seen_game_ids.add(game_result.get("game_id"))
             icon = game_result.get("icon_url") or "（無）"
@@ -104,7 +106,7 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
                 f"📦 Material：{material}"
             )
     if found_blocks:
-        logger.info(f"Bot {bot_id} {label}遊戲素材查詢成功：{len(found_blocks)}/{len(all_names)} 款")
+        logger.info(f"Bot {bot_id} {label}遊戲素材查詢成功：{len(found_blocks)}/{len(all_queries)} 款")
         return "\n\n".join(found_blocks)
     logger.info(f"Bot {bot_id} {label}遊戲素材查詢未比對到任何遊戲，改走知識庫查詢")
     return None

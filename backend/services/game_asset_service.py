@@ -36,16 +36,17 @@ def detect_game_asset_request(text: str) -> bool:
 
 def find_games_by_id(text: str, game_list: list) -> list[str]:
     """從訊息中擷取獨立的純數字 token，在本地遊戲清單中做『精確』GameID 比對（不經 AI 猜測，避免誤判成其他相似遊戲）。
-    回傳比對到的遊戲名稱清單（可能為空）。JILI/TADA 通用。"""
+    回傳比對到的 **Game ID 字串**清單（不是名稱！刻意保留數字，之後直接用 ID 查詢 search API 才是精確比對；
+    若轉換成名稱再查詢，對方 API 的名稱模糊比對可能誤配到名稱相似的其他遊戲，例如 "Charge Buffalo" 被誤配到
+    "3 Charge Buffalo"）。JILI/TADA 通用。"""
     if not game_list:
         return []
-    id_lookup = {str(g.get("game_id")): g.get("name") for g in game_list if g.get("game_id") is not None}
-    names = []
+    valid_ids = {str(g.get("game_id")) for g in game_list if g.get("game_id") is not None}
+    ids = []
     for tok in _GAME_ID_TOKEN_RE.findall(text):
-        name = id_lookup.get(tok)
-        if name and name not in names:
-            names.append(name)
-    return names
+        if tok in valid_ids and tok not in ids:
+            ids.append(tok)
+    return ids
 
 
 def _fetch_cached_game_list(cache: dict, api_url: str, label: str) -> list:
