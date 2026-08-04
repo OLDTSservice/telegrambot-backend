@@ -59,6 +59,11 @@ function BotListTab({ user }) {
     catch { message.error('切換失敗') }
   }
 
+  const handleToggleTadaAsset = async (bot, checked) => {
+    try { await updateBot(bot.id, { tada_asset_enabled: checked }); message.success(checked ? 'TADA遊戲素材查詢已啟用' : 'TADA遊戲素材查詢已關閉'); load() }
+    catch { message.error('切換失敗') }
+  }
+
   const handleDelete = async (id) => {
     try { await deleteBot(id); message.success('已刪除'); load() }
     catch { message.error('刪除失敗') }
@@ -85,6 +90,12 @@ function BotListTab({ user }) {
       title: 'JILI遊戲素材查詢', dataIndex: 'game_asset_enabled', width: 140,
       render: (val, record) => (
         <Switch checked={!!val} onChange={checked => handleToggleGameAsset(record, checked)} disabled={!canEdit(user)} size="small" />
+      ),
+    },
+    {
+      title: 'TADA遊戲素材查詢', dataIndex: 'tada_asset_enabled', width: 140,
+      render: (val, record) => (
+        <Switch checked={!!val} onChange={checked => handleToggleTadaAsset(record, checked)} disabled={!canEdit(user)} size="small" />
       ),
     },
     {
@@ -117,7 +128,7 @@ function BotListTab({ user }) {
         )}
       </div>
       <Table rowKey="id" dataSource={bots} columns={columns} loading={loading}
-        scroll={{ x: 920 }}
+        scroll={{ x: 1060 }}
         pagination={{ pageSize: 10 }} locale={{ emptyText: '尚未新增任何機器人' }} />
       <Modal title={editingBot ? '編輯機器人' : '新增機器人'} open={modalOpen}
         onOk={handleSubmit} onCancel={() => setModalOpen(false)}

@@ -1,8 +1,9 @@
 """
-JILI 遊戲素材查詢服務
-串接同事提供的 JILI Game Search API：
-- GET /gamelist：取得完整遊戲清單（每日快取一次）
-- GET /search?q=xxx：用遊戲名稱或 GameID 查詢 Icon / Material 連結
+遊戲素材查詢服務（JILI / TADA）
+串接同事提供的 Game Search API：
+- GET /gamelist、/tada-gamelist：取得完整遊戲清單（每日快取一次）
+- GET /search、/tada-search：用遊戲名稱或 GameID 查詢 Icon / Material 連結
+兩個廠商的 API 結構相同，只有網址與是否有中文名稱不同，共用底層邏輯。
 """
 import logging
 import re
@@ -14,10 +15,13 @@ logger = logging.getLogger(__name__)
 
 GAMELIST_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/gamelist"
 SEARCH_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/search"
+TADA_GAMELIST_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/tada-gamelist"
+TADA_SEARCH_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/tada-search"
 
 _GAME_ASSET_KEYWORDS = ["素材", "material", "asset", "icon", "圖示", "圖標", "入口圖"]
 
 _game_list_cache = {"data": None, "fetched_at": 0.0}
+_tada_game_list_cache = {"data": None, "fetched_at": 0.0}
 _CACHE_TTL_SECONDS = 24 * 3600  # 對方每日 09:36 GMT+8 更新資料，快取 24 小時即可
 
 # 獨立成一個詞的純數字（前後不緊連其他數字），視為 Game ID 候選
@@ -32,7 +36,7 @@ def detect_game_asset_request(text: str) -> bool:
 
 def find_games_by_id(text: str, game_list: list) -> list[str]:
     """從訊息中擷取獨立的純數字 token，在本地遊戲清單中做『精確』GameID 比對（不經 AI 猜測，避免誤判成其他相似遊戲）。
-    回傳比對到的遊戲名稱清單（可能為空）。"""
+    回傳比對到的遊戲名稱清單（可能為空）。JILI/TADA 通用。"""
     if not game_list:
         return []
     id_lookup = {str(g.get("game_id")): g.get("name") for g in game_list if g.get("game_id") is not None}
@@ -44,39 +48,59 @@ def find_games_by_id(text: str, game_list: list) -> list[str]:
     return names
 
 
-def get_cached_game_list() -> list:
-    """取得遊戲清單，24 小時內重複呼叫走記憶體快取。失敗時若有舊快取則沿用，否則回傳空清單。"""
+def _fetch_cached_game_list(cache: dict, api_url: str, label: str) -> list:
     now = time.time()
-    if _game_list_cache["data"] is None or (now - _game_list_cache["fetched_at"]) > _CACHE_TTL_SECONDS:
+    if cache["data"] is None or (now - cache["fetched_at"]) > _CACHE_TTL_SECONDS:
         try:
-            resp = requests.get(GAMELIST_API, timeout=20)
+            resp = requests.get(api_url, timeout=20)
             resp.raise_for_status()
-            _game_list_cache["data"] = resp.json()
-            _game_list_cache["fetched_at"] = now
-            logger.info(f"[GameAsset] gamelist 已更新，共 {len(_game_list_cache['data'])} 筆")
+            cache["data"] = resp.json()
+            cache["fetched_at"] = now
+            logger.info(f"[{label}] gamelist 已更新，共 {len(cache['data'])} 筆")
         except Exception as e:
-            logger.error(f"[GameAsset] 取得 gamelist 失敗：{e}")
-            if _game_list_cache["data"] is None:
+            logger.error(f"[{label}] 取得 gamelist 失敗：{e}")
+            if cache["data"] is None:
                 return []
-    return _game_list_cache["data"] or []
+    return cache["data"] or []
+
+
+def get_cached_game_list() -> list:
+    """取得 JILI 遊戲清單，24 小時內重複呼叫走記憶體快取。"""
+    return _fetch_cached_game_list(_game_list_cache, GAMELIST_API, "GameAsset-JILI")
+
+
+def get_cached_tada_game_list() -> list:
+    """取得 TADA 遊戲清單，24 小時內重複呼叫走記憶體快取。"""
+    return _fetch_cached_game_list(_tada_game_list_cache, TADA_GAMELIST_API, "GameAsset-TADA")
+
+
+def _format_game_list(game_list: list) -> str:
+    """組成給 AI 比對用的清單文字。有中文名稱（JILI）就附上，只有英文（TADA）就省略欄位，避免多餘的空斜線。"""
+    lines = []
+    for g in game_list:
+        extras = [g.get("name_zh"), g.get("name_sc")]
+        extras = [e for e in extras if e]
+        if extras:
+            lines.append(f"{g.get('game_id')}: {g.get('name')} / " + " / ".join(extras))
+        else:
+            lines.append(f"{g.get('game_id')}: {g.get('name')}")
+    return "\n".join(lines)
 
 
 def match_game_names(text: str, game_list: list) -> tuple[list[str], int, int, int, int]:
     """用 Claude 對照遊戲清單，從訊息中擷取『所有』被提到的遊戲名稱（一則訊息可能同時問多款遊戲）。
+    JILI/TADA 通用，清單格式自動依是否有中文名稱調整。
     回傳 (遊戲名稱清單, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens)。"""
     from services.ai_service import get_anthropic_client
 
     if not game_list:
         return [], 0, 0, 0, 0
 
-    compact_list = "\n".join(
-        f"{g.get('game_id')}: {g.get('name')} / {g.get('name_zh') or ''} / {g.get('name_sc') or ''}"
-        for g in game_list
-    )
+    compact_list = _format_game_list(game_list)
     system_prompt = (
-        "你是一個遊戲名稱比對助手。以下是完整的遊戲清單（格式：GameID: 英文名稱 / 繁中名稱 / 簡中名稱）。\n"
+        "你是一個遊戲名稱比對助手。以下是完整的遊戲清單（每行格式：GameID: 名稱，若有多語系名稱會以 / 分隔）。\n"
         "請找出使用者訊息中『以文字表示』提到的所有遊戲（訊息可能同時問到不只一款），"
-        "只回覆清單中對應遊戲的英文名稱（name 欄位），必須完全比照清單裡的寫法，不可自行創造、翻譯、修改或猜測名稱；"
+        "只回覆清單中對應遊戲的英文名稱，必須完全比照清單裡的寫法，不可自行創造、翻譯、修改或猜測名稱；"
         "如果不確定訊息指的是清單中哪一款遊戲，寧可不列出，不要憑感覺猜測相近的遊戲名稱。"
         "若有多款遊戲，請用半形逗號分隔列出，例如：Fortune Gems 500,Royal Fishing。\n"
         "訊息中若有『獨立出現的純數字』（例如單獨的 109、540），一律忽略、不要處理，"
@@ -112,12 +136,21 @@ def match_game_names(text: str, game_list: list) -> tuple[list[str], int, int, i
         return [], 0, 0, 0, 0
 
 
-def search_game(query: str) -> dict:
-    """呼叫 search API，失敗時回傳 found=False"""
+def _search(query: str, api_url: str, label: str) -> dict:
     try:
-        resp = requests.get(SEARCH_API, params={"q": query}, timeout=15)
+        resp = requests.get(api_url, params={"q": query}, timeout=15)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        logger.error(f"[GameAsset] 搜尋遊戲失敗：{e}")
+        logger.error(f"[{label}] 搜尋遊戲失敗：{e}")
         return {"found": False, "query": query}
+
+
+def search_game(query: str) -> dict:
+    """呼叫 JILI search API，失敗時回傳 found=False"""
+    return _search(query, SEARCH_API, "GameAsset-JILI")
+
+
+def search_tada_game(query: str) -> dict:
+    """呼叫 TADA search API，失敗時回傳 found=False"""
+    return _search(query, TADA_SEARCH_API, "GameAsset-TADA")

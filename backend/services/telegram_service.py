@@ -70,6 +70,46 @@ def _is_greeting_or_thanks(text: str) -> bool:
     return normalized in _GREETING_PHRASES
 
 
+async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_fn, label: str):
+    """遊戲素材查詢共用邏輯（JILI/TADA 皆呼叫此函式，僅資料來源不同）。
+    偵測到關鍵字才會查詢；一則訊息可能同時問多款遊戲，逐一查詢後整合成一則回覆；
+    查不到的靜默略過。回傳組好的回覆文字，若完全比對不到任何遊戲則回傳 None（呼叫端應改走知識庫查詢）。"""
+    from services.game_asset_service import detect_game_asset_request, find_games_by_id, match_game_names
+    if not detect_game_asset_request(text):
+        return None
+
+    game_list = await asyncio.to_thread(get_list_fn)
+    # 獨立出現的純數字先用本地清單精確比對 Game ID（不經 AI，避免猜成相似的其他遊戲）
+    id_matched_names = find_games_by_id(text, game_list)
+    matched_names, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
+        await asyncio.to_thread(match_game_names, text, game_list)
+    )
+    if ga_in_tok or ga_cache_read:
+        from services.ai_service import record_usage
+        record_usage(bot_id, ga_in_tok, ga_out_tok, db,
+                    cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
+    all_names = id_matched_names + [n for n in matched_names if n not in id_matched_names]
+
+    found_blocks = []
+    seen_game_ids = set()
+    for name in all_names:
+        game_result = await asyncio.to_thread(search_fn, name)
+        if game_result.get("found") and game_result.get("game_id") not in seen_game_ids:
+            seen_game_ids.add(game_result.get("game_id"))
+            icon = game_result.get("icon_url") or "（無）"
+            material = game_result.get("material_url") or "（無）"
+            found_blocks.append(
+                f"🎮 {game_result['name']} (ID: {game_result['game_id']})\n"
+                f"🖼 Icon：{icon}\n"
+                f"📦 Material：{material}"
+            )
+    if found_blocks:
+        logger.info(f"Bot {bot_id} {label}遊戲素材查詢成功：{len(found_blocks)}/{len(all_names)} 款")
+        return "\n\n".join(found_blocks)
+    logger.info(f"Bot {bot_id} {label}遊戲素材查詢未比對到任何遊戲，改走知識庫查詢")
+    return None
+
+
 class BotManager:
     def __init__(self):
         self._bots: Dict[int, threading.Thread] = {}
@@ -362,49 +402,33 @@ class BotManager:
 
         # 0.6 JILI 遊戲素材查詢（僅該機器人開啟此功能時執行，優先於關鍵字/知識庫）
         if bot_record.game_asset_enabled:
-            from services.game_asset_service import (
-                detect_game_asset_request, get_cached_game_list,
-                find_games_by_id, match_game_names, search_game,
-            )
-            if detect_game_asset_request(text):
-                game_list = await asyncio.to_thread(get_cached_game_list)
-                # 獨立出現的純數字先用本地清單精確比對 Game ID（不經 AI，避免猜成相似的其他遊戲）
-                id_matched_names = find_games_by_id(text, game_list)
-                matched_names, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
-                    await asyncio.to_thread(match_game_names, text, game_list)
-                )
-                if ga_in_tok or ga_cache_read:
-                    record_usage(bot_id, ga_in_tok, ga_out_tok, db,
-                                cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
-                all_names = id_matched_names + [n for n in matched_names if n not in id_matched_names]
-                # 一則訊息可能同時問多款遊戲，逐一查詢；查不到的靜默略過（方案 A），
-                # 只要至少一款查詢成功，就把結果整合成一則回覆
-                found_blocks = []
-                seen_game_ids = set()
-                for name in all_names:
-                    game_result = await asyncio.to_thread(search_game, name)
-                    if game_result.get("found") and game_result.get("game_id") not in seen_game_ids:
-                        seen_game_ids.add(game_result.get("game_id"))
-                        icon = game_result.get("icon_url") or "（無）"
-                        material = game_result.get("material_url") or "（無）"
-                        found_blocks.append(
-                            f"🎮 {game_result['name']} (ID: {game_result['game_id']})\n"
-                            f"🖼 Icon：{icon}\n"
-                            f"📦 Material：{material}"
-                        )
-                if found_blocks:
-                    reply_text = "\n\n".join(found_blocks)
-                    await update.message.reply_text(reply_text)
-                    logger.info(f"Bot {bot_id} 遊戲素材查詢成功：{len(found_blocks)}/{len(all_names)} 款")
-                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                    if _ticket_creation_enabled:
-                        threading.Thread(
-                            target=_create_freshdesk_ticket_bg,
-                            args=(text, reply_text, chat_name), daemon=True
-                        ).start()
-                    return
-                # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
-                logger.info(f"Bot {bot_id} 遊戲素材查詢未比對到任何遊戲，改走知識庫查詢")
+            from services.game_asset_service import get_cached_game_list, search_game
+            reply_text = await _try_game_asset_reply(bot_id, text, db, get_cached_game_list, search_game, "JILI")
+            if reply_text:
+                await update.message.reply_text(reply_text)
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                if _ticket_creation_enabled:
+                    threading.Thread(
+                        target=_create_freshdesk_ticket_bg,
+                        args=(text, reply_text, chat_name), daemon=True
+                    ).start()
+                return
+            # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
+
+        # 0.7 TADA 遊戲素材查詢（僅該機器人開啟此功能時執行，與 JILI 為獨立開關，一個機器人通常只會開其中一種）
+        if bot_record.tada_asset_enabled:
+            from services.game_asset_service import get_cached_tada_game_list, search_tada_game
+            reply_text = await _try_game_asset_reply(bot_id, text, db, get_cached_tada_game_list, search_tada_game, "TADA")
+            if reply_text:
+                await update.message.reply_text(reply_text)
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                if _ticket_creation_enabled:
+                    threading.Thread(
+                        target=_create_freshdesk_ticket_bg,
+                        args=(text, reply_text, chat_name), daemon=True
+                    ).start()
+                return
+            # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
 
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
