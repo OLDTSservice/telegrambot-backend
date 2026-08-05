@@ -290,8 +290,11 @@ async def test_knowledge(bot_id: int, question: str):
     try:
         result = query_knowledge(bot_id, question, db)
         if result:
-            reply, input_tokens, output_tokens = result
-            return {"answer": reply, "input_tokens": input_tokens, "output_tokens": output_tokens}
+            reply, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = result
+            return {
+                "answer": reply, "input_tokens": input_tokens, "output_tokens": output_tokens,
+                "cache_read_tokens": cache_read_tokens, "cache_write_tokens": cache_write_tokens,
+            }
         return {"answer": None, "reason": "沒有找到相關知識庫內容或知識庫為空"}
     except Exception as e:
         return {"error": str(e)}
