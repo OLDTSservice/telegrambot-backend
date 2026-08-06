@@ -147,6 +147,10 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
         re.IGNORECASE
     )
     _TOKEN_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_\-]{3,}$')
+    # 行內（非整行）尋找帳號 token 用：處理「標籤 帳號」以空白分隔、無冒號的格式
+    # （例如 "代理账号/Username Ogpro_WANTOKBET777P_MYR"），此時整行含中英文標籤文字
+    # 不會符合 _TOKEN_RE 的整行比對，需改用 findall 抓出行內獨立的帳號 token。
+    _TOKEN_FINDALL_RE = re.compile(r'\b[A-Za-z0-9][A-Za-z0-9_\-]{3,}\b')
 
     def _extract_account_tokens(value: str) -> list[str]:
         """從可能以逗號（全形/半形）分隔多個帳號的字串中，取出所有符合帳號格式的 token。"""
@@ -206,10 +210,14 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
                 if _label_looks_like_account_field(label) or re.search(r'[_\-]', value):
                     all_usernames.extend(_extract_account_tokens(value))
                 continue
-            # 無標籤、單獨成行：只有含底線/破折號的多段格式才信任（例如 TitanSW39_AZ_THB），
-            # 避免像 "JILI" 這種單一品牌/遊戲名稱單獨成行時被誤判成帳號
+            # 無標籤（或標籤與帳號間只用空白、無冒號分隔）：只信任含底線/破折號的多段格式
+            # token（例如 TitanSW39_AZ_THB），避免像 "JILI" 這種單一品牌/遊戲名稱被誤判成帳號；
+            # 用 findall 而非整行比對，才能處理「代理账号/Username Ogpro_WANTOKBET777P_MYR」
+            # 這種標籤與帳號同一行、無冒號分隔的格式（整行含中英文標籤文字無法整行比對成功）。
             if re.search(r'[_\-]', line):
-                all_usernames.extend(_extract_account_tokens(line))
+                for tok in _TOKEN_FINDALL_RE.findall(line):
+                    if ('_' in tok or '-' in tok) and tok.lower() not in _CLOSING_STOPWORDS:
+                        all_usernames.append(tok)
 
     all_parts = []
     for u in all_usernames:
