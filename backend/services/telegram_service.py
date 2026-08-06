@@ -43,8 +43,15 @@ _GREETING_PHRASES = {
     "bye", "goodbye", "see you", "good morning", "good afternoon", "good evening", "good night",
     "great thanks", "perfect thanks", "many thanks", "thanks a lot", "thank you so much", "thank you very much",
     "noted thanks", "noted with thanks", "understood thanks",
+    # 英文取消/忽略前訊息（不含實際問題內容）
+    "ignore", "please ignore", "kindly ignore", "ignore this", "ignore that",
+    "ignore above", "ignore the above", "please disregard", "disregard", "disregard that",
+    "never mind", "nevermind", "nvm", "cancel that", "cancel this",
+    "ignore thanks", "please ignore thanks", "kindly ignore thanks", "kindy ignore thanks",
+    "ignore this thanks", "please disregard thanks", "never mind thanks",
     # 中文問候/感謝/道別
     "好的", "收到", "明白了", "明白", "了解", "知道了", "辛苦了",
+    "請忽略", "請忽略上面", "請忽略以上", "忽略上面", "忽略以上", "不用理會", "當我沒說", "取消",
     "謝謝", "谢谢", "多謝", "多谢", "感謝", "感谢", "謝謝晒", "谢谢晒", "唔該", "唔该",
     "你好", "您好", "嗨", "哈囉", "哈罗", "早安", "午安", "晚安", "再見", "再见", "拜拜",
 }
@@ -55,6 +62,7 @@ _GREETING_TEAM_SUFFIXABLE = {
     "got it", "noted", "understood", "roger", "received", "cheers",
     "great thanks", "perfect thanks", "many thanks", "thanks a lot",
     "bye", "goodbye", "good morning", "good afternoon", "good evening", "good night",
+    "ignore", "please ignore", "kindly ignore", "disregard", "please disregard", "never mind",
 }
 _GREETING_PHRASES |= {f"{p} team" for p in _GREETING_TEAM_SUFFIXABLE}
 _GREETING_NORMALIZE_RE = None
