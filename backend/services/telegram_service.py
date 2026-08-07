@@ -17,13 +17,26 @@ _MIN_TEXT_LEN  = 10       # 無匹配時最短回應字元數
 # 收回指令（回覆機器人自己的訊息 + 打出以下任一詞，且發送者在管理員名單內才會生效）
 _UNDO_COMMANDS = {"收回", "撤回", "undo", "recall"}
 
+_SUPPORT_TICKET_MARKERS = (
+    "please provide the list below",
+    "可以提供以下资料以便查询",
+    "可以提供以下資料以便查詢",
+)
+
+
 def _is_application_form(text: str) -> bool:
     """
-    偵測結構化申請表單：多行含「數字編號 + 冒號欄位」格式
-    例：1. 商戶名字：xxx  /  2. Domain URL：xxx
-    條件：至少 3 行符合「編號. 內容：值」或「編號.內容：值」格式
+    偵測結構化申請表單/客服工單，符合任一即視為表單：
+    1. 多行含「數字編號 + 冒號欄位」格式，例：1. 商戶名字：xxx / 2. Domain URL：xxx
+       條件：至少 3 行符合「編號. 內容：值」或「編號.內容：值」格式
+    2. 固定的客服工單範本開頭（如「Please provide the list below」/「可以提供以下资料以便查询」），
+       這類範本欄位（游戏/Game、代理账号/Kiosk ID、玩家账号/Player ID、问题）不一定有數字編號，
+       但開頭語句是系統固定產生的文字，比對到即可高信心判定為表單，不會誤判一般提問或白名單請求。
     """
     import re
+    lower = text.lower()
+    if any(marker in lower for marker in _SUPPORT_TICKET_MARKERS):
+        return True
     lines = text.splitlines()
     # 符合「數字. 任意內容 ：或: 任意內容」的行
     field_line = re.compile(r'^\s*\d+[\.\、]\s*.+[：:].+')
@@ -98,6 +111,13 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
         from services.ai_service import record_usage
         record_usage(bot_id, ga_in_tok, ga_out_tok, db,
                     cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
+    # 若某個獨立數字剛好是「文字比對到的遊戲名稱」結尾的數字（例如遊戲本身就叫
+    # "Coin of Lightning 2"），代表這個數字其實是名稱的一部分，而非另一款遊戲的獨立 ID，
+    # 避免同一句話被誤判成同時查詢兩款不同的遊戲。
+    id_queries = [
+        q for q in id_queries
+        if not any(name.split()[-1] == q for name in matched_names)
+    ]
     all_queries = id_queries + [n for n in matched_names if n not in id_queries]
 
     found_blocks = []
