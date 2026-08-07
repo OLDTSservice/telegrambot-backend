@@ -1,4 +1,5 @@
 import asyncio
+import re
 import threading
 import logging
 import time
@@ -23,6 +24,16 @@ _SUPPORT_TICKET_MARKERS = (
     "可以提供以下資料以便查詢",
 )
 
+# 客服工單常見的「遊戲」欄位標籤（如「游戏名称/Game：JILI」）
+_TICKET_GAME_FIELD_RE = re.compile(r'(游戏名称|游戏|game)\s*[/／]?\s*\w*\s*[：:]', re.IGNORECASE)
+# 客服工單常見的「帳號」欄位標籤（如「代理账号/Username：xxx」）
+_TICKET_ACCOUNT_FIELD_RE = re.compile(
+    r'(代理账号|代理帳號|账号|帳號|username|kiosk\s*id|player\s*id)\s*[/／]?\s*\w*\s*[：:]',
+    re.IGNORECASE,
+)
+# 白名單請求一定會附上要加白的 IP，用來把白名單請求排除在「遊戲+帳號欄位＝工單」規則之外
+_TICKET_IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+
 
 def _is_application_form(text: str) -> bool:
     """
@@ -31,11 +42,23 @@ def _is_application_form(text: str) -> bool:
        條件：至少 3 行符合「編號. 內容：值」或「編號.內容：值」格式
     2. 固定的客服工單範本開頭（如「Please provide the list below」/「可以提供以下资料以便查询」），
        這類範本欄位（游戏/Game、代理账号/Kiosk ID、玩家账号/Player ID、问题）不一定有數字編號，
-       但開頭語句是系統固定產生的文字，比對到即可高信心判定為表單，不會誤判一般提問或白名單請求。
+       但開頭語句是系統固定產生的文字，比對到即可高信心判定為表單。
+    3. 同時含「遊戲」欄位標籤（游戏名称/Game：）與「帳號」欄位標籤（代理账号/Username：等）、
+       且訊息中「沒有」IP 位址：這是另一種客服工單常見格式，欄位可能只有 2 行、沒有固定開頭語句，
+       後面接的是自由文字的具體請求（例如重設密碼），應交由人員處理，不應讓 AI 自行回答（例如編造
+       重設密碼流程）。
+       白名單請求也常同時出現「游戏/Game：」「代理账号/Username：」欄位（例如「游戏名称/Game：JILI
+       代理账号/Username：xxx 加白后台IP：1.2.3.4」），但一定會附上要加白的 IP，因此额外要求訊息中
+       沒有 IP 位址才視為工單，避免把真正的白名單請求誤判成表單而跳過白名單處理。
     """
-    import re
     lower = text.lower()
     if any(marker in lower for marker in _SUPPORT_TICKET_MARKERS):
+        return True
+    if (
+        _TICKET_GAME_FIELD_RE.search(text)
+        and _TICKET_ACCOUNT_FIELD_RE.search(text)
+        and not _TICKET_IP_RE.search(text)
+    ):
         return True
     lines = text.splitlines()
     # 符合「數字. 任意內容 ：或: 任意內容」的行
