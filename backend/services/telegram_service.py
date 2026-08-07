@@ -54,6 +54,27 @@ def _is_no_kb_topic(text: str) -> bool:
     return any(kw.lower() in lower for kw in _NO_KB_TOPIC_KEYWORDS)
 
 
+# 玩家問題回報／投訴（例如「95A8656 玩家提出的问题」「玩家 95A8656 发过来的视频请检查」）
+# 玩家帳號格式不固定（純英文、純數字、混合、可能含底線皆有可能），無法用格式判斷，
+# 改用「提及玩家」+「需人工檢查/處理類字樣」兩組關鍵字同時出現來判斷，這類訊息本質是
+# 要人工核實特定玩家的個案，知識庫不會有答案。
+_PLAYER_REF_WORDS = ("玩家", "player")
+_PLAYER_CHECK_WORDS = (
+    "提出", "反映", "反饋", "反馈", "請檢查", "请检查", "麻煩檢查", "麻烦检查",
+    "幫忙看一下", "帮忙看一下", "視頻", "视频", "投訴", "投诉", "舉報", "举报",
+    "正常嗎", "正常吗", "够力", "吐分", "賠付", "赔付", "機率", "几率",
+    "reported", "complain", "complaint", "please check", "kindly check", "video", "report",
+)
+
+
+def _is_player_report(text: str) -> bool:
+    """訊息同時提及玩家與需人工檢查/處理的字樣（玩家個案問題/投訴），跳過知識庫直接轉人工"""
+    lower = text.lower()
+    has_player_ref = any(w.lower() in lower for w in _PLAYER_REF_WORDS)
+    has_check_word = any(w.lower() in lower for w in _PLAYER_CHECK_WORDS)
+    return has_player_ref and has_check_word
+
+
 def _is_application_form(text: str) -> bool:
     """
     偵測結構化申請表單/客服工單，符合任一即視為表單：
@@ -570,8 +591,8 @@ class BotManager:
             logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語，略過：「{text[:30]}」")
             return
 
-        # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼等）→ 跳過知識庫，直接 fallback
-        if _is_application_form(text) or _is_no_kb_topic(text):
+        # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴等）→ 跳過知識庫，直接 fallback
+        if _is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
