@@ -39,6 +39,20 @@ _FORM_FIELD_LINE_RE = re.compile(r'^\s*[^\s：:].{0,38}?[：:]\s*.*$')
 # 出現這些字樣即視為白名單相關訊息，排除規則四，避免誤擋真正的白名單請求
 _WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
 
+# 一定不會有知識庫答案的主題（例如詢問處理進度、要求重置密碼），
+# 出現關鍵字即跳過知識庫查詢，直接 fallback 轉人工
+_NO_KB_TOPIC_KEYWORDS = (
+    "任何更新", "any update",
+    "重置密碼", "密碼重置", "重置密码", "密码重置",
+    "reset password", "reset pw",
+)
+
+
+def _is_no_kb_topic(text: str) -> bool:
+    """訊息內容屬於一定查不到知識庫答案的主題（進度詢問、密碼重置等），命中關鍵字即可（不需整句相符）"""
+    lower = text.lower()
+    return any(kw.lower() in lower for kw in _NO_KB_TOPIC_KEYWORDS)
+
 
 def _is_application_form(text: str) -> bool:
     """
@@ -56,7 +70,7 @@ def _is_application_form(text: str) -> bool:
        代理账号/Username：xxx 加白后台IP：1.2.3.4」），但一定會附上要加白的 IP，因此额外要求訊息中
        沒有 IP 位址才視為工單，避免把真正的白名單請求誤判成表單而跳過白名單處理。
     4. 多行「標籤：值」格式但沒有數字編號（例如 API 串接申請單常見的 Brand Name / Website URL /
-       Callback URL / Prod API IP Address 等欄位）：至少 6 行才視為表單，且訊息中不能含白名單相關
+       Callback URL / Prod API IP Address 等欄位）：至少 4 行才視為表單，且訊息中不能含白名單相關
        字樣，避免誤擋真正的白名單請求（白名單請求欄位通常也是「標籤：值」格式，但行數較少，
        且一定會出現白名單關鍵字，用關鍵字排除即可安全區分）。
     """
@@ -77,7 +91,7 @@ def _is_application_form(text: str) -> bool:
         return True
     if not any(w in lower for w in _WHITELIST_SAFETY_WORDS):
         matched_lenient = sum(1 for line in lines if _FORM_FIELD_LINE_RE.match(line))
-        if matched_lenient >= 6:
+        if matched_lenient >= 4:
             return True
     return False
 
@@ -555,9 +569,9 @@ class BotManager:
             logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語，略過：「{text[:30]}」")
             return
 
-        # 功能一-b：申請表單格式偵測 → 跳過知識庫，直接 fallback
-        if _is_application_form(text):
-            logger.info(f"Bot {bot_id} 偵測到申請表單格式，跳過知識庫直接 fallback")
+        # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼等）→ 跳過知識庫，直接 fallback
+        if _is_application_form(text) or _is_no_kb_topic(text):
+            logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
                 return
