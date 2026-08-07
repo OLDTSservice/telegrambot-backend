@@ -7,6 +7,7 @@ import {
   UploadOutlined, DeleteOutlined, FileTextOutlined, EditOutlined,
   FilePdfOutlined, FileExcelOutlined, FileWordOutlined,
   DownloadOutlined, PlusOutlined, BookOutlined, MessageOutlined, SearchOutlined,
+  CopyOutlined,
 } from '@ant-design/icons'
 import api, { getDocs, uploadDoc, updateDoc, deleteDoc, getBots } from '../api'
 import { formatDateTime, formatDate } from '../utils/datetime'
@@ -89,6 +90,9 @@ function SourceTab({ user }) {
   const [rebotModal, setRebotModal] = useState({ open: false, doc: null })
   const [rebotBotId, setRebotBotId] = useState(null)
   const [qaSearch, setQaSearch] = useState('')
+  const [copyQaModal, setCopyQaModal] = useState({ open: false, qa: null })
+  const [copyQaTargetDocId, setCopyQaTargetDocId] = useState(null)
+  const [copyingQa, setCopyingQa] = useState(false)
 
   const loadDocs = useCallback(async () => {
     setLoading(true)
@@ -210,7 +214,7 @@ function SourceTab({ user }) {
       setQaModalOpen(false)
       setEditingQA(null)
       loadDocs()
-      if (selectedDoc) loadQAs(vals.doc_id || selectedDoc.id, qasPage)
+      if (selectedDoc) loadQAs(vals.doc_id || selectedDoc.id, qasPage, qaSearch)
     } catch (err) {
       message.error(err.response?.data?.detail || '儲存失敗')
     }
@@ -221,9 +225,36 @@ function SourceTab({ user }) {
       await api.delete(`/knowledge/qas/${qaId}`)
       message.success('已刪除')
       loadDocs()
-      if (selectedDoc) loadQAs(selectedDoc.id, qasPage)
+      if (selectedDoc) loadQAs(selectedDoc.id, qasPage, qaSearch)
     } catch {
       message.error('刪除失敗')
+    }
+  }
+
+  const openCopyQA = (qa) => {
+    setCopyQaModal({ open: true, qa })
+    setCopyQaTargetDocId(null)
+  }
+
+  const handleCopyQaSubmit = async () => {
+    if (!copyQaTargetDocId) { message.warning('請選擇要複製到的文件'); return }
+    setCopyingQa(true)
+    try {
+      const { qa } = copyQaModal
+      await api.post('/knowledge/qas', {
+        doc_id: copyQaTargetDocId,
+        question: qa.question,
+        keywords: qa.keywords || '',
+        answer: qa.answer,
+      })
+      message.success('已複製到目標文件')
+      setCopyQaModal({ open: false, qa: null })
+      loadDocs()
+      if (selectedDoc?.id === copyQaTargetDocId) loadQAs(selectedDoc.id, qasPage, qaSearch)
+    } catch (err) {
+      message.error(err.response?.data?.detail || '複製失敗')
+    } finally {
+      setCopyingQa(false)
     }
   }
 
@@ -359,6 +390,10 @@ function SourceTab({ user }) {
                         <div style={{ fontSize: 15, color: '#222', whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{qa.answer}</div>
                         {canEdit(user) && (
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }}>
+                            <Button size="small" icon={<CopyOutlined />}
+                              onClick={() => openCopyQA(qa)} title="複製到其他文件">
+                              複製
+                            </Button>
                             <Button size="small" icon={<EditOutlined />}
                               onClick={() => { setEditingQA({ ...qa, doc_id: selectedDoc.id }); setQaModalOpen(true) }}>
                               編輯
@@ -424,6 +459,39 @@ function SourceTab({ user }) {
       {/* Q&A 新增/編輯 Modal */}
       <QAModal open={qaModalOpen} onClose={() => { setQaModalOpen(false); setEditingQA(null) }}
         onSave={handleSaveQA} initial={editingQA} docs={docs} />
+
+      {/* Q&A 複製到其他文件 Modal */}
+      <Modal
+        title="複製 Q&A 到其他文件"
+        open={copyQaModal.open}
+        onOk={handleCopyQaSubmit}
+        onCancel={() => setCopyQaModal({ open: false, qa: null })}
+        okText="複製" cancelText="取消"
+        confirmLoading={copyingQa}
+      >
+        {copyQaModal.qa && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ marginBottom: 12, padding: 10, background: '#f5f6fa', borderRadius: 6, fontSize: 13 }}>
+              <div style={{ fontWeight: 600, color: '#111', marginBottom: 4 }}>{copyQaModal.qa.question}</div>
+              <div style={{ color: '#555', whiteSpace: 'pre-wrap' }}>{copyQaModal.qa.answer}</div>
+            </div>
+            <div style={{ marginBottom: 8, fontSize: 13, color: '#555' }}>複製到目標文件：</div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="選擇要複製到的文件"
+              value={copyQaTargetDocId}
+              onChange={setCopyQaTargetDocId}
+            >
+              {docs.filter(d => d.id !== selectedDoc?.id).map(d => (
+                <Select.Option key={d.id} value={d.id}>{d.original_filename}（{botName(d.bot_id)}）</Select.Option>
+              ))}
+            </Select>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
+              會以相同的問題、關鍵字與回答，在目標文件下新增一筆新的 Q&A（不影響原本這筆）。
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
