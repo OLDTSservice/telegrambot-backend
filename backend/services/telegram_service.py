@@ -83,6 +83,8 @@ _GREETING_PHRASES = {
     "ignore", "please ignore", "kindly ignore", "ignore this", "ignore that",
     "ignore above", "ignore the above", "please disregard", "disregard", "disregard that",
     "never mind", "nevermind", "nvm", "cancel that", "cancel this",
+    "hold on", "hold up", "wait", "one moment", "one sec", "give me a sec", "give me a moment",
+    "let me check", "checking", "please hold", "please wait",
     "ignore thanks", "please ignore thanks", "kindly ignore thanks", "kindy ignore thanks",
     "ignore this thanks", "please disregard thanks", "never mind thanks",
     # 中文問候/感謝/道別
@@ -99,6 +101,7 @@ _GREETING_TEAM_SUFFIXABLE = {
     "great thanks", "perfect thanks", "many thanks", "thanks a lot",
     "bye", "goodbye", "good morning", "good afternoon", "good evening", "good night",
     "ignore", "please ignore", "kindly ignore", "disregard", "please disregard", "never mind",
+    "hold on", "hold up", "wait", "one moment", "one sec",
 }
 _GREETING_PHRASES |= {f"{p} team" for p in _GREETING_TEAM_SUFFIXABLE}
 _GREETING_NORMALIZE_RE = None
