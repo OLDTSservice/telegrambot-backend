@@ -44,7 +44,7 @@ _WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
 _NO_KB_TOPIC_KEYWORDS = (
     "任何更新", "any update",
     "重置密碼", "密碼重置", "重置密码", "密码重置",
-    "reset password", "reset pw",
+    "reset password", "reset pw", "reset pass",
 )
 
 
