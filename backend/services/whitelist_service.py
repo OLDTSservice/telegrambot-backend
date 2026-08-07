@@ -141,9 +141,16 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     回傳 (vendor_code, list_of_username_parts, ip_list)
     list_of_username_parts 可能含多組（訊息內多個代理帳號）
     """
+    # 冒號後只允許同一行內的空白（[ \t]*，不含換行），避免像「Username : 」後面
+    # 沒有接值、實際帳號在下一行（甚至是編號清單）時，\s* 跨行吃掉換行符，
+    # 誤把下一行開頭的字元（例如「1. JK142_MYR」的 "1"）當成 value 擷取出來，
+    # 導致後續「掃描 label 之後的行」邏輯從被截斷的行中段開始，抓不到正確帳號。
+    # 值的擷取群組要求「第一個字元必須是英數字」（不能是空白），避免像「Username : 」
+    # 後面沒接真正的值、只剩下行尾空白時，仍誤判成「已擷取到值」（哪怕值只是空白字元），
+    # 導致明明沒有同行值、應該落到下方逐行掃描分支的情況被錯誤攔截。
     _USERNAME_RE = re.compile(
         r'(?:Username|代理[帐账]号|User(?:name)?|后台帐号|帳號|后台账号|商[户戶]|ID)'
-        r'\s*[：:]\s*([A-Za-z0-9_\-，, \t]+)',
+        r'[ \t]*[：:][ \t]*([A-Za-z0-9][A-Za-z0-9_\-，, \t]*)',
         re.IGNORECASE
     )
     _TOKEN_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_\-]{3,}$')
