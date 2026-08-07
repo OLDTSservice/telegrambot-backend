@@ -34,6 +34,11 @@ _TICKET_ACCOUNT_FIELD_RE = re.compile(
 # 白名單請求一定會附上要加白的 IP，用來把白名單請求排除在「遊戲+帳號欄位＝工單」規則之外
 _TICKET_IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
+# 不含數字編號的「標籤：值」欄位行（規則四用），例如 "Brand Name: PP80"、"Callback URL : "
+_FORM_FIELD_LINE_RE = re.compile(r'^\s*[^\s：:].{0,38}?[：:]\s*.*$')
+# 出現這些字樣即視為白名單相關訊息，排除規則四，避免誤擋真正的白名單請求
+_WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
+
 
 def _is_application_form(text: str) -> bool:
     """
@@ -50,6 +55,10 @@ def _is_application_form(text: str) -> bool:
        白名單請求也常同時出現「游戏/Game：」「代理账号/Username：」欄位（例如「游戏名称/Game：JILI
        代理账号/Username：xxx 加白后台IP：1.2.3.4」），但一定會附上要加白的 IP，因此额外要求訊息中
        沒有 IP 位址才視為工單，避免把真正的白名單請求誤判成表單而跳過白名單處理。
+    4. 多行「標籤：值」格式但沒有數字編號（例如 API 串接申請單常見的 Brand Name / Website URL /
+       Callback URL / Prod API IP Address 等欄位）：至少 6 行才視為表單，且訊息中不能含白名單相關
+       字樣，避免誤擋真正的白名單請求（白名單請求欄位通常也是「標籤：值」格式，但行數較少，
+       且一定會出現白名單關鍵字，用關鍵字排除即可安全區分）。
     """
     lower = text.lower()
     if any(marker in lower for marker in _SUPPORT_TICKET_MARKERS):
@@ -64,7 +73,13 @@ def _is_application_form(text: str) -> bool:
     # 符合「數字. 任意內容 ：或: 任意內容」的行
     field_line = re.compile(r'^\s*\d+[\.\、]\s*.+[：:].+')
     matched = sum(1 for line in lines if field_line.match(line))
-    return matched >= 3
+    if matched >= 3:
+        return True
+    if not any(w in lower for w in _WHITELIST_SAFETY_WORDS):
+        matched_lenient = sum(1 for line in lines if _FORM_FIELD_LINE_RE.match(line))
+        if matched_lenient >= 6:
+            return True
+    return False
 
 
 # 純問候／感謝／道別語（不含實際問題內容）；正規化後需與整句「完全相符」才算命中，
