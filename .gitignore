@@ -31,3 +31,6 @@ Thumbs.db
 
 # Local Netlify folder
 .netlify
+
+# 本機開發伺服器啟動設定（各機器路徑不同，不應共用/覆蓋彼此）
+.claude/launch.json

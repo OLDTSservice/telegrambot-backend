@@ -105,12 +105,13 @@ function SourceTab({ user }) {
 
   useEffect(() => { loadDocs() }, [loadDocs])
 
-  const loadQAs = useCallback(async (docId, page = 1) => {
+  const loadQAs = useCallback(async (docId, page = 1, search = '') => {
     setQasLoading(true)
     try {
+      const qParam = search ? { q: search } : {}
       const [qaRes, countRes] = await Promise.all([
-        api.get(`/knowledge/${docId}/qas`, { params: { page, page_size: 50 } }),
-        api.get(`/knowledge/${docId}/qas/count`),
+        api.get(`/knowledge/${docId}/qas`, { params: { page, page_size: 50, ...qParam } }),
+        api.get(`/knowledge/${docId}/qas/count`, { params: qParam }),
       ])
       setQas(qaRes.data)
       setQasTotal(countRes.data.total)
@@ -125,8 +126,17 @@ function SourceTab({ user }) {
   const handleSelectDoc = (doc) => {
     setSelectedDoc(doc)
     setQaSearch('')
-    loadQAs(doc.id, 1)
   }
+
+  // 搜尋關鍵字時改為呼叫後端搜尋整份文件的 Q&A，而不是只在目前這一頁（50 筆）裡篩選，
+  // 避免關鍵字命中的內容剛好落在其他分頁而顯示不出來；輸入時 debounce 300ms 避免每個按鍵都打 API。
+  useEffect(() => {
+    if (!selectedDoc) return
+    const timer = setTimeout(() => {
+      loadQAs(selectedDoc.id, 1, qaSearch)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [selectedDoc, qaSearch, loadQAs])
 
   const handleUpload = async () => {
     if (!selectedBotId) { message.warning('請先選擇要綁定的機器人'); return }
@@ -328,23 +338,18 @@ function SourceTab({ user }) {
                     onChange={e => setQaSearch(e.target.value)}
                   />
                   <Tag style={{ flexShrink: 0 }}>
-                    {qaSearch
-                      ? `${qas.filter(qa => [qa.question, qa.keywords, qa.answer].join(' ').toLowerCase().includes(qaSearch.toLowerCase())).length} / ${qasTotal} 筆`
-                      : `共 ${qasTotal} 筆 Q&A`}
+                    {qaSearch ? `找到 ${qasTotal} 筆符合` : `共 ${qasTotal} 筆 Q&A`}
                   </Tag>
                 </div>
               </div>
               {qasLoading ? (
                 <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
               ) : qas.length === 0 ? (
-                <Empty description="此文件尚無 Q&A 資料（非 Q&A 格式文件）" style={{ padding: 32 }} />
+                <Empty description={qaSearch ? '沒有符合的 Q&A' : '此文件尚無 Q&A 資料（非 Q&A 格式文件）'} style={{ padding: 32 }} />
               ) : (
                 <>
                   <div style={{ padding: '8px 0', maxHeight: 520, overflowY: 'auto' }}>
-                    {(qaSearch
-                      ? qas.filter(qa => [qa.question, qa.keywords, qa.answer].join(' ').toLowerCase().includes(qaSearch.toLowerCase()))
-                      : qas
-                    ).map((qa, idx) => (
+                    {qas.map((qa, idx) => (
                       <div key={qa.id} style={{ margin: '8px 14px', border: '1.5px solid #c8ccd8', borderRadius: 6, padding: 12, background: '#f8f9fc' }}>
                         <div style={{ fontSize: 13, color: '#555', fontWeight: 600, marginBottom: 4 }}>Q{qasPage > 1 ? (qasPage - 1) * 50 + idx + 1 : idx + 1}</div>
                         <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 2 }}>{qa.question}</div>
@@ -370,7 +375,7 @@ function SourceTab({ user }) {
                     <Pagination
                       current={qasPage} pageSize={50} total={qasTotal} size="small"
                       showTotal={t => `共 ${t} 筆`}
-                      onChange={page => loadQAs(selectedDoc.id, page)}
+                      onChange={page => loadQAs(selectedDoc.id, page, qaSearch)}
                     />
                   </div>
                 </>

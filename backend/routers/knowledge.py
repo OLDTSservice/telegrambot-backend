@@ -145,11 +145,24 @@ class QAOut(BaseModel):
         from_attributes = True
 
 
+def _qas_query(doc_id: int, q: Optional[str], db: Session):
+    query = db.query(models.KnowledgeQA).filter(models.KnowledgeQA.doc_id == doc_id)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            models.KnowledgeQA.question.ilike(like)
+            | models.KnowledgeQA.keywords.ilike(like)
+            | models.KnowledgeQA.answer.ilike(like)
+        )
+    return query
+
+
 @router.get("/{doc_id}/qas", response_model=List[QAOut])
 def list_qas(
     doc_id: int,
     page: int = 1,
     page_size: int = 50,
+    q: Optional[str] = None,
     db: Session = Depends(get_db),
     _=Depends(require_viewer),
 ):
@@ -158,8 +171,7 @@ def list_qas(
         raise HTTPException(status_code=404, detail="文件不存在")
     offset = (page - 1) * page_size
     return (
-        db.query(models.KnowledgeQA)
-        .filter(models.KnowledgeQA.doc_id == doc_id)
+        _qas_query(doc_id, q, db)
         .order_by(models.KnowledgeQA.order_index)
         .offset(offset)
         .limit(page_size)
@@ -168,8 +180,8 @@ def list_qas(
 
 
 @router.get("/{doc_id}/qas/count")
-def count_qas(doc_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
-    total = db.query(models.KnowledgeQA).filter(models.KnowledgeQA.doc_id == doc_id).count()
+def count_qas(doc_id: int, q: Optional[str] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+    total = _qas_query(doc_id, q, db).count()
     return {"total": total}
 
 
