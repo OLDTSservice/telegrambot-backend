@@ -45,6 +45,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "任何更新", "any update",
     "重置密碼", "密碼重置", "重置密码", "密码重置",
     "reset password", "reset pw", "reset pass",
+    "can't login", "cant login", "can not login", "cannot login", "still same", "still the same",
 )
 
 
