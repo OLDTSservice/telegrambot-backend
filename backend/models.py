@@ -31,6 +31,7 @@ class TelegramBot(Base):
     whitelist_enabled = Column(Boolean, default=False) # 後台白名單自動處理開關
     game_asset_enabled = Column(Boolean, default=False) # JILI 遊戲素材查詢開關
     tada_asset_enabled = Column(Boolean, default=False) # TADA 遊戲素材查詢開關
+    tada_gamelist_query_enabled = Column(Boolean, default=False) # TADA Gamelist進階查詢開關（熱門排行/欄位查詢/複合篩選）
 
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")

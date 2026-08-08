@@ -233,6 +233,121 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
     return None
 
 
+_FALLBACK_TRANSFER_MSG_ZH = "您好，人員將會協助確認，請稍後"
+_FALLBACK_TRANSFER_MSG_EN = "Hello, our team will assist you shortly. Please wait."
+
+
+async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
+    """TADA Gamelist 進階查詢（熱門排行/單一遊戲欄位查詢/複合條件篩選）共用邏輯。
+    回傳 (handled, reply)：
+    - (False, None)：訊息與 Gamelist 查詢無關，呼叫端應改走知識庫查詢
+    - (True, None)：確定是 Gamelist 查詢但條件不充分（規格要求不猜、不追問），
+      呼叫端應跳過知識庫直接 fallback 轉人工
+    - (True, "回覆文字")：查詢成功，直接回覆
+    """
+    from services.tada_gamelist_service import (
+        detect_gamelist_query_request, parse_gamelist_intent, resolve_region,
+        get_top_games, find_game, resolve_field_names, filter_games,
+    )
+    if not detect_gamelist_query_request(text):
+        return False, None
+
+    intent, in_tok, out_tok = await asyncio.to_thread(parse_gamelist_intent, text)
+    if in_tok:
+        from services.ai_service import record_usage
+        record_usage(bot_id, in_tok, out_tok, db)
+
+    kind = intent.get("intent")
+    is_zh = bool(re.search(r'[一-鿿㐀-䶿]', text))
+
+    if kind == "none":
+        return False, None
+
+    if kind == "insufficient":
+        if len(text.strip()) < _MIN_TEXT_LEN:
+            # 訊息太短（例如「RTP 是多少？」），跟其他功能一樣視為雜訊直接忽略，
+            # 不主動觸發轉人工回覆／記 log，交由既有的短訊息略過規則統一處理。
+            logger.info(f"Bot {bot_id} TADA Gamelist 查詢：問題不完整且訊息過短，視為無關略過")
+            return False, None
+        logger.info(f"Bot {bot_id} TADA Gamelist 查詢：問題不完整，跳過知識庫直接轉人工")
+        return True, None
+
+    if kind == "top_games":
+        from services.tada_gamelist_service import GAMERANK_SHEET_URL
+        region_text = intent.get("region_text") or ""
+        count = intent.get("count") or 10
+        if not region_text.strip():
+            # 情境A（未指定地區）：規格要求給整份總表連結，不主動列出排行
+            return True, (
+                f"您好~這邊幫您整理了熱門遊戲的排行總表，每月會更新，歡迎參考：\n{GAMERANK_SHEET_URL}"
+                if is_zh else
+                f"Hi, here's our top games ranking sheet (updated monthly), please have a look:\n{GAMERANK_SHEET_URL}"
+            )
+        region = resolve_region(region_text)
+        if not region:
+            logger.info(f"Bot {bot_id} TADA Gamelist 熱門排行：無法辨識地區「{region_text}」，轉人工")
+            return True, None
+        games = await asyncio.to_thread(get_top_games, region, count)
+        if not games:
+            logger.info(f"Bot {bot_id} TADA Gamelist 熱門排行：查無資料，轉人工")
+            return True, None
+        lines = [f"{g['rank']}. {g['name']} (ID: {g['game_id']})" for g in games]
+        # 規格要求誠實說明這是「合併整個地區」的數據，不是單一國家/幣別的獨立排行
+        if is_zh:
+            header = f"目前 {region_text} 地區賣得比較好的遊戲大概是這幾款："
+            footer = "\n\n這是合併整個地區的數據，如果需要看其他地區或完整名單，可以再跟我們說。"
+        else:
+            header = f"Here are the current top performing games in the {region_text} region:"
+            footer = "\n\nThis is combined data for the whole region, let us know if you need other regions or the full list."
+        return True, header + "\n" + "\n".join(lines) + footer
+
+    if kind == "single_field":
+        game_text = (intent.get("game") or "").strip()
+        field_kws = intent.get("fields") or []
+        if not game_text or not field_kws:
+            return True, None
+        game = await asyncio.to_thread(find_game, game_text)
+        if not game:
+            logger.info(f"Bot {bot_id} TADA Gamelist 欄位查詢：找不到遊戲「{game_text}」，轉人工")
+            return True, None
+        fields = resolve_field_names(field_kws)
+        if not fields:
+            return True, None
+        from services.tada_gamelist_service import display_field_name
+        parts = [f"{display_field_name(f)}：{game.get(f) or '（無資料）'}" for f in fields]
+        return True, "\n".join(parts)
+
+    if kind == "filter":
+        from services.tada_gamelist_service import GAMELIST_SHEET_URL
+        conditions = intent.get("conditions") or {}
+        if not conditions:
+            return True, None
+        resolved_conditions = {}
+        for kw, val in conditions.items():
+            cols = resolve_field_names([kw])
+            if cols:
+                resolved_conditions[cols[0]] = val
+        if not resolved_conditions:
+            return True, None
+        matches = await asyncio.to_thread(filter_games, resolved_conditions)
+        if not matches:
+            return True, (
+                f"目前查詢不到符合條件的遊戲，建議您參考總表確認最新清單：{GAMELIST_SHEET_URL}"
+                if is_zh else
+                f"No games found matching those conditions, please check the full list here: {GAMELIST_SHEET_URL}"
+            )
+        # 比照規格文件範例：只示意列出幾筆，完整清單附總表連結，不把符合的全部條列出來
+        shown = matches[:5]
+        names = "、".join(f"{g.get('Name')}" for g in shown) if is_zh else ", ".join(f"{g.get('Name')}" for g in shown)
+        if is_zh:
+            reply = f"符合的遊戲有：{names}（示意，完整需查總表：{GAMELIST_SHEET_URL}）。"
+        else:
+            reply = f"Matching games include: {names} (for reference only, full list: {GAMELIST_SHEET_URL})."
+        return True, reply
+
+    return False, None
+
+
 class BotManager:
     def __init__(self):
         self._bots: Dict[int, threading.Thread] = {}
@@ -552,6 +667,31 @@ class BotManager:
                     ).start()
                 return
             # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
+
+        # 0.8 TADA Gamelist 進階查詢（熱門排行/欄位查詢/複合篩選，獨立開關，預設關閉，僅該機器人開啟時執行）
+        if bot_record.tada_gamelist_query_enabled:
+            gl_handled, gl_reply = await _try_tada_gamelist_reply(bot_id, text, db)
+            if gl_handled:
+                if gl_reply:
+                    await update.message.reply_text(gl_reply)
+                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                    if _ticket_creation_enabled:
+                        threading.Thread(
+                            target=_create_freshdesk_ticket_bg,
+                            args=(text, gl_reply, chat_name), daemon=True
+                        ).start()
+                else:
+                    # 判定為 Gamelist 查詢但條件不充分/查無資料：不猜、不追問，直接轉人工
+                    # 注意：這個函式內其他地方有區域性 `import re`，會讓 re 變成整個函式的區域變數，
+                    # 因此這裡改用別名 import，避免用到還沒賦值的區域變數（UnboundLocalError）。
+                    import re as _re_gl
+                    _wl_is_chinese_gl = bool(_re_gl.search(r'[一-鿿㐀-䶿]', text))
+                    fallback_gl = _FALLBACK_TRANSFER_MSG_ZH if _wl_is_chinese_gl else _FALLBACK_TRANSFER_MSG_EN
+                    await update.message.reply_text(fallback_gl)
+                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                return
+            # 與 Gamelist 查詢無關：不中止，改走知識庫查詢
 
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(

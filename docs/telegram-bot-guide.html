@@ -408,11 +408,23 @@
             與「JILI遊戲素材查詢」邏輯完全相同，只是串接 TADA Game Search API（不同網址），且 TADA 遊戲清單只有英文名稱、無中文。
             兩個開關各自獨立，一個機器人通常只服務單一廠商，只會開啟其中一個。
           </td></tr>
+          <tr><td><strong>TADA Gamelist進階查詢</strong> 開關</td><td>
+            預設關閉，僅供 TADA 機器人使用。開啟後可處理三種問法：
+            <br>1. <strong>熱門遊戲排行</strong>（如「top 10 games」「熱門遊戲」）：未指定地區時回覆 GameRank 總表連結；有指定國家/市場時（依內建對照表換算成大區域，如沙烏地→West Asia）回覆該區域 Overall 排行，並誠實註明是「合併整個地區」的數據。
+            <br>2. <strong>單一遊戲欄位查詢</strong>（如「GameID 775 的 min bet 是多少？」）：需同時包含「遊戲識別（名稱或GameID）」與「欄位關鍵字」才會觸發，缺一律視為條件不足。
+            <br>3. <strong>複合條件篩選</strong>（如「有哪些 Med 波動度的 Slot game？」）：篩選 Game List 全表，只示意列出前 5 筆結果並附總表連結，不會把全部符合結果都列出來。
+            <br>三種情況若判斷「問題不完整」（例如只講欄位沒講遊戲）則<strong>不猜、不觸發自動回覆</strong>，直接轉人工；但訊息本身低於 10 字元時，比照其他功能一律視為雜訊完全略過（不回覆、不記錄）。
+            AI 只負責從訊息判斷使用者的意圖（是哪個市場/遊戲/欄位/篩選條件），實際查表比對皆由程式碼精確處理，不讓 AI 直接讀表回答數字，避免結構化資料被誤答。
+          </td></tr>
         </tbody>
       </table>
       <div class="callout">
         <strong>遊戲素材查詢的資料來源</strong>
         兩個 API 皆由同事的 TADA Gaming 技術團隊提供、每日 09:36（GMT+8）自動更新資料，無需 API Key。本系統會將完整遊戲清單快取 24 小時，減少重複呼叫。
+      </div>
+      <div class="callout">
+        <strong>TADA Gamelist進階查詢的資料來源</strong>
+        資料來自 TaDa Game List 2026 這份 Google Sheet 的 GameRank／Game List 兩個分頁（透過公開 CSV 匯出網址讀取，無需 API Key），同樣快取 24 小時。國家/幣別對應大區域的內建對照表目前僅涵蓋已知範例（如 West Asia），遇到新市場需另外補充對照表才能正確辨識。
       </div>
       <div class="callout warn">
         <strong>機器人「運行中」標籤</strong>

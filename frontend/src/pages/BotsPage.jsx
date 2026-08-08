@@ -64,6 +64,11 @@ function BotListTab({ user }) {
     catch { message.error('切換失敗') }
   }
 
+  const handleToggleTadaGamelistQuery = async (bot, checked) => {
+    try { await updateBot(bot.id, { tada_gamelist_query_enabled: checked }); message.success(checked ? 'TADA Gamelist進階查詢已啟用' : 'TADA Gamelist進階查詢已關閉'); load() }
+    catch { message.error('切換失敗') }
+  }
+
   const handleDelete = async (id) => {
     try { await deleteBot(id); message.success('已刪除'); load() }
     catch { message.error('刪除失敗') }
@@ -99,6 +104,12 @@ function BotListTab({ user }) {
       ),
     },
     {
+      title: 'TADA Gamelist進階查詢', dataIndex: 'tada_gamelist_query_enabled', width: 150,
+      render: (val, record) => (
+        <Switch checked={!!val} onChange={checked => handleToggleTadaGamelistQuery(record, checked)} disabled={!canEdit(user)} size="small" />
+      ),
+    },
+    {
       title: 'Token', dataIndex: 'token', width: 200, ellipsis: true,
       render: token => <Text code style={{ fontSize: 12 }}>{token.slice(0, 20)}…</Text>,
     },
@@ -128,7 +139,7 @@ function BotListTab({ user }) {
         )}
       </div>
       <Table rowKey="id" dataSource={bots} columns={columns} loading={loading}
-        scroll={{ x: 1060 }}
+        scroll={{ x: 1210 }}
         pagination={{ pageSize: 10 }} locale={{ emptyText: '尚未新增任何機器人' }} />
       <Modal title={editingBot ? '編輯機器人' : '新增機器人'} open={modalOpen}
         onOk={handleSubmit} onCancel={() => setModalOpen(false)}
