@@ -295,10 +295,10 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
         # 規格要求誠實說明這是「合併整個地區」的數據，不是單一國家/幣別的獨立排行
         if is_zh:
             header = f"目前 {region_text} 地區賣得比較好的遊戲大概是這幾款："
-            footer = "\n\n這是合併整個地區的數據，如果需要看其他地區或完整名單，可以再跟我們說。"
+            footer = f"\n\n這是合併整個地區的數據，如果需要看其他地區或完整名單，這邊有總表可以參考：{GAMERANK_SHEET_URL}"
         else:
             header = f"Here are the current top performing games in the {region_text} region:"
-            footer = "\n\nThis is combined data for the whole region, let us know if you need other regions or the full list."
+            footer = f"\n\nThis is combined data for the whole region, here's the full ranking sheet if you need other regions or the complete list: {GAMERANK_SHEET_URL}"
         return True, header + "\n" + "\n".join(lines) + footer
 
     if kind == "single_field":
