@@ -45,8 +45,10 @@ _NO_KB_TOPIC_KEYWORDS = (
     "任何更新", "any update",
     "重置密碼", "密碼重置", "重置密码", "密码重置",
     "reset password", "reset pw", "reset pass",
-    "can't login", "cant login", "can not login", "cannot login", "still same", "still the same",
-    "any abnormal betting",
+    "can't login", "cant login", "can not login", "cannot login", "can login",
+    "still same", "still the same", "still cannot",
+    "any abnormal betting", "suspicious bet",
+    "help add",
     "無法登入", "无法登入", "還是一樣", "还是一样", "异常投注", "異常投注",
 )
 
