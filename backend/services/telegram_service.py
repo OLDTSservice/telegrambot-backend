@@ -56,6 +56,9 @@ _NO_KB_TOPIC_KEYWORDS = (
     "活动", "活動", "event", "events", "t&c",
     # 維護：是否維護中/維護時間屬於即時狀態，知識庫是靜態文件，不會反映當下狀態
     "維護", "维护", "maintenance",
+    "please try", "do you mean", "do you means", "存在差异",
+    # 引用附加圖片（圖一/圖1 等編號稱呼），AI 無法比對圖片內容
+    "图一", "圖一", "图1", "圖1",
 )
 
 
