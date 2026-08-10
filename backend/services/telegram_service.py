@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import re
 import threading
 import logging
@@ -88,6 +89,18 @@ def _is_player_report(text: str) -> bool:
     has_player_ref = any(w.lower() in lower for w in _PLAYER_REF_WORDS)
     has_check_word = any(w.lower() in lower for w in _PLAYER_CHECK_WORDS)
     return has_player_ref and has_check_word
+
+
+def _is_bare_ip_message(text: str) -> bool:
+    """訊息整段內容就是單一個 IP 位址（IPv4 或 IPv6），沒有其他文字說明——
+    常見於白名單流程中單獨貼出位址、沒有搭配問題描述的情況，本質不是一個提問，
+    知識庫不會有答案，跳過知識庫直接 fallback。用標準庫 ipaddress 判斷，
+    比自寫 regex 更能正確涵蓋各種 IPv6 縮寫格式，避免誤判或漏判。"""
+    try:
+        ipaddress.ip_address(text.strip())
+        return True
+    except ValueError:
+        return False
 
 
 def _is_application_form(text: str) -> bool:
@@ -746,8 +759,8 @@ class BotManager:
             logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語，略過：「{text[:30]}」")
             return
 
-        # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴等）→ 跳過知識庫，直接 fallback
-        if _is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text):
+        # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
+        if _is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text) or _is_bare_ip_message(text):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
