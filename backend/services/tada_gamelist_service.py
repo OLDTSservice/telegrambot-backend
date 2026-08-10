@@ -387,7 +387,7 @@ _INTENT_SYSTEM_PROMPT = """你是 TADA Gamelist 查詢的意圖解析助手，�
    條件值一律用字串，不要用 JSON boolean（true/false）：有/支援類條件填 "yes"，無/不支援類條件填 "no"
    （94 rtp 這類是/否欄位務必如此；只有 rtp 這種真正的數值欄位才會需要填實際數字當條件值）。
 4. 都不符合，或問題不完整（例如只有遊戲名稱沒有欄位、只有欄位沒有遊戲名稱、篩選條件不足兩個）：
-   {"intent": "insufficient"}
+   {"intent": "insufficient", "fields": ["有辨識到的欄位關鍵字，沒有就是空陣列"]}
 5. 完全與 Gamelist 查詢無關：{"intent": "none"}
 
 規則：

@@ -326,6 +326,14 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
             # 不主動觸發轉人工回覆／記 log，交由既有的短訊息略過規則統一處理。
             logger.info(f"Bot {bot_id} TADA Gamelist 查詢：問題不完整且訊息過短，視為無關略過")
             return False, None
+        # icon/material/rtp 沒指定遊戲時例外：這幾個欄位廠商在知識庫另外設有「沒有指定遊戲時」
+        # 的通用問答（不像 min bet、volatility 等欄位，沒有指定遊戲就完全沒有意義的答案），
+        # 所以不要在這裡直接攔截轉人工，讓它改走知識庫查詢，才能查到那份通用問答的內容。
+        _KB_FALLBACK_FIELDS = {"icon", "material", "rtp"}
+        insufficient_fields = {str(f).strip().lower() for f in (intent.get("fields") or [])}
+        if insufficient_fields and insufficient_fields <= _KB_FALLBACK_FIELDS:
+            logger.info(f"Bot {bot_id} TADA Gamelist 查詢：僅提及{insufficient_fields}且無指定遊戲，改走知識庫查詢")
+            return False, None
         logger.info(f"Bot {bot_id} TADA Gamelist 查詢：問題不完整，跳過知識庫直接轉人工")
         return True, None
 
