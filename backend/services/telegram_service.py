@@ -60,6 +60,9 @@ _NO_KB_TOPIC_KEYWORDS = (
     "please try", "do you mean", "do you means", "存在差异",
     # 引用附加圖片（圖一/圖1 等編號稱呼），AI 無法比對圖片內容
     "图一", "圖一", "图1", "圖1",
+    # 賠付率/中獎頻率等玩家個案質疑，屬於即時運算結果，知識庫是靜態文件不會有答案
+    "winning frequency", "win frequency", "payout rate", "lower down", "so high", "rate continues",
+    "調整", "调整", "already used", "how can use",
 )
 
 
