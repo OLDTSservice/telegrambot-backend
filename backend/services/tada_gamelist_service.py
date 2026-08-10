@@ -78,6 +78,55 @@ def resolve_region(text: str) -> str:
     return ""
 
 
+def _parse_region_groups() -> dict:
+    """掃描整份 GameRank 資料，取得各區域裡所有分組（Overall + 各幣別獨立排行）的欄位起始位置。
+    實際版面是每個區域橫向並排多組「Rank/Type/GameID/Name」表格（Overall 一組、之後每個幣別各
+    一組），分組標題（例如「EU / Romanian Leu」）就寫在區域標題下一列，各組固定間隔 5 欄
+    （4 欄資料 + 1 欄空白）。回傳 {區域小寫: {分組名稱小寫: 起始欄位索引}}。"""
+    rows = get_cached_gamerank_rows()
+    result = {}
+    i = 0
+    while i < len(rows):
+        row = rows[i]
+        non_empty = [c.strip() for c in row if c.strip()]
+        if len(non_empty) == 1 and non_empty[0].strip().lower() in _KNOWN_REGIONS:
+            region_lower = non_empty[0].strip().lower()
+            j = i + 1
+            while j < len(rows) and not any(c.strip() for c in rows[j]):
+                j += 1
+            if j < len(rows):
+                region_prefix = f"{region_lower} / "
+                groups = {}
+                for col_idx, cell in enumerate(rows[j]):
+                    label = cell.strip().lower()
+                    if label.startswith(region_prefix):
+                        groups[label[len(region_prefix):].strip()] = col_idx
+                result[region_lower] = groups
+            i = j
+        else:
+            i += 1
+    return result
+
+
+def resolve_region_and_subgroup(text: str) -> tuple:
+    """從文字中判斷指的是哪個大區域，以及是否有指定具體幣別的獨立排行分組。
+    回傳 (區域小寫, 分組名稱小寫)：
+    - 文字提到具體幣別（例如 "Romanian Leu"）且該區域確實有該幣別的獨立分組 → (區域, 幣別)
+    - 只提到國家/區域，沒有指定到具體幣別的獨立分組 → (區域, "")，呼叫端應使用 Overall
+    - 完全無法辨識地區 → ("", "")
+    幣別分組是直接掃描實際 GameRank 資料動態比對（而非寫死清單），之後幣別分組異動不需要改程式碼。
+    """
+    lower = text.lower()
+    groups_by_region = _parse_region_groups()
+    for region, groups in groups_by_region.items():
+        for subgroup in groups:
+            if subgroup == "overall":
+                continue
+            if subgroup in lower:
+                return region, subgroup
+    return resolve_region(text), ""
+
+
 # ── GameRank（類型 1：熱門遊戲排行） ──────────────────────────────────────────
 
 def get_cached_gamerank_rows() -> list:
@@ -93,17 +142,20 @@ def get_cached_gamerank_rows() -> list:
     return _gamerank_cache["data"] or []
 
 
-def get_top_games(region: str, top_n: int = 10) -> list:
-    """解析 GameRank 表某個大區域的「Overall」排行。
+def get_top_games(region: str, top_n: int = 10, subgroup: str = "") -> list:
+    """解析 GameRank 表某個大區域的排行。
 
-    實際版面已對照真實資料確認：整份表格每一列內容之間都夾了一列空白列（Google
-    Sheets 匯出時常見的列高排版留白），區域標題單獨一列後依序是「空白、Overall
-    群組標題列、空白、Rank/Type/GameID/Name 表頭列、空白、資料列...」，資料列
-    彼此之間也都夾著空白列。因此不能用固定的列數位移，改成先過濾掉區域區塊裡的
-    空白列，取得「內容列」序列後，第 0 列＝區域標題、第 1 列＝群組標題、
-    第 2 列＝表頭、第 3 列起才是實際資料列（欄位索引 1~4 為 Rank/Type/GameID/
-    Name，「Overall」固定是每個區域的第一組）。已用文件範例驗證 All Markets
-    （Top1=Fortune Garuda 500, ID 696）與 West Asia（同上）皆比對正確。
+    實際版面已對照真實資料與使用者截圖確認：每個區域是橫向並排多組「Rank/Type/
+    GameID/Name」表格（Overall 一組＋各幣別各一組獨立排行，例如「EU / Romanian
+    Leu」），並非只有單一 Overall 排行；各組標題寫在區域標題下一列（分組標題列），
+    固定間隔 5 欄（4 欄資料＋1 欄空白分隔）。表格每一列內容之間都夾了一列空白列
+    （Google Sheets 匯出常見的列高排版留白），先過濾掉區域區塊裡的空白列取得「內容
+    列」序列，第 0 列＝區域標題、第 1 列＝分組標題列、第 2 列＝欄位表頭列、第 3 列
+    起才是實際資料列。
+
+    subgroup 為空時使用「Overall」（整個區域合併排行）；subgroup 非空時（例如
+    "romanian leu"）改用該幣別的獨立排行——找不到對應分組時回傳空清單，不會偷偷
+    退回 Overall，避免把幣別問題誤答成整個地區的合併數據。
     """
     rows = get_cached_gamerank_rows()
     region_lower = region.strip().lower()
@@ -117,17 +169,35 @@ def get_top_games(region: str, top_n: int = 10) -> list:
         return []
 
     content_rows = []
-    for row in rows[start:start + 200]:
+    for row in rows[start:start + 300]:
         if any(c.strip() for c in row):
             content_rows.append(row)
         if len(content_rows) >= 3 + top_n:
             break
+    if len(content_rows) < 3:
+        return []
+
+    group_header_row = content_rows[1]
+    region_prefix = f"{region_lower} / "
+    group_cols = {}
+    for col_idx, cell in enumerate(group_header_row):
+        label = cell.strip().lower()
+        if label.startswith(region_prefix):
+            group_cols[label[len(region_prefix):].strip()] = col_idx
+
+    wanted_group = subgroup.strip().lower() or "overall"
+    start_col = group_cols.get(wanted_group)
+    if start_col is None:
+        return []
 
     games = []
     for row in content_rows[3:3 + top_n]:
-        if len(row) < 5:
+        if len(row) < start_col + 4:
             continue
-        rank, type_, game_id, name = (row[1].strip(), row[2].strip(), row[3].strip(), row[4].strip())
+        rank, type_, game_id, name = (
+            row[start_col].strip(), row[start_col + 1].strip(),
+            row[start_col + 2].strip(), row[start_col + 3].strip(),
+        )
         if not rank or not game_id:
             break
         games.append({"rank": rank, "type": type_, "game_id": game_id, "name": name})
@@ -165,6 +235,11 @@ _GAMELIST_FIELD_ALIASES = {
 }
 
 _BOOL_FIELDS = {"Buy bonus", "Freespin API support", "Linking Jackpot"}
+# 這些欄位不是 Y/N 布林值，而是「有填內容代表支援、空白代表不支援」（例如 94 RTP 欄位有填
+# 百分比數字如 "94.00%" 代表支援 94% RTP 選項，空白代表不支援），意圖解析仍會依規則把
+# 「哪些遊戲支援94 RTP」問成 yes/no 條件，但欄位本身內容不是 Y/N 字樣，不能套用 _BOOL_FIELDS
+# 的判斷方式，也不能直接拿字串完全比對（否則永遠比對不到，會誤答「查無符合條件」）。
+_PRESENCE_FIELDS = {"94 RTP"}
 
 # Game List 原始欄位標題有些是內部命名習慣（如拼字誤植的 "Defalut Min Bet"），
 # 回覆給廠商前轉換成正常顯示用字，避免看起來不專業
@@ -226,16 +301,26 @@ def resolve_field_names(keywords: list) -> list:
     return resolved
 
 
+def _want_flag(cond) -> bool:
+    """把 AI 回傳的條件值（原生 JSON boolean，或 'yes'/'有'/'支援' 等字串）統一轉成 True/False。"""
+    if isinstance(cond, bool):
+        return cond
+    return str(cond).strip().lower() not in ("n", "no", "false", "0", "無", "没有", "沒有", "不支援", "不支持")
+
+
 def _bool_field_matches(value: str, cond) -> bool:
     """cond 可能是 AI 回傳的原生 JSON boolean（True/False），也可能是字串
     （'yes'/'有'/'支援' 等），兩種都要能處理，避免 bool 沒有 .strip() 導致例外。"""
     v = value.strip().lower()
     has = v in ("y", "yes", "true", "1", "✓", "有")
-    if isinstance(cond, bool):
-        want = cond
-    else:
-        want = str(cond).strip().lower() not in ("n", "no", "false", "0", "無", "没有", "沒有", "不支援", "不支持")
-    return has == want
+    return has == _want_flag(cond)
+
+
+def _presence_field_matches(value: str, cond) -> bool:
+    """cond 語意同 _bool_field_matches（有/無），但欄位本身不是 Y/N 字樣，而是「有填內容代表
+    支援、空白代表不支援」（例如 94 RTP 欄位是百分比數字或空白）。"""
+    has = bool(value.strip())
+    return has == _want_flag(cond)
 
 
 def filter_games(conditions: dict) -> list:
@@ -248,6 +333,8 @@ def filter_games(conditions: dict) -> list:
             value = g.get(field, "")
             if field in _BOOL_FIELDS:
                 matched = _bool_field_matches(value, cond)
+            elif field in _PRESENCE_FIELDS:
+                matched = _presence_field_matches(value, cond)
             else:
                 # 用「完全相符」而非子字串比對：Volatility 等欄位有 "High" 與 "Med High"
                 # 這種不同類別但互為子字串的情況，子字串比對會誤把 "High" 配到 "Med High"。

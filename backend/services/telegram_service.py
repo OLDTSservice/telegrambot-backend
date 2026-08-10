@@ -206,8 +206,6 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
 
     game_list = await asyncio.to_thread(get_list_fn)
     # 獨立出現的純數字先用本地清單精確比對 Game ID（不經 AI，避免猜成相似的其他遊戲）。
-    # 這裡刻意保留數字 ID 本身去查詢 search API（精確比對），不要轉換成名稱再查——
-    # 名稱查詢是模糊比對，曾發生 "Charge Buffalo" 被誤配到 "3 Charge Buffalo" 的情況。
     id_queries = find_games_by_id(text, game_list)
     matched_names, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
         await asyncio.to_thread(match_game_names, text, game_list)
@@ -216,6 +214,14 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
         from services.ai_service import record_usage
         record_usage(bot_id, ga_in_tok, ga_out_tok, db,
                     cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
+    # 若某個文字比對到的遊戲名稱，剛好就是「已經用 Game ID 精確比對到」的同一款遊戲，
+    # 不要再額外用名稱查一次，避免同一則訊息（例如「請提供 GameID 193 的素材」）答出兩款遊戲。
+    id_query_names = {
+        str(g.get("game_id")): (g.get("name") or "").strip().lower()
+        for g in game_list
+    }
+    resolved_names = {id_query_names.get(q, "") for q in id_queries}
+    matched_names = [n for n in matched_names if n.strip().lower() not in resolved_names]
     # 若某個獨立數字剛好是「文字比對到的遊戲名稱」結尾的數字（例如遊戲本身就叫
     # "Coin of Lightning 2"），代表這個數字其實是名稱的一部分，而非另一款遊戲的獨立 ID，
     # 避免同一句話被誤判成同時查詢兩款不同的遊戲。
@@ -223,7 +229,25 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
         q for q in id_queries
         if not any(name.split()[-1] == q for name in matched_names)
     ]
-    all_queries = id_queries + [n for n in matched_names if n not in id_queries]
+    # 文字比對到的遊戲名稱，優先在本地清單換成 Game ID 再查（精確比對），不要直接把名稱字串
+    # 丟給外部 search API 做模糊比對——外部 API 是同事提供的第三方服務，它自己的名稱模糊比對
+    # 不可靠，即使 AI 已經完全正確地從清單裡複製出正確名稱，search API 仍可能配到名稱相似的
+    # 其他遊戲（實測發生過 "Devil Fire" 被配到 "Devil Fire Bonu$ Coin"、"Charge Buffalo" 被
+    # 配到 "3 Charge Buffalo"）。本地清單找不到完全相符名稱時（理論上少見，AI已被要求需完全
+    # 比照清單寫法），才退回用名稱字串查 search API 當保底。
+    name_to_id = {
+        (g.get("name") or "").strip().lower(): str(g.get("game_id"))
+        for g in game_list
+    }
+    leftover_names = []
+    for n in matched_names:
+        gid = name_to_id.get(n.strip().lower())
+        if gid:
+            if gid not in id_queries:
+                id_queries.append(gid)
+        else:
+            leftover_names.append(n)
+    all_queries = id_queries + leftover_names
 
     found_blocks = []
     seen_game_ids = set()
@@ -271,7 +295,7 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
     - (True, "回覆文字")：查詢成功，直接回覆
     """
     from services.tada_gamelist_service import (
-        detect_gamelist_query_request, parse_gamelist_intent, resolve_region,
+        detect_gamelist_query_request, parse_gamelist_intent, resolve_region_and_subgroup,
         get_top_games, find_game, resolve_field_names, filter_games,
     )
     if not detect_gamelist_query_request(text):
@@ -308,22 +332,31 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
                 if is_zh else
                 f"Hi, here's our top games ranking sheet (updated monthly), please have a look:\n{GAMERANK_SHEET_URL}"
             )
-        region = resolve_region(region_text)
+        region, subgroup = resolve_region_and_subgroup(region_text)
         if not region:
             logger.info(f"Bot {bot_id} TADA Gamelist 熱門排行：無法辨識地區「{region_text}」，轉人工")
             return True, None
-        games = await asyncio.to_thread(get_top_games, region, count)
+        games = await asyncio.to_thread(get_top_games, region, count, subgroup)
         if not games:
-            logger.info(f"Bot {bot_id} TADA Gamelist 熱門排行：查無資料，轉人工")
+            logger.info(f"Bot {bot_id} TADA Gamelist 熱門排行：查無資料（region={region}, subgroup={subgroup}），轉人工")
             return True, None
         lines = [f"{g['rank']}. {g['name']} (ID: {g['game_id']})" for g in games]
-        # 規格要求誠實說明這是「合併整個地區」的數據，不是單一國家/幣別的獨立排行
-        if is_zh:
-            header = f"目前 {region_text} 地區賣得比較好的遊戲大概是這幾款："
-            footer = f"\n\n這是合併整個地區的數據，如果需要看其他地區或完整名單，這邊有總表可以參考：{GAMERANK_SHEET_URL}"
+        if subgroup:
+            # 有比對到具體幣別的獨立排行，直接就是該幣別的資料，不需要「合併地區」的揭露文字
+            if is_zh:
+                header = f"目前 {region_text} 的熱門遊戲排行大概是這幾款："
+                footer = f"\n\n如果需要看其他地區或幣別的排行，這邊有總表可以參考：{GAMERANK_SHEET_URL}"
+            else:
+                header = f"Here are the current top performing games specifically for {region_text}:"
+                footer = f"\n\nIf you need other regions or currencies, here's the full ranking sheet: {GAMERANK_SHEET_URL}"
         else:
-            header = f"Here are the current top performing games in the {region_text} region:"
-            footer = f"\n\nThis is combined data for the whole region, here's the full ranking sheet if you need other regions or the complete list: {GAMERANK_SHEET_URL}"
+            # 只辨識到國家/大區域、沒有指定到具體幣別分組，規格要求誠實說明這是「合併整個地區」的數據
+            if is_zh:
+                header = f"目前 {region_text} 地區賣得比較好的遊戲大概是這幾款："
+                footer = f"\n\n這是合併整個地區的數據，如果需要看其他地區或完整名單，這邊有總表可以參考：{GAMERANK_SHEET_URL}"
+            else:
+                header = f"Here are the current top performing games in the {region_text} region:"
+                footer = f"\n\nThis is combined data for the whole region, here's the full ranking sheet if you need other regions or the complete list: {GAMERANK_SHEET_URL}"
         return True, header + "\n" + "\n".join(lines) + footer
 
     if kind == "single_field":
