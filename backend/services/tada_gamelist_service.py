@@ -32,10 +32,21 @@ _KNOWN_REGIONS = [
     "all markets", "eu", "latam", "cis", "africa", "west asia",
     "global", "north america", "oceania", "crypto",
 ]
-# 國家/幣別 → GameRank 大區域，目前只涵蓋規格文件裡提到的市場，
-# 之後遇到新市場詢問、找不到對照時直接視為「不確定」，交由轉人工，不亂猜。
+# 國家/幣別 → GameRank 大區域。只填入地理/政治分類明確、不會有爭議的國家；
+# 遇到新市場詢問、找不到對照時直接視為「不確定」，交由轉人工，不亂猜。
 _REGION_KEYWORDS = {
     "west asia": ["turkey", "土耳其", "uae", "阿聯酋", "阿联酋", "saudi", "沙烏地", "沙特", "沙地", "kuwait", "科威特"],
+    "latam": [
+        "brazil", "巴西", "mexico", "墨西哥", "argentina", "阿根廷", "colombia", "哥倫比亞", "哥伦比亚",
+        "peru", "秘魯", "秘鲁", "chile", "智利", "paraguay", "巴拉圭",
+    ],
+    "eu": [
+        "belgium", "比利時", "比利时", "greece", "希臘", "希腊", "italy", "義大利", "意大利",
+        "malta", "馬爾他", "马耳他", "netherlands", "荷蘭", "荷兰", "portugal", "葡萄牙",
+        "romania", "羅馬尼亞", "罗马尼亚", "spain", "西班牙", "sweden", "瑞典",
+    ],
+    "africa": ["south africa", "南非", "kenya", "肯亞", "肯亚", "nigeria", "奈及利亞", "尼日利亚"],
+    "cis": ["belarus", "白俄羅斯", "白俄罗斯", "ukraine", "烏克蘭", "乌克兰", "russia", "俄羅斯", "俄罗斯", "kazakhstan", "哈薩克", "哈萨克"],
 }
 
 
