@@ -49,6 +49,47 @@ def find_games_by_id(text: str, game_list: list) -> list[str]:
     return ids
 
 
+def find_games_by_exact_name(text: str, game_list: list) -> list[str]:
+    """在訊息文字裡直接尋找『完全等於清單中某款遊戲全名』的子字串（不分大小寫、要求完整詞界），
+    比呼叫 AI 做語意比對更可靠：只要訊息裡真的出現了完整的遊戲名稱文字，一定能抓到，不受 AI
+    對開頭相同、後面多字的相似名稱（例如同時有 Devil Fire / Devil Fire Twins / Devil Fire
+    Bonu$ Coin）判斷不穩定的影響——實測發現同一句「Devil Fire」在不同措辭下，AI 語意比對有時
+    仍會誤選成其他相似變體，改用確定性的文字比對才能穩定解決。
+
+    先照原名稱（含空格）比對；比對不到時，再把訊息文字與遊戲名稱都拿掉所有空白後比對一次
+    （例如訊息打成 "DevilFire" 沒有空格），涵蓋常見的打字習慣差異。忽略空格比對沒辦法用完整
+    詞界判斷，理論上訊息裡剛好有其他文字黏在一起、又剛好拼出遊戲名稱時可能誤判，但機率極低。
+
+    若同一段文字同時比對到多個名稱、且其中某些名稱只是另一個較長名稱的子字串（例如訊息裡出現
+    "Coin of Lightning 2"，比對時 "Coin of Lightning" 和 "Coin of Lightning 2" 都會命中），
+    只保留最長、最完整的那個，避免把使用者提到的同一款遊戲拆成兩個結果。
+
+    找不到任何完全相符的名稱時回傳空清單，由呼叫端改用 AI 語意比對處理改述、縮寫、翻譯等
+    AI才能理解、無法用純文字比對找到的情況。"""
+    if not game_list:
+        return []
+    lower = text.lower()
+    lower_nospace = re.sub(r'\s+', '', lower)
+    matched = []
+    for g in game_list:
+        name = (g.get("name") or "").strip()
+        if not name:
+            continue
+        name_lower = name.lower()
+        pattern = r'\b' + re.escape(name_lower) + r'\b'
+        if re.search(pattern, lower):
+            if name not in matched:
+                matched.append(name)
+            continue
+        name_nospace = re.sub(r'\s+', '', name_lower)
+        if name_nospace and name_nospace in lower_nospace and name not in matched:
+            matched.append(name)
+    return [
+        name for name in matched
+        if not any(name != other and name.lower() in other.lower() for other in matched)
+    ]
+
+
 def _fetch_cached_game_list(cache: dict, api_url: str, label: str) -> list:
     now = time.time()
     if cache["data"] is None or (now - cache["fetched_at"]) > _CACHE_TTL_SECONDS:

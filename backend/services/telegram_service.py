@@ -200,20 +200,28 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
     """遊戲素材查詢共用邏輯（JILI/TADA 皆呼叫此函式，僅資料來源不同）。
     偵測到關鍵字才會查詢；一則訊息可能同時問多款遊戲，逐一查詢後整合成一則回覆；
     查不到的靜默略過。回傳組好的回覆文字，若完全比對不到任何遊戲則回傳 None（呼叫端應改走知識庫查詢）。"""
-    from services.game_asset_service import detect_game_asset_request, find_games_by_id, match_game_names
+    from services.game_asset_service import (
+        detect_game_asset_request, find_games_by_id, find_games_by_exact_name, match_game_names,
+    )
     if not detect_game_asset_request(text):
         return None
 
     game_list = await asyncio.to_thread(get_list_fn)
     # 獨立出現的純數字先用本地清單精確比對 Game ID（不經 AI，避免猜成相似的其他遊戲）。
     id_queries = find_games_by_id(text, game_list)
-    matched_names, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
-        await asyncio.to_thread(match_game_names, text, game_list)
-    )
-    if ga_in_tok or ga_cache_read:
-        from services.ai_service import record_usage
-        record_usage(bot_id, ga_in_tok, ga_out_tok, db,
-                    cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
+    # 訊息文字裡若直接完整出現某款遊戲的全名，用確定性的文字比對找出來，優先於 AI 語意比對——
+    # 開頭相同、後面多字的相似名稱（Devil Fire / Devil Fire Twins / Devil Fire Bonu$ Coin）
+    # 光靠 AI 判斷，不同措辭下仍會不穩定誤選成其他變體，純文字比對才能穩定解決。找不到完全相符
+    # 的名稱才呼叫 AI，處理改述、縮寫等純文字比對抓不到的情況。
+    matched_names = find_games_by_exact_name(text, game_list)
+    if not matched_names:
+        matched_names, ga_in_tok, ga_out_tok, ga_cache_read, ga_cache_write = (
+            await asyncio.to_thread(match_game_names, text, game_list)
+        )
+        if ga_in_tok or ga_cache_read:
+            from services.ai_service import record_usage
+            record_usage(bot_id, ga_in_tok, ga_out_tok, db,
+                        cache_read_tokens=ga_cache_read, cache_write_tokens=ga_cache_write)
     # 若某個文字比對到的遊戲名稱，剛好就是「已經用 Game ID 精確比對到」的同一款遊戲，
     # 不要再額外用名稱查一次，避免同一則訊息（例如「請提供 GameID 193 的素材」）答出兩款遊戲。
     id_query_names = {
