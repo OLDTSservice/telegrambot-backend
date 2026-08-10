@@ -84,10 +84,22 @@ _PLAYER_CHECK_WORDS = (
 
 
 def _is_player_report(text: str) -> bool:
-    """訊息同時提及玩家與需人工檢查/處理的字樣（玩家個案問題/投訴），跳過知識庫直接轉人工"""
+    """訊息同時提及玩家與需人工檢查/處理的字樣（玩家個案問題/投訴），跳過知識庫直接轉人工。
+
+    英文關鍵字（如 report、video）改用「獨立單字」詞界比對，不用子字串比對：
+    後台帳號常見「TitanTR43_Report」這種以底線接尾綴的命名習慣（類似 _MYR 這種寫法），
+    純子字串比對會誤把帳號名稱裡的 "Report" 當成「回報投訴」關鍵字，導致一般業務流程
+    問題（例如問重送時間間隔）被誤判成玩家個案投訴而跳過知識庫。中文關鍵字沒有詞界
+    概念，維持子字串比對。"""
     lower = text.lower()
-    has_player_ref = any(w.lower() in lower for w in _PLAYER_REF_WORDS)
-    has_check_word = any(w.lower() in lower for w in _PLAYER_CHECK_WORDS)
+    has_player_ref = any(
+        re.search(r'\b' + re.escape(w.lower()) + r'\b', lower) if w.isascii() else w in text
+        for w in _PLAYER_REF_WORDS
+    )
+    has_check_word = any(
+        re.search(r'\b' + re.escape(w.lower()) + r'\b', lower) if w.isascii() else w in text
+        for w in _PLAYER_CHECK_WORDS
+    )
     return has_player_ref and has_check_word
 
 
