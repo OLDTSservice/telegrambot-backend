@@ -28,6 +28,14 @@ _CACHE_TTL_SECONDS = 24 * 3600
 _gamerank_cache = {"data": None, "fetched_at": 0.0}
 _gamelist_cache = {"data": None, "fetched_at": 0.0}
 
+def _word_in(phrase: str, lower_text: str) -> bool:
+    """判斷 phrase（英文用詞界比對，避免像 "uk" 是 "ukrainian" 子字串這種誤配；
+    中文沒有詞界概念，維持子字串比對）是否出現在 lower_text 中。"""
+    if phrase.isascii():
+        return bool(re.search(r'\b' + re.escape(phrase) + r'\b', lower_text))
+    return phrase in lower_text
+
+
 _KNOWN_REGIONS = [
     "all markets", "eu", "latam", "cis", "africa", "west asia",
     "global", "north america", "oceania", "crypto",
@@ -70,10 +78,10 @@ def resolve_region(text: str) -> str:
     """從文字中判斷指的是 GameRank 哪個大區域，找不到回傳空字串"""
     lower = text.lower()
     for region in _KNOWN_REGIONS:
-        if region in lower:
+        if _word_in(region, lower):
             return region
     for region, keywords in _REGION_KEYWORDS.items():
-        if any(kw in lower for kw in keywords):
+        if any(_word_in(kw, lower) for kw in keywords):
             return region
     return ""
 
@@ -121,7 +129,7 @@ _COUNTRY_TO_SUBGROUP = {
     "hungary": "hungarian forint",
     "switzerland": "swiss franc",
     "norway": "norwegian krone",
-    "czech republic": "czech koruna", "czechia": "czech koruna",
+    "czech republic": "czech koruna", "czechia": "czech koruna", "czech": "czech koruna",
     "denmark": "danish krone",
     "sweden": "swedish krona",
     "serbia": "serbian dinar",
@@ -183,6 +191,71 @@ _COUNTRY_TO_SUBGROUP = {
     "ethereum": "ethereum", "eth": "ethereum",
     "dogecoin": "dogecoin",
     "tether": "us dollar tether", "usdt": "us dollar tether",
+    # 上面用的是「國名」當 key，但很多國家的形容詞/demonym 講法（例如 "Hungarian
+    # top games"）字面上不是國名的子字串（"hungary" 不是 "hungarian" 的子字串），
+    # 會漏掉；下面補上這類「國名對不上、需要另外列 demonym」的情況（demonym 本身
+    # 是國名子字串的則不用重複列，例如 "brazil" 已經是 "brazilian" 的子字串）。
+    "british": "british pound sterling",
+    "hungarian": "hungarian forint",
+    "swiss": "swiss franc",
+    "norwegian": "norwegian krone",
+    "danish": "danish krone",
+    "swedish": "swedish krona",
+    "mexican": "mexican peso",
+    "argentine": "argentine peso", "argentinian": "argentine peso",
+    "ukrainian": "ukrainian hryvnia",
+    "mozambican": "mozambican metical",
+    "turkish": "turkish lira",
+    "emirati": "uae dirham", "emirates": "uae dirham",
+    "honduran": "honduran lempira",
+    # 詞界比對下，"romania" 這種國名不再算是 "romanian" 的子字串命中（因為
+    # \b 要求比對結尾剛好在單字邊界，"romania" 後面接的 "n" 還是字母，不算邊界），
+    # 之前「demonym 剛好是國名子字串」的假設在詞界比對下不成立，這裡把所有
+    # demonym 講法都明確補上，不再依賴子字串巧合。
+    "romanian": "romanian leu",
+    "serbian": "serbian dinar",
+    "macedonian": "macedonian denar",
+    "brazilian": "brazilian real",
+    "venezuelan": "venezuelan bolivar",
+    "colombian": "colombian peso",
+    "chilean": "chilean peso",
+    "peruvian": "peruvian sol",
+    "bolivian": "bolivian boliviano",
+    "paraguayan": "paraguayan guarani",
+    "costa rican": "costa rican colon",
+    "guatemalan": "guatemalan quetzal",
+    "uruguayan": "uruguayan peso",
+    "russian": "russian ruble",
+    "uzbekistani": "uzbekistani som",
+    "kazakhstani": "kazakhstani tenge",
+    "belarusian": "belarusian ruble",
+    "azerbaijani": "azerbaijani manat",
+    "armenian": "armenian dram",
+    "moldovan": "moldovan leu",
+    "nigerian": "nigerian naira",
+    "south african": "south african rand",
+    "egyptian": "egyptian pound",
+    "tanzanian": "tanzanian shilling",
+    "zambian": "zambian kwacha",
+    "ugandan": "ugandan shilling",
+    "kenyan": "kenyan shilling",
+    "ethiopian": "ethiopian birr",
+    "ghanaian": "ghanaian cedi",
+    "malawian": "malawian kwacha",
+    "angolan": "angolan kwanza",
+    "namibian": "namibian dollar",
+    "tunisian": "tunisian dinar",
+    "sierra leonean": "sierra leonean leone",
+    "liberian": "liberian dollar",
+    "gambian": "gambian dalasi",
+    "kuwaiti": "kuwaiti dinar",
+    "iraqi": "iraqi dinar",
+    "georgian": "georgian lari",
+    "iranian": "iranian rial",
+    "canadian": "canadian dollar",
+    "cuban": "cuban peso",
+    "nicaraguan": "nicaraguan cordoba",
+    "australian": "australian dollar",
 }
 
 
@@ -202,10 +275,10 @@ def resolve_region_and_subgroup(text: str) -> tuple:
         for subgroup in groups:
             if subgroup == "overall":
                 continue
-            if subgroup in lower:
+            if _word_in(subgroup, lower):
                 return region, subgroup
     for country, subgroup in _COUNTRY_TO_SUBGROUP.items():
-        if country in lower:
+        if _word_in(country, lower):
             for region, groups in groups_by_region.items():
                 if subgroup in groups:
                     return region, subgroup
