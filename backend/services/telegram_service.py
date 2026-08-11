@@ -182,6 +182,8 @@ _GREETING_PHRASES = {
     "ignore this thanks", "please disregard thanks", "never mind thanks",
     "sorry please ignore", "sorry team please ignore", "sorry ignore this", "oops please ignore",
     "sorry for the mistake", "double confirm",
+    "pls ignore", "pls ignore thanks", "sorry for the mistake pls ignore thanks",
+    "sorry for the mistake please ignore", "sorry for the mistake please ignore thanks",
     # 中文問候/感謝/道別
     "好的", "收到", "明白了", "明白", "了解", "知道了", "辛苦了",
     "請忽略", "請忽略上面", "請忽略以上", "忽略上面", "忽略以上", "不用理會", "當我沒說", "取消",
