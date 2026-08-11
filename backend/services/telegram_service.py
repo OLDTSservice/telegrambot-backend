@@ -63,6 +63,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     # 賠付率/中獎頻率等玩家個案質疑，屬於即時運算結果，知識庫是靜態文件不會有答案
     "winning frequency", "win frequency", "payout rate", "lower down", "so high", "rate continues",
     "調整", "调整", "already used", "how can use",
+    "要這個", "要这个", "是這個", "是这个", "check不到", "什麼情況", "什么情况",
+    "cannot access", "can't access",
 )
 
 
