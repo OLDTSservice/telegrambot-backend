@@ -108,13 +108,93 @@ def _parse_region_groups() -> dict:
     return result
 
 
+# 國家名稱 → 幣別分組名稱：訊息通常會講「國家」（如 "Romania"），但 GameRank 的
+# 幣別分組標題寫的是「幣別」（如 "Romanian Leu"），兩者字面上對不起來，子字串比對
+# 抓不到，需要額外的國家→幣別對照表才能把 "Romania" 正確對應到 "romanian leu" 分組。
+# 只收錄「一國對一幣別」明確不會有爭議的國家；多國共用同一貨幣（如歐元區、CFA法郎區）
+# 不列入，避免誤把詢問「某國」誤導成看似該區域另一個國家的獨立排行。
+_COUNTRY_TO_SUBGROUP = {
+    "uk": "british pound sterling", "united kingdom": "british pound sterling", "britain": "british pound sterling",
+    "england": "british pound sterling",
+    "poland": "polish zloty",
+    "romania": "romanian leu",
+    "hungary": "hungarian forint",
+    "switzerland": "swiss franc",
+    "norway": "norwegian krone",
+    "czech republic": "czech koruna", "czechia": "czech koruna",
+    "denmark": "danish krone",
+    "sweden": "swedish krona",
+    "serbia": "serbian dinar",
+    "macedonia": "macedonian denar", "north macedonia": "macedonian denar",
+    "brazil": "brazilian real",
+    "mexico": "mexican peso",
+    "venezuela": "venezuelan bolivar",
+    "colombia": "colombian peso",
+    "chile": "chilean peso",
+    "peru": "peruvian sol",
+    "argentina": "argentine peso",
+    "bolivia": "bolivian boliviano",
+    "paraguay": "paraguayan guarani",
+    "costa rica": "costa rican colon",
+    "guatemala": "guatemalan quetzal",
+    "uruguay": "uruguayan peso",
+    "russia": "russian ruble",
+    "uzbekistan": "uzbekistani som",
+    "ukraine": "ukrainian hryvnia",
+    "kazakhstan": "kazakhstani tenge",
+    "belarus": "belarusian ruble",
+    "azerbaijan": "azerbaijani manat",
+    "armenia": "armenian dram",
+    "moldova": "moldovan leu",
+    "nigeria": "nigerian naira",
+    "south africa": "south african rand",
+    "egypt": "egyptian pound",
+    "tanzania": "tanzanian shilling",
+    "zambia": "zambian kwacha",
+    "uganda": "ugandan shilling",
+    "kenya": "kenyan shilling",
+    "ethiopia": "ethiopian birr",
+    "ghana": "ghanaian cedi",
+    "malawi": "malawian kwacha",
+    "angola": "angolan kwanza",
+    "lesotho": "lesotho loti",
+    "namibia": "namibian dollar",
+    "mozambique": "mozambican metical",
+    "tunisia": "tunisian dinar",
+    "sierra leone": "sierra leonean leone",
+    "liberia": "liberian dollar",
+    "gambia": "gambian dalasi",
+    "turkey": "turkish lira",
+    "uae": "uae dirham", "united arab emirates": "uae dirham",
+    "saudi arabia": "saudi riyal", "saudi": "saudi riyal",
+    "kyrgyzstan": "kyrgyz som",
+    "kuwait": "kuwaiti dinar",
+    "iraq": "iraqi dinar",
+    "georgia": "georgian lari",
+    "iran": "iranian rial",
+    "canada": "canadian dollar",
+    "honduras": "honduran lempira",
+    "cuba": "cuban peso",
+    "nicaragua": "nicaraguan cordoba",
+    "australia": "australian dollar",
+    "new zealand": "new zealand dollar",
+    "bitcoin": "bitcoin", "btc": "bitcoin",
+    "litecoin": "litecoin", "ltc": "litecoin",
+    "ethereum": "ethereum", "eth": "ethereum",
+    "dogecoin": "dogecoin",
+    "tether": "us dollar tether", "usdt": "us dollar tether",
+}
+
+
 def resolve_region_and_subgroup(text: str) -> tuple:
     """從文字中判斷指的是哪個大區域，以及是否有指定具體幣別的獨立排行分組。
     回傳 (區域小寫, 分組名稱小寫)：
     - 文字提到具體幣別（例如 "Romanian Leu"）且該區域確實有該幣別的獨立分組 → (區域, 幣別)
-    - 只提到國家/區域，沒有指定到具體幣別的獨立分組 → (區域, "")，呼叫端應使用 Overall
+    - 文字提到國家名稱（例如 "Romania"）且能對應到明確的幣別分組 → (區域, 幣別)
+    - 只提到區域名稱（如 "EU"），沒有指定到具體幣別/國家 → (區域, "")，呼叫端應使用 Overall
     - 完全無法辨識地區 → ("", "")
-    幣別分組是直接掃描實際 GameRank 資料動態比對（而非寫死清單），之後幣別分組異動不需要改程式碼。
+    幣別分組是直接掃描實際 GameRank 資料動態比對（而非寫死清單），之後幣別分組異動不需要改程式碼；
+    國家→幣別對照表才是寫死清單，因為 GameRank 表格本身只有幣別名稱、沒有國家名稱可供動態掃描。
     """
     lower = text.lower()
     groups_by_region = _parse_region_groups()
@@ -124,6 +204,11 @@ def resolve_region_and_subgroup(text: str) -> tuple:
                 continue
             if subgroup in lower:
                 return region, subgroup
+    for country, subgroup in _COUNTRY_TO_SUBGROUP.items():
+        if country in lower:
+            for region, groups in groups_by_region.items():
+                if subgroup in groups:
+                    return region, subgroup
     return resolve_region(text), ""
 
 
