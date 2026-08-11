@@ -122,6 +122,68 @@ def _build_summary(today_row, month_row, daily_rows, bot_rows, month_cost_usd, l
     )
 
 
+class GroupCostOut(BaseModel):
+    chat_id: str
+    chat_name: str
+    total_tokens: int
+    cost_usd: float
+
+
+@router.get("/cost-by-group", response_model=List[GroupCostOut])
+def get_cost_by_group(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _=Depends(require_viewer),
+):
+    """群組花費排行（AI Token 費用），依 chat_id 彙總 ConversationLog（有解答）與
+    NoAnswerLog（無解答，同樣會呼叫 Claude 消耗 Token）兩張表，取花費前 N 名的群組。
+    可用 date_from/date_to（台灣日曆日期）篩選時間範圍，未帶入時不限制時間。
+    注意：ConversationLog/NoAnswerLog 只保留近 7 日資料（見 models.py 註解），
+    篩選超過 7 天前的區間會查不到資料。"""
+    from routers.group_stats import _taipei_range_to_utc
+    start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)
+
+    def _grouped(model):
+        q = db.query(
+            model.chat_id,
+            model.chat_name,
+            func.sum(model.input_tokens).label("input_tokens"),
+            func.sum(model.output_tokens).label("output_tokens"),
+            func.sum(model.cache_read_tokens).label("cache_read_tokens"),
+            func.sum(model.cache_write_tokens).label("cache_write_tokens"),
+        )
+        if start_utc:
+            q = q.filter(model.created_at >= start_utc, model.created_at < end_utc)
+        return q.group_by(model.chat_id, model.chat_name).all()
+
+    totals: dict[str, dict] = {}
+    for rows in (_grouped(models.ConversationLog), _grouped(models.NoAnswerLog)):
+        for r in rows:
+            key = r.chat_id
+            entry = totals.setdefault(key, {
+                "chat_name": r.chat_name,
+                "input": 0, "output": 0, "cache_read": 0, "cache_write": 0,
+            })
+            entry["input"] += r.input_tokens or 0
+            entry["output"] += r.output_tokens or 0
+            entry["cache_read"] += r.cache_read_tokens or 0
+            entry["cache_write"] += r.cache_write_tokens or 0
+
+    results = [
+        GroupCostOut(
+            chat_id=str(chat_id),
+            chat_name=entry["chat_name"],
+            total_tokens=entry["input"] + entry["output"] + entry["cache_read"] + entry["cache_write"],
+            cost_usd=_calc_usd(entry["input"], entry["output"], entry["cache_read"], entry["cache_write"]),
+        )
+        for chat_id, entry in totals.items()
+    ]
+    results.sort(key=lambda x: x.cost_usd, reverse=True)
+    return results[:limit]
+
+
 class RecentQueryOut(BaseModel):
     id: int
     source: str  # "conversation"（有解答） | "no_answer"（無解答）

@@ -249,8 +249,17 @@ export default function TelegramReplyStatsPage() {
                       margin={{ left: 20, right: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <YAxis type="category" dataKey="chat_name" width={110} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={v => [`${v} 次`, '回覆次數']} />
+                      <YAxis
+                        type="category"
+                        dataKey="chat_name"
+                        width={180}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={name => (name && name.length > 16 ? `${name.slice(0, 16)}…` : name)}
+                      />
+                      <Tooltip
+                        formatter={v => [`${v} 次`, '回覆次數']}
+                        labelFormatter={label => label}
+                      />
                       <Bar dataKey="reply_count" fill="#1677ff" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>

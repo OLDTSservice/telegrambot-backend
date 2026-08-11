@@ -52,6 +52,7 @@ export default function StatsPage() {
   const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')])
   const [activePreset, setActivePreset] = useState('本月')
   const [recentQueries, setRecentQueries] = useState([])
+  const [groupCosts, setGroupCosts] = useState([])
 
   const buildParams = useCallback(() => {
     const [from, to] = dateRange
@@ -64,12 +65,14 @@ export default function StatsPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [statsRes, recentRes] = await Promise.all([
+      const [statsRes, recentRes, groupCostRes] = await Promise.all([
         getStats(buildParams()),
-        api.get('/stats/recent-queries', { params: { limit: 10 } }),
+        api.get('/stats/recent-queries', { params: { limit: 20 } }),
+        api.get('/stats/cost-by-group', { params: { ...buildParams(), limit: 10 } }),
       ])
       setStats(statsRes.data)
       setRecentQueries(recentRes.data)
+      setGroupCosts(groupCostRes.data)
     } catch {
       // ignore
     } finally {
@@ -270,9 +273,30 @@ export default function StatsPage() {
         ) : <Empty description="暫無資料" />}
       </Card>
 
-      {/* 最近 10 筆查詢 Token 紀錄 */}
+      {/* 群組花費排行 */}
       <Card
-        title="最近 10 筆知識庫查詢 Token 紀錄"
+        title="群組花費排行（前 10 名）"
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>依目前選擇的時間範圍計算，僅涵蓋近 7 日內的查詢紀錄</Text>}
+        style={{ marginBottom: 20 }}
+      >
+        {groupCosts.length === 0 ? (
+          <Empty description="暫無資料" />
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(200, groupCosts.length * 36)}>
+            <BarChart data={groupCosts} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `$${v.toFixed(2)}`} />
+              <YAxis type="category" dataKey="chat_name" width={180} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={v => [`$${Number(v).toFixed(5)} USD`, '花費']} />
+              <Bar dataKey="cost_usd" fill="#13c2c2" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Card>
+
+      {/* 最近 20 筆查詢 Token 紀錄 */}
+      <Card
+        title="最近 20 筆知識庫查詢 Token 紀錄"
         extra={<Text type="secondary" style={{ fontSize: 12 }}>含「無解答」呼叫（AI 判斷找不到答案時仍會消耗 Token）</Text>}
       >
         {recentQueries.length === 0 ? (
