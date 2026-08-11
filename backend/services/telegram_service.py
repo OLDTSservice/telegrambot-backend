@@ -120,6 +120,24 @@ def _is_bare_ip_message(text: str) -> bool:
         return False
 
 
+_BARE_CODE_RE = re.compile(r'^[A-Za-z0-9]{8,}$')
+
+
+def _is_bare_code_message(text: str) -> bool:
+    """訊息整段內容就是單一個英數混合的代碼/單號（例如「27063759W1X8」「ACNM27063759W1X8」），
+    沒有其他文字說明——常見於廠商單獨貼出訂單號/交易編號、沒有搭配問題描述的情況，
+    本質不是一個提問，知識庫不會有答案，跳過知識庫直接 fallback。
+    要求同時包含英文字母與數字（純英文單字或純數字不算，避免誤判成一般英文詞彙或
+    純數字訊息），且長度至少 8 碼（短訊息已由既有的 10 字元門檻略過，這裡的門檻
+    只是額外保險，避免誤判太短的英數縮寫）。"""
+    stripped = text.strip()
+    if not _BARE_CODE_RE.match(stripped):
+        return False
+    has_letter = any(c.isalpha() for c in stripped)
+    has_digit = any(c.isdigit() for c in stripped)
+    return has_letter and has_digit
+
+
 def _is_application_form(text: str) -> bool:
     """
     偵測結構化申請表單/客服工單，符合任一即視為表單：
@@ -829,7 +847,8 @@ class BotManager:
             return
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
-        if _is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text) or _is_bare_ip_message(text):
+        if (_is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text)
+                or _is_bare_ip_message(text) or _is_bare_code_message(text)):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
