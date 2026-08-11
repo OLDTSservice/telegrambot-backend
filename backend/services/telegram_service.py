@@ -173,7 +173,7 @@ _GREETING_PHRASES = {
     "cheers", "appreciate it", "no problem", "np", "you're welcome", "youre welcome", "welcome",
     "bye", "goodbye", "see you", "good morning", "good afternoon", "good evening", "good night",
     "great thanks", "perfect thanks", "many thanks", "thanks a lot", "thank you so much", "thank you very much",
-    "noted thanks", "noted with thanks", "understood thanks",
+    "noted thanks", "noted with thanks", "understood thanks", "noted thank you",
     # 英文取消/忽略前訊息（不含實際問題內容）
     "ignore", "please ignore", "kindly ignore", "ignore this", "ignore that",
     "ignore above", "ignore the above", "please disregard", "disregard", "disregard that",
