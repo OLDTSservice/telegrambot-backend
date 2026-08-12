@@ -326,10 +326,22 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
             language_rule = (
                 "3. 問題包含中文字，請用中文回答（繁體對繁體、簡體對簡體）。"
             )
+            translate_note = (
+                "3a. 若知識庫原文本身就是中文，直接使用即可，不需要翻譯、也不要翻成英文或其他語言。\n"
+            )
         else:
             language_rule = (
                 "3. 問題不包含任何中文字（無論問題實際使用英文、馬來文、印尼文、越南文或其他任何語言皆同），"
                 "一律使用【英文】回答，不要使用問題原本的語言，也不要使用中文。"
+            )
+            translate_note = (
+                "3a. 【務必確實翻譯，不可照抄原文語言】這點實測常被忽略，請特別注意：知識庫原文如果是"
+                "中文，你【必須】把整段答案翻成英文再回覆，不能因為知識庫原文是中文就照抄中文回覆。"
+                "範例：使用者問「please provide api document」（純英文），知識庫裡的答案原文是中文"
+                "「請參考下方連結\n轉帳錢包API文件\nhttps://...\n單一錢包API文件\nhttps://...」，"
+                "你必須翻成英文回覆，例如「Please refer to the links below\n\nTransfer Wallet API "
+                "Document\nhttps://...\n\nSingle Wallet API Document\nhttps://...」，不可直接照抄"
+                "中文原文回覆；網址本身維持原樣不翻譯。\n"
             )
         system_prompt = (
             "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
@@ -352,6 +364,7 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
             "若知識庫中找到的答案語言與規則 3 判定的目標語言不同，請將該答案【翻譯】成目標語言後再回覆——"
             "翻譯只是換一種語言表達同樣內容，不算違反規則 1 的「延伸事實內容」；"
             "翻譯時網址、連結、數字、產品/檔案名稱等專有名詞維持原文不變，不要翻譯或改寫。\n"
+            f"{translate_note}"
             f"4. 若知識庫中沒有直接對應的資訊，請只回覆固定字串：{NO_ANSWER_TOKEN}，"
             "不要加任何其他文字、標點或說明，也不要翻譯這個字串。"
         )
