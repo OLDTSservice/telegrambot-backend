@@ -171,6 +171,24 @@ def _is_bare_code_message(text: str) -> bool:
     return has_letter and has_digit
 
 
+# 涵蓋常見的日期/時間格式：日期部分分隔符可為 -／/／.，年月日順序不拘；
+# 時間部分可有可無、可含秒數與毫秒；結尾可有 Z 或時區偏移（如 +08:00）。
+_BARE_TIMESTAMP_RE = re.compile(
+    r'^(\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}([ T]\d{1,2}:\d{2}(:\d{2})?(\.\d{1,6})?)?'
+    r'|\d{1,2}:\d{2}(:\d{2})?(\.\d{1,6})?)'
+    r'\s*(Z|UTC|GMT|[+-]\d{2}:?\d{2})?$'
+)
+
+
+def _is_bare_timestamp_message(text: str) -> bool:
+    """訊息整段內容就是單一個時間戳記（例如「2026-08-12 12:14:52」「2026/08/12」「12:14:52」），
+    沒有其他文字說明——常見於廠商單獨貼出時間點、沒有搭配問題描述的情況，本質不是一個提問，
+    知識庫不會有答案，跳過知識庫直接 fallback。用正則涵蓋常見日期/時間格式的組合，只有訊息
+    整段（去除頭尾空白後）完全符合格式才判定，避免誤擋「2026-08-12發生異常」這種還有其他
+    文字說明的訊息。"""
+    return bool(_BARE_TIMESTAMP_RE.match(text.strip()))
+
+
 # 這幾個帳號通常是內部客服／機器人自己的帳號，訊息「整段只是tag這些帳號」時不是提問，
 # 知識庫不會有答案；但廠商也可能在正常問題訊息裡「順帶」tag這些帳號（例如「@OLDTS_service
 # 請問這個問題...」），這種訊息還有實際內容，應該正常走知識庫——所以不能用單一關鍵字命中
@@ -898,7 +916,7 @@ class BotManager:
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
         if (_is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text)
                 or _is_bare_ip_message(text) or _is_bare_code_message(text) or _is_rtp_anomaly_complaint(text)
-                or _is_bare_mention_message(text)):
+                or _is_bare_mention_message(text) or _is_bare_timestamp_message(text)):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
