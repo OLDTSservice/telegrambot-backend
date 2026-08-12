@@ -65,6 +65,10 @@ _NO_KB_TOPIC_KEYWORDS = (
     "調整", "调整", "already used", "how can use",
     "要這個", "要这个", "是這個", "是这个", "check不到", "什麼情況", "什么情况",
     "cannot access", "can't access",
+    # 需人工核實特定會員/玩家/用戶身分的個案，知識庫不會有答案
+    "协助确认会员", "協助確認會員", "协助确认玩家", "協助確認玩家", "协助确认用户", "協助確認用戶",
+    # 其他機器人的自我介紹訊息，非廠商實際提問
+    "this is one of our support robots", "dapat buka",
 )
 
 
@@ -165,6 +169,22 @@ def _is_bare_code_message(text: str) -> bool:
     has_letter = any(c.isalpha() for c in stripped)
     has_digit = any(c.isdigit() for c in stripped)
     return has_letter and has_digit
+
+
+# 這幾個帳號通常是內部客服／機器人自己的帳號，訊息「整段只是tag這些帳號」時不是提問，
+# 知識庫不會有答案；但廠商也可能在正常問題訊息裡「順帶」tag這些帳號（例如「@OLDTS_service
+# 請問這個問題...」），這種訊息還有實際內容，應該正常走知識庫——所以不能用單一關鍵字命中
+# 就攔截，只有整段訊息「只有」這些tag、沒有其他文字時才判定。
+_BARE_MENTION_HANDLES = {"@oldts_service", "@jiliserivceprodbot"}
+
+
+def _is_bare_mention_message(text: str) -> bool:
+    """訊息整段內容只是單獨tag一個或多個指定帳號（例如「@OLDTS_service」），沒有其他文字，
+    本質不是一個提問，跳過知識庫直接 fallback。"""
+    tokens = text.strip().split()
+    if not tokens:
+        return False
+    return all(tok.lower() in _BARE_MENTION_HANDLES for tok in tokens)
 
 
 def _is_application_form(text: str) -> bool:
@@ -877,7 +897,8 @@ class BotManager:
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
         if (_is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text)
-                or _is_bare_ip_message(text) or _is_bare_code_message(text) or _is_rtp_anomaly_complaint(text)):
+                or _is_bare_ip_message(text) or _is_bare_code_message(text) or _is_rtp_anomaly_complaint(text)
+                or _is_bare_mention_message(text)):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
