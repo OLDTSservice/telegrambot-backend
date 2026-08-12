@@ -108,6 +108,35 @@ def _is_player_report(text: str) -> bool:
     return has_player_ref and has_check_word
 
 
+# RTP／返獎率異常投訴（例如「近一个月该游戏返奖率有点高」）：RTP數值本身是靜態資料，
+# 但「異常波動」是玩家/代理對即時狀況的質疑，屬於需人工查核的個案，知識庫不會有答案。
+# 用「RTP相關詞」+「異常波動詞」同時出現才判定，不用單一關鍵字命中就攔截——避免誤擋
+# 「RTP是多少」「返奖率怎麼查」這種只有RTP相關詞、沒有異常波動詞的正常知識性問題
+# （這類問題需要能正常查知識庫，見先前 icon/material/rtp 改走知識庫的修正）。
+_RTP_REF_WORDS = (
+    "返奖率", "返獎率", "派彩率", "中奖率", "中獎率", "赢率", "贏率", "回报率", "回報率", "賠率", "赔率",
+    "殺率", "杀率", "玩家贏", "玩家赢", "用戶贏", "用户赢", "代理輸", "代理输", "波動率", "波动率",
+    "商戶輸", "商户输",
+    "rtp", "payout rate", "payout", "winning rate", "win rate", "return rate",
+)
+_RTP_ANOMALY_WORDS = (
+    "偏高", "偏低", "太高", "太低", "很高", "有點高", "有点高", "有點低", "有点低", "變高", "变高", "變低", "变低",
+    "異常", "异常", "不對", "不对", "有問題", "有问题", "一直", "持續", "持续", "下降", "變差", "变差",
+    "波動", "波动",
+    "so high", "too high", "too low", "lower down", "rate continues", "keeps dropping", "dropping", "fluctuating",
+)
+
+
+def _is_rtp_anomaly_complaint(text: str) -> bool:
+    """訊息同時提及 RTP/返獎率相關詞與異常波動詞（例如「返奖率有点高」「RTP一直很低」），
+    是玩家/代理對即時波動的質疑投訴，跳過知識庫直接轉人工。只有 RTP 相關詞、沒有異常波動詞
+    （例如單純問「RTP是多少」）不受影響，仍正常走知識庫查詢。"""
+    lower = text.lower()
+    has_rtp_ref = any(w.lower() in lower for w in _RTP_REF_WORDS)
+    has_anomaly = any(w.lower() in lower for w in _RTP_ANOMALY_WORDS)
+    return has_rtp_ref and has_anomaly
+
+
 def _is_bare_ip_message(text: str) -> bool:
     """訊息整段內容就是單一個 IP 位址（IPv4 或 IPv6），沒有其他文字說明——
     常見於白名單流程中單獨貼出位址、沒有搭配問題描述的情況，本質不是一個提問，
@@ -848,7 +877,7 @@ class BotManager:
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
         if (_is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text)
-                or _is_bare_ip_message(text) or _is_bare_code_message(text)):
+                or _is_bare_ip_message(text) or _is_bare_code_message(text) or _is_rtp_anomaly_complaint(text)):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
