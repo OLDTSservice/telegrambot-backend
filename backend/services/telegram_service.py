@@ -44,11 +44,13 @@ _WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
 # 出現關鍵字即跳過知識庫查詢，直接 fallback 轉人工
 _NO_KB_TOPIC_KEYWORDS = (
     "任何更新", "any update",
+    # 詢問處理進度/處理結果：屬於個案即時狀態，知識庫是靜態文件不會有答案
+    "处理结果", "處理結果", "处理进度", "處理進度", "進度", "进度",
     "重置密碼", "密碼重置", "重置密码", "密码重置",
     "reset password", "reset pw", "reset pass",
     "can't login", "cant login", "can not login", "cannot login", "can login",
     "still same", "still the same", "still cannot",
-    "any abnormal betting", "suspicious bet",
+    "any abnormal betting", "suspicious bet", "any abnormalities",
     "help add",
     "無法登入", "无法登入", "還是一樣", "还是一样", "异常投注", "異常投注",
     # 引用附加圖片，AI 無法比對圖片內容
@@ -57,16 +59,19 @@ _NO_KB_TOPIC_KEYWORDS = (
     "活动", "活動", "event", "events", "t&c",
     # 維護：是否維護中/維護時間屬於即時狀態，知識庫是靜態文件，不會反映當下狀態
     "維護", "维护", "maintenance",
+    # 遊戲是否下架屬於即時狀態，知識庫是靜態文件，不會反映當下狀態
+    "下架",
     "please try", "do you mean", "do you means", "存在差异",
     # 引用附加圖片（圖一/圖1 等編號稱呼），AI 無法比對圖片內容
     "图一", "圖一", "图1", "圖1",
     # 賠付率/中獎頻率等玩家個案質疑，屬於即時運算結果，知識庫是靜態文件不會有答案
-    "winning frequency", "win frequency", "payout rate", "lower down", "so high", "rate continues",
+    "winning frequency", "win frequency", "payout rate", "payout valid", "lower down", "so high", "rate continues",
     "調整", "调整", "already used", "how can use",
-    "要這個", "要这个", "是這個", "是这个", "check不到", "什麼情況", "什么情况",
+    "要這個", "要这个", "是這個", "是这个", "還有這個", "还有这个", "check不到", "什麼情況", "什么情况",
     "cannot access", "can't access",
     # 需人工核實特定會員/玩家/用戶身分的個案，知識庫不會有答案
     "协助确认会员", "協助確認會員", "协助确认玩家", "協助確認玩家", "协助确认用户", "協助確認用戶",
+    "玩家重新",
     # 其他機器人的自我介紹訊息，非廠商實際提問
     "this is one of our support robots", "dapat buka",
 )

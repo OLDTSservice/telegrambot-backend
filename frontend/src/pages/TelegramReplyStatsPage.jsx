@@ -34,8 +34,8 @@ const PRESETS = [
 ]
 
 export default function TelegramReplyStatsPage() {
-  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')])
-  const [activePreset, setActivePreset] = useState('本月')
+  const [dateRange, setDateRange] = useState([dayjs(), dayjs()])
+  const [activePreset, setActivePreset] = useState('今日')
   const [botId, setBotId] = useState(null)
   const [bots, setBots] = useState([])
   const [rankData, setRankData] = useState([])

@@ -49,8 +49,8 @@ function calcUSD(input, output, cacheRead, cacheWrite) {
 export default function StatsPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')])
-  const [activePreset, setActivePreset] = useState('本月')
+  const [dateRange, setDateRange] = useState([dayjs(), dayjs()])
+  const [activePreset, setActivePreset] = useState('今日')
   const [recentQueries, setRecentQueries] = useState([])
   const [groupCosts, setGroupCosts] = useState([])
 
