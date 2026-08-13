@@ -389,6 +389,7 @@ _GAMELIST_FIELD_ALIASES = {
     "must hit by": "Must Hit By",
     "linking jackpot": "Linking Jackpot",
     "freespin api": "Freespin API support", "freespin": "Freespin API support", "freespin api support": "Freespin API support",
+    "fs api": "Freespin API support",
     "screen orientation": "Screen Orientation", "orientation": "Screen Orientation",
 }
 
@@ -536,11 +537,13 @@ _INTENT_SYSTEM_PROMPT = """你是 TADA Gamelist 查詢的意圖解析助手，�
 1. 熱門遊戲排行：{"intent": "top_games", "region_text": "使用者提到的國家/市場/幣別原文，若沒指定則為空字串", "count": 數字（未指定則為10）}
 2. 單一遊戲欄位查詢：{"intent": "single_field", "game": "遊戲名稱或GameID原文", "fields": ["欄位關鍵字1", "欄位關鍵字2"]}
    可用欄位關鍵字（英文小寫）：game type, volatility, rtp, 94 rtp, min bet, max bet, buy bonus, freespin api,
-   linking jackpot, screen orientation, release date, hit rate, theoretical max multiplier,
+   fs api, linking jackpot, screen orientation, release date, hit rate, theoretical max multiplier,
    max exposure, freegame rate, jackpot, tag, gameplay, game demo, icon, material, must hit by
    注意：rtp 與 94 rtp 是兩個不同欄位。rtp 是一般的 Default RTP 數值；94 rtp 是「該遊戲是否
    額外支援 94% RTP 版本選項」的是/否類欄位。使用者問「支援94 RTP的遊戲」「which games
    provide 94 RTP」這類問法時，欄位關鍵字要用 94 rtp，不要把 94 當成 rtp 欄位的條件值。
+   fs api 是 freespin api 的縮寫講法，兩者是同一個欄位，使用者問「FS API」時直接用 fs api
+   即可（或視為與 freespin api 相同欄位處理）。
 3. 複合條件篩選：{"intent": "filter", "conditions": {"欄位關鍵字": "條件值"}}（欄位關鍵字清單同上）。
    條件值一律用字串，不要用 JSON boolean（true/false）：有/支援類條件填 "yes"，無/不支援類條件填 "no"
    （94 rtp 這類是/否欄位務必如此；只有 rtp 這種真正的數值欄位才會需要填實際數字當條件值）。
