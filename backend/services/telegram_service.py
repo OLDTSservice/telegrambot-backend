@@ -75,6 +75,9 @@ _NO_KB_TOPIC_KEYWORDS = (
     # 其他機器人的自我介紹訊息，非廠商實際提問
     "this is one of our support robots", "dapat buka",
     "any abnormal bet", "member feedback",
+    # 新遊戲上線時間/新帳號/白名單申請等，屬於個案即時狀態，知識庫不會有答案
+    "上线新游戏", "上線新遊戲", "新遊戲上線", "normal bet", "has been enabled", "log normal",
+    "新账号", "新帳號", "please whitelist", "please help whitelist",
 )
 
 
@@ -126,7 +129,7 @@ def _is_player_report(text: str) -> bool:
 _RTP_REF_WORDS = (
     "返奖率", "返獎率", "派彩率", "中奖率", "中獎率", "赢率", "贏率", "回报率", "回報率", "賠率", "赔率",
     "殺率", "杀率", "玩家贏", "玩家赢", "用戶贏", "用户赢", "代理輸", "代理输", "波動率", "波动率",
-    "商戶輸", "商户输",
+    "商戶輸", "商户输", "杀数", "殺數",
     "rtp", "payout rate", "payout", "winning rate", "win rate", "return rate",
 )
 _RTP_ANOMALY_WORDS = (
