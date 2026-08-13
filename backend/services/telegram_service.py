@@ -74,6 +74,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "玩家重新",
     # 其他機器人的自我介紹訊息，非廠商實際提問
     "this is one of our support robots", "dapat buka",
+    "any abnormal bet", "member feedback",
 )
 
 
@@ -276,6 +277,7 @@ _GREETING_PHRASES = {
     "sorry for the mistake", "double confirm",
     "pls ignore", "pls ignore thanks", "sorry for the mistake pls ignore thanks",
     "sorry for the mistake please ignore", "sorry for the mistake please ignore thanks",
+    "may ignore", "may ignore this", "may ignore team", "may ignore thanks", "may ignore team thanks",
     # 中文問候/感謝/道別
     "好的", "收到", "明白了", "明白", "了解", "知道了", "辛苦了",
     "請忽略", "請忽略上面", "請忽略以上", "忽略上面", "忽略以上", "不用理會", "當我沒說", "取消",
