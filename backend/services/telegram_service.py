@@ -36,7 +36,11 @@ _TICKET_ACCOUNT_FIELD_RE = re.compile(
 _TICKET_IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
 # 不含數字編號的「標籤：值」欄位行（規則四用），例如 "Brand Name: PP80"、"Callback URL : "
-_FORM_FIELD_LINE_RE = re.compile(r'^\s*[^\s：:].{0,38}?[：:]\s*.*$')
+# 開頭用負向前瞻排除單獨一行的網址（如 "https://xxx.com/admin"）：網址本身帶協定冒號
+# （"https:"）會被誤判成「標籤：值」格式（標籤=https），實際上只是單純貼出連結、不是
+# 欄位標籤，需排除才不會把「網址+USER+PW+IP」這種訊息誤判成 4 行結構化表單。
+# 若標籤本身包含網址（如 "Website URL: https://xxx"），標籤不是從 http 開頭，不受影響。
+_FORM_FIELD_LINE_RE = re.compile(r'^\s*(?!https?://)[^\s：:].{0,38}?[：:]\s*.*$', re.IGNORECASE)
 # 出現這些字樣即視為白名單相關訊息，排除規則四，避免誤擋真正的白名單請求
 _WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
 

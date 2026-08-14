@@ -780,7 +780,7 @@
           <tr><td>1</td><td>訊息中至少 <strong>3 行</strong>符合「數字編號＋句點/頓號＋內容＋冒號＋內容」格式（例：<span class="code">1. 商戶名字：ABC</span>）。</td></tr>
           <tr><td>2</td><td>訊息開頭含固定的客服工單範本開場白（<span class="code">Please provide the list below</span>／<span class="code">可以提供以下资料以便查询</span>），即使欄位沒有數字編號也判定為表單。</td></tr>
           <tr><td>3</td><td>同時含「遊戲」欄位標籤（<span class="code">游戏名称/Game：</span>）與「帳號」欄位標籤（<span class="code">代理账号/Username：</span>等），且訊息中<strong>沒有</strong> IP 位址——白名單請求也常見這種欄位組合，但一定會附上要加白的 IP，用「有沒有 IP」區分兩者，避免誤擋真正的白名單請求。</td></tr>
-          <tr><td>4</td><td>多行「標籤：值」格式但沒有數字編號（例如 API 串接申請單常見的 <span class="code">Brand Name</span>／<span class="code">Website URL</span>／<span class="code">Callback URL</span> 等欄位），至少 <strong>4 行</strong>才視為表單，且訊息中不能含白名單相關字樣（<span class="code">白名单</span>／<span class="code">白名單</span>／<span class="code">whitelist</span>／<span class="code">加白</span>），避免誤擋白名單請求。</td></tr>
+          <tr><td>4</td><td>多行「標籤：值」格式但沒有數字編號（例如 API 串接申請單常見的 <span class="code">Brand Name</span>／<span class="code">Website URL</span>／<span class="code">Callback URL</span> 等欄位），至少 <strong>4 行</strong>才視為表單，且訊息中不能含白名單相關字樣（<span class="code">白名单</span>／<span class="code">白名單</span>／<span class="code">whitelist</span>／<span class="code">加白</span>），避免誤擋白名單請求。單獨一行的網址（<span class="code">https://...</span> 開頭）不算欄位標籤——網址本身的協定冒號（<span class="code">https:</span>）曾被誤判成「標籤：值」格式，導致「網址＋USER＋PW＋IP」這種沒有寫明白名單字樣的訊息被誤判成表單、連帶擋住白名單自動處理。</td></tr>
         </tbody>
       </table>
       <div class="callout">
