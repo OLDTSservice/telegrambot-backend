@@ -79,6 +79,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "上线新游戏", "上線新遊戲", "新遊戲上線", "normal bet", "has been enabled", "log normal",
     "新账号", "新帳號", "please whitelist", "please help whitelist",
     "这个呢", "這個呢", "bet id :", "如何查詢", "怎么算",
+    "game log", "tak dapat login",
 )
 
 
@@ -264,7 +265,7 @@ _GREETING_PHRASES = {
     "hi", "hello", "hey", "yo", "hiya",
     "hi team", "hello team", "hey team", "hi all", "hello all", "hi guys", "hello guys",
     "ok", "okay", "ok thanks", "okay thanks", "got it", "noted", "understood", "roger", "received",
-    "thanks", "thank you", "thanks team", "thank you team", "thx", "ty",
+    "thanks", "thank you", "thank", "thanks team", "thank you team", "thank team", "thx", "ty",
     "cheers", "appreciate it", "no problem", "np", "you're welcome", "youre welcome", "welcome",
     "bye", "goodbye", "see you", "good morning", "good afternoon", "good evening", "good night",
     "great thanks", "perfect thanks", "many thanks", "thanks a lot", "thank you so much", "thank you very much",
