@@ -78,6 +78,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     # 新遊戲上線時間/新帳號/白名單申請等，屬於個案即時狀態，知識庫不會有答案
     "上线新游戏", "上線新遊戲", "新遊戲上線", "normal bet", "has been enabled", "log normal",
     "新账号", "新帳號", "please whitelist", "please help whitelist",
+    "这个呢", "這個呢", "bet id :", "如何查詢", "怎么算",
 )
 
 

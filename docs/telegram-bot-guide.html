@@ -324,6 +324,16 @@
     </div>
 
     <div class="toc-group">
+      <div class="toc-group-label">知識庫跳過清單 ⭐</div>
+      <a class="toc-link" href="#kb-skip">知識庫跳過機制詳細清單</a>
+      <a class="toc-link toc-sub" href="#kb-skip-flat">— 固定關鍵字清單</a>
+      <a class="toc-link toc-sub" href="#kb-skip-combo">— 雙關鍵字組合判斷</a>
+      <a class="toc-link toc-sub" href="#kb-skip-bare">— 整段訊息格式判斷</a>
+      <a class="toc-link toc-sub" href="#kb-skip-form">— 申請表單／客服工單</a>
+      <a class="toc-link toc-sub" href="#kb-skip-greeting">— 問候／感謝／道別語</a>
+    </div>
+
+    <div class="toc-group">
       <div class="toc-group-label">功能頁面</div>
       <a class="toc-link" href="#rules-page">關鍵字規則</a>
       <a class="toc-link" href="#knowledge-page">知識庫管理</a>
@@ -689,6 +699,119 @@
         在<strong>一般模式（非管控模式）</strong>下，機器人「自動送出」的關鍵字回覆、知識庫回覆、白名單成功處理、JILI/TADA遊戲素材查詢成功這幾種情境，
         會在背景執行緒呼叫外部 Freshdesk 建單 API 留存記錄；管控模式下由人工發送同樣會建單，但 Fallback 無解答回覆、AI 救援回覆不會建單。
         每個群組可在「群組管理 Tab」關閉「自動建立工單」開關（預設開啟），關閉後上述所有情境一律不建單，Notify 通知也連帶不會觸發。
+      </div>
+    </section>
+
+    <!-- ═══════════ 知識庫跳過機制詳細清單 ═══════════ -->
+    <section id="kb-skip">
+      <h2>知識庫跳過機制詳細清單 ⭐</h2>
+      <p>本節列出目前所有會讓機器人<strong>跳過知識庫查詢、直接轉人工</strong>的關鍵字與判斷機制（對應 <a href="#flow-length">訊息處理總流程 — 短訊息 / 表單偵測</a> 這一步，程式碼位置皆在 <span class="code">backend/services/telegram_service.py</span>）。所有機制共用同一套結果：命中任一項，若該群組「找不到答案時靜默」已開啟則完全不回覆，否則依訊息語言回覆制式訊息（中文：「您好，人員將會協助確認，請稍後」／英文：「Hello, our team will assist you shortly. Please wait.」），並記錄為「無解答對話紀錄」。</p>
+
+      <div class="callout warn">
+        <strong>維護規則：每次新增／刪除關鍵字都要同步更新本節</strong>
+        本節內容需與程式碼保持一致。之後在程式碼裡新增或刪除任何跳過知識庫的關鍵字／機制時，請一併更新這裡對應的清單；新增前也請先確認清單裡沒有重複或語意重疊的關鍵字，避免清單越養越亂。
+      </div>
+
+      <h3 id="kb-skip-flat">固定關鍵字清單（單一命中即跳過）</h3>
+      <p><span class="code">_NO_KB_TOPIC_KEYWORDS</span>（<span class="code">_is_no_kb_topic()</span>）：訊息內容只要<strong>包含</strong>清單中任一關鍵字（不分大小寫、不需整句相符）即命中。這類主題本質是「知識庫是靜態文件、不會有答案」（即時狀態查詢）或「需要人工核實的個案」，共 <strong>102 個</strong>關鍵字，依用途分類如下：</p>
+
+      <table>
+        <thead><tr><th style="width:220px">分類</th><th>關鍵字</th></tr></thead>
+        <tbody>
+          <tr><td>詢問處理進度／結果</td><td><span class="code">任何更新</span> <span class="code">any update</span> <span class="code">处理结果</span> <span class="code">處理結果</span> <span class="code">处理进度</span> <span class="code">處理進度</span> <span class="code">進度</span> <span class="code">进度</span></td></tr>
+          <tr><td>密碼重置／登入問題</td><td><span class="code">重置密碼</span> <span class="code">密碼重置</span> <span class="code">重置密码</span> <span class="code">密码重置</span> <span class="code">reset password</span> <span class="code">reset pw</span> <span class="code">reset pass</span> <span class="code">can't login</span> <span class="code">cant login</span> <span class="code">can not login</span> <span class="code">cannot login</span> <span class="code">can login</span> <span class="code">still same</span> <span class="code">still the same</span> <span class="code">still cannot</span> <span class="code">無法登入</span> <span class="code">无法登入</span> <span class="code">還是一樣</span> <span class="code">还是一样</span></td></tr>
+          <tr><td>異常投注</td><td><span class="code">any abnormal betting</span> <span class="code">suspicious bet</span> <span class="code">any abnormalities</span> <span class="code">any abnormal bet</span> <span class="code">异常投注</span> <span class="code">異常投注</span></td></tr>
+          <tr><td>引用附加圖片（AI 無法比對圖片內容）</td><td><span class="code">图中</span> <span class="code">圖中</span> <span class="code">截图</span> <span class="code">截圖</span> <span class="code">图一</span> <span class="code">圖一</span> <span class="code">图1</span> <span class="code">圖1</span></td></tr>
+          <tr><td>活動／優惠／收費／條款（即時異動內容）</td><td><span class="code">活动</span> <span class="code">活動</span> <span class="code">event</span> <span class="code">events</span> <span class="code">t&amp;c</span></td></tr>
+          <tr><td>維護狀態（即時狀態）</td><td><span class="code">維護</span> <span class="code">维护</span> <span class="code">maintenance</span></td></tr>
+          <tr><td>遊戲下架（即時狀態）</td><td><span class="code">下架</span></td></tr>
+          <tr><td>賠付率／中獎頻率個案質疑</td><td><span class="code">winning frequency</span> <span class="code">win frequency</span> <span class="code">payout rate</span> <span class="code">payout valid</span> <span class="code">lower down</span> <span class="code">so high</span> <span class="code">rate continues</span></td></tr>
+          <tr><td>需人工核實會員／玩家／用戶身分</td><td><span class="code">协助确认会员</span> <span class="code">協助確認會員</span> <span class="code">协助确认玩家</span> <span class="code">協助確認玩家</span> <span class="code">协助确认用户</span> <span class="code">協助確認用戶</span> <span class="code">玩家重新</span></td></tr>
+          <tr><td>其他機器人的自我介紹訊息（非廠商實際提問）</td><td><span class="code">this is one of our support robots</span> <span class="code">dapat buka</span></td></tr>
+          <tr><td>新遊戲上線／新帳號／白名單申請等個案狀態</td><td><span class="code">上线新游戏</span> <span class="code">上線新遊戲</span> <span class="code">新遊戲上線</span> <span class="code">normal bet</span> <span class="code">has been enabled</span> <span class="code">log normal</span> <span class="code">新账号</span> <span class="code">新帳號</span> <span class="code">please whitelist</span> <span class="code">please help whitelist</span></td></tr>
+          <tr><td>其他個案性／情境不明訊息</td><td><span class="code">help add</span> <span class="code">please try</span> <span class="code">do you mean</span> <span class="code">do you means</span> <span class="code">存在差异</span> <span class="code">調整</span> <span class="code">调整</span> <span class="code">already used</span> <span class="code">how can use</span> <span class="code">要這個</span> <span class="code">要这个</span> <span class="code">是這個</span> <span class="code">是这个</span> <span class="code">還有這個</span> <span class="code">还有这个</span> <span class="code">check不到</span> <span class="code">什麼情況</span> <span class="code">什么情况</span> <span class="code">cannot access</span> <span class="code">can't access</span> <span class="code">member feedback</span> <span class="code">这个呢</span> <span class="code">這個呢</span> <span class="code">bet id :</span> <span class="code">如何查詢</span> <span class="code">怎么算</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="kb-skip-combo">雙關鍵字組合判斷（AND，兩組關鍵字需同時出現才判定）</h3>
+      <p>這類機制不用「單一關鍵字命中就攔截」，而是要求「主題詞」與「情境詞」<strong>同時出現</strong>才判定，避免誤擋只提到主題詞、但其實是正常知識性問題的訊息（例如單純問「RTP是多少」不該被擋，但「RTP一直很低」要被擋）。</p>
+
+      <h4>玩家／客戶個案投訴（<span class="code">_is_player_report()</span>）</h4>
+      <p>訊息同時提及「玩家／客戶」與「需人工檢查／處理」的字樣時判定為個案投訴，跳過知識庫。英文關鍵字（如 <span class="code">report</span>、<span class="code">video</span>）採<strong>獨立單字詞界比對</strong>，不用子字串比對——避免帳號名稱裡的 <span class="code">TitanTR43_Report</span> 這種尾綴誤觸發；中文關鍵字沒有詞界概念，維持子字串比對。</p>
+      <table>
+        <thead><tr><th style="width:180px">組別</th><th>關鍵字</th></tr></thead>
+        <tbody>
+          <tr><td>A組：玩家／客戶指稱詞</td><td><span class="code">玩家</span> <span class="code">player</span> <span class="code">顾客</span> <span class="code">客户</span> <span class="code">customer</span></td></tr>
+          <tr><td>B組：需檢查／處理字樣</td><td><span class="code">提出</span> <span class="code">反映</span> <span class="code">反饋</span> <span class="code">反馈</span> <span class="code">請檢查</span> <span class="code">请检查</span> <span class="code">麻煩檢查</span> <span class="code">麻烦检查</span> <span class="code">幫忙看一下</span> <span class="code">帮忙看一下</span> <span class="code">視頻</span> <span class="code">视频</span> <span class="code">投訴</span> <span class="code">投诉</span> <span class="code">舉報</span> <span class="code">举报</span> <span class="code">正常嗎</span> <span class="code">正常吗</span> <span class="code">够力</span> <span class="code">吐分</span> <span class="code">賠付</span> <span class="code">赔付</span> <span class="code">機率</span> <span class="code">几率</span> <span class="code">reported</span> <span class="code">complain</span> <span class="code">complaint</span> <span class="code">please check</span> <span class="code">kindly check</span> <span class="code">video</span> <span class="code">report</span> <span class="code">没有那个</span> <span class="code">什么都没有</span></td></tr>
+        </tbody>
+      </table>
+
+      <h4>RTP／返獎率異常投訴（<span class="code">_is_rtp_anomaly_complaint()</span>）</h4>
+      <p>訊息同時提及「RTP／返獎率相關詞」與「異常波動詞」時判定為投訴，跳過知識庫。刻意不用單獨的「高」「低」單字（過於常見，容易誤傷正常問題），改用「偏高」「太高」「有點高」等複合詞。</p>
+      <table>
+        <thead><tr><th style="width:180px">組別</th><th>關鍵字</th></tr></thead>
+        <tbody>
+          <tr><td>A組：RTP／返獎率相關詞</td><td><span class="code">返奖率</span> <span class="code">返獎率</span> <span class="code">派彩率</span> <span class="code">中奖率</span> <span class="code">中獎率</span> <span class="code">赢率</span> <span class="code">贏率</span> <span class="code">回报率</span> <span class="code">回報率</span> <span class="code">賠率</span> <span class="code">赔率</span> <span class="code">殺率</span> <span class="code">杀率</span> <span class="code">玩家贏</span> <span class="code">玩家赢</span> <span class="code">用戶贏</span> <span class="code">用户赢</span> <span class="code">代理輸</span> <span class="code">代理输</span> <span class="code">波動率</span> <span class="code">波动率</span> <span class="code">商戶輸</span> <span class="code">商户输</span> <span class="code">杀数</span> <span class="code">殺數</span> <span class="code">rtp</span> <span class="code">payout rate</span> <span class="code">payout</span> <span class="code">winning rate</span> <span class="code">win rate</span> <span class="code">return rate</span></td></tr>
+          <tr><td>B組：異常波動詞</td><td><span class="code">偏高</span> <span class="code">偏低</span> <span class="code">太高</span> <span class="code">太低</span> <span class="code">很高</span> <span class="code">有點高</span> <span class="code">有点高</span> <span class="code">有點低</span> <span class="code">有点低</span> <span class="code">變高</span> <span class="code">变高</span> <span class="code">變低</span> <span class="code">变低</span> <span class="code">異常</span> <span class="code">异常</span> <span class="code">不對</span> <span class="code">不对</span> <span class="code">有問題</span> <span class="code">有问题</span> <span class="code">一直</span> <span class="code">持續</span> <span class="code">持续</span> <span class="code">下降</span> <span class="code">變差</span> <span class="code">变差</span> <span class="code">波動</span> <span class="code">波动</span> <span class="code">so high</span> <span class="code">too high</span> <span class="code">too low</span> <span class="code">lower down</span> <span class="code">rate continues</span> <span class="code">keeps dropping</span> <span class="code">dropping</span> <span class="code">fluctuating</span></td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>為什麼「RTP是多少」不會被擋</strong>
+        A組關鍵字（如 <span class="code">rtp</span>）本身不會觸發跳過，一定要 B組的異常波動詞也同時出現才算投訴。單純問「RTP是多少」「返奖率怎麼查」這種只有 A組、沒有 B組的正常知識性問題，仍會正常查詢知識庫（知識庫裡若已補上 icon／material／rtp 沒指定遊戲時的通用問答，詳見 <a href="#kb-skip-form">下方申請表單章節旁的相關說明</a>）。
+      </div>
+
+      <h3 id="kb-skip-bare">整段訊息格式判斷（訊息整段只有…，沒有其他文字說明）</h3>
+      <p>這類機制不看關鍵字，而是判斷「訊息去除頭尾空白後，整段內容剛好就是某種格式」——代表這不是一個提問，而是單獨貼出的資料（常見於白名單流程中先貼出IP／代碼／時間點，還沒搭配問題描述的情況）。只要訊息裡<strong>除了該格式還有其他文字</strong>，就不會誤判，仍正常走知識庫查詢。</p>
+      <table>
+        <thead><tr><th style="width:220px">函式</th><th>判斷內容</th><th>範例</th></tr></thead>
+        <tbody>
+          <tr><td><span class="code">_is_bare_ip_message()</span></td><td>整段是單一個 IP 位址（IPv4 或 IPv6），用標準庫 <span class="code">ipaddress</span> 判斷，正確涵蓋各種 IPv6 縮寫格式。</td><td><span class="code">182.11.152.163</span><br><span class="code">2a09:bac5:d5f4:101e::19b:17f</span></td></tr>
+          <tr><td><span class="code">_is_bare_code_message()</span></td><td>整段是單一個英數混合的代碼／單號，要求同時包含英文字母與數字（純英文單字或純數字不算），且長度至少 8 碼。</td><td><span class="code">27063759W1X8</span><br><span class="code">ACNM27063759W1X8</span></td></tr>
+          <tr><td><span class="code">_is_bare_timestamp_message()</span></td><td>整段是單一個時間戳記，正則涵蓋常見日期／時間格式組合：分隔符可為 <span class="code">-</span> <span class="code">/</span> <span class="code">.</span>，時間部分可有可無、可含秒數與毫秒，結尾可有時區或 <span class="code">Z</span>。</td><td><span class="code">2026-08-12 12:14:52</span><br><span class="code">2026/08/12</span><br><span class="code">12:14:52</span><br><span class="code">2026-08-12T12:14:52Z</span></td></tr>
+          <tr><td><span class="code">_is_bare_mention_message()</span></td><td>整段只是單獨 tag 一個或多個指定的內部客服／機器人帳號，沒有其他文字。若訊息除了 tag 還有其他實際問題內容，則不受影響，仍正常走知識庫。</td><td><span class="code">@OLDTS_service</span><br><span class="code">@JiliSerivceprodbot</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="kb-skip-form">申請表單／客服工單偵測（<span class="code">_is_application_form()</span>）</h3>
+      <p>符合以下任一規則即判定為結構化申請表單或客服工單，跳過知識庫，直接回覆制式等待訊息（此機制也同時用於<a href="#flow-whitelist">排除白名單自動處理的誤判</a>）：</p>
+      <table>
+        <thead><tr><th style="width:70px">規則</th><th>判斷方式</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>訊息中至少 <strong>3 行</strong>符合「數字編號＋句點/頓號＋內容＋冒號＋內容」格式（例：<span class="code">1. 商戶名字：ABC</span>）。</td></tr>
+          <tr><td>2</td><td>訊息開頭含固定的客服工單範本開場白（<span class="code">Please provide the list below</span>／<span class="code">可以提供以下资料以便查询</span>），即使欄位沒有數字編號也判定為表單。</td></tr>
+          <tr><td>3</td><td>同時含「遊戲」欄位標籤（<span class="code">游戏名称/Game：</span>）與「帳號」欄位標籤（<span class="code">代理账号/Username：</span>等），且訊息中<strong>沒有</strong> IP 位址——白名單請求也常見這種欄位組合，但一定會附上要加白的 IP，用「有沒有 IP」區分兩者，避免誤擋真正的白名單請求。</td></tr>
+          <tr><td>4</td><td>多行「標籤：值」格式但沒有數字編號（例如 API 串接申請單常見的 <span class="code">Brand Name</span>／<span class="code">Website URL</span>／<span class="code">Callback URL</span> 等欄位），至少 <strong>4 行</strong>才視為表單，且訊息中不能含白名單相關字樣（<span class="code">白名单</span>／<span class="code">白名單</span>／<span class="code">whitelist</span>／<span class="code">加白</span>），避免誤擋白名單請求。</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>icon／material／rtp 沒指定遊戲時的例外</strong>
+        <a href="#bots-tab-list">TADA Gamelist進階查詢</a>判斷「單一遊戲欄位查詢」條件不足（有欄位、沒指定遊戲）時，預設會直接轉人工；但 icon／material／rtp 這三個欄位額外設有例外——若知識庫裡已補上「沒有指定遊戲時」的通用問答（例如統一的素材資料夾連結），會改為放行給知識庫查詢，而不是直接轉人工。其餘欄位（如 min bet、volatility）沒有這個例外，沒指定遊戲時仍一律轉人工，因為這些欄位沒有指定遊戲就沒有意義的通用答案。
+      </div>
+
+      <h3 id="kb-skip-greeting">純問候／感謝／道別語（<span class="code">_is_greeting_or_thanks()</span>）</h3>
+      <p>訊息去除標點符號與大小寫後，若整句<strong>完全等於</strong>清單中的問候／感謝／道別語才算命中（不是包含，是整句相符），避免像「Hi Team, would like to ask...」這種開頭是問候語、但後面有實際問題內容的訊息被誤擋。命中後直接結束，<strong>不回覆、不記錄</strong>（與其他機制會回覆制式訊息不同）。</p>
+      <div class="card">
+        <p style="margin-top:0"><strong>英文基本詞組</strong></p>
+        <p style="font-size:13.5px">
+          <span class="code">hi</span> <span class="code">hello</span> <span class="code">hey</span> <span class="code">yo</span> <span class="code">hiya</span> <span class="code">hi team</span> <span class="code">hello team</span> <span class="code">hey team</span> <span class="code">hi all</span> <span class="code">hello all</span> <span class="code">hi guys</span> <span class="code">hello guys</span> <span class="code">ok</span> <span class="code">okay</span> <span class="code">ok thanks</span> <span class="code">okay thanks</span> <span class="code">got it</span> <span class="code">noted</span> <span class="code">understood</span> <span class="code">roger</span> <span class="code">received</span> <span class="code">thanks</span> <span class="code">thank you</span> <span class="code">thanks team</span> <span class="code">thank you team</span> <span class="code">thx</span> <span class="code">ty</span> <span class="code">cheers</span> <span class="code">appreciate it</span> <span class="code">no problem</span> <span class="code">np</span> <span class="code">you're welcome</span> <span class="code">youre welcome</span> <span class="code">welcome</span> <span class="code">bye</span> <span class="code">goodbye</span> <span class="code">see you</span> <span class="code">good morning</span> <span class="code">good afternoon</span> <span class="code">good evening</span> <span class="code">good night</span> <span class="code">great thanks</span> <span class="code">perfect thanks</span> <span class="code">many thanks</span> <span class="code">thanks a lot</span> <span class="code">thank you so much</span> <span class="code">thank you very much</span> <span class="code">noted thanks</span> <span class="code">noted with thanks</span> <span class="code">understood thanks</span> <span class="code">noted thank you</span>
+        </p>
+        <p><strong>英文取消／忽略前訊息</strong></p>
+        <p style="font-size:13.5px">
+          <span class="code">ignore</span> <span class="code">please ignore</span> <span class="code">kindly ignore</span> <span class="code">ignore this</span> <span class="code">ignore that</span> <span class="code">ignore above</span> <span class="code">ignore the above</span> <span class="code">please disregard</span> <span class="code">disregard</span> <span class="code">disregard that</span> <span class="code">never mind</span> <span class="code">nevermind</span> <span class="code">nvm</span> <span class="code">cancel that</span> <span class="code">cancel this</span> <span class="code">hold on</span> <span class="code">hold up</span> <span class="code">wait</span> <span class="code">one moment</span> <span class="code">one sec</span> <span class="code">give me a sec</span> <span class="code">give me a moment</span> <span class="code">let me check</span> <span class="code">checking</span> <span class="code">please hold</span> <span class="code">please wait</span> <span class="code">ignore thanks</span> <span class="code">please ignore thanks</span> <span class="code">kindly ignore thanks</span> <span class="code">kindy ignore thanks</span> <span class="code">ignore this thanks</span> <span class="code">please disregard thanks</span> <span class="code">never mind thanks</span> <span class="code">sorry please ignore</span> <span class="code">sorry team please ignore</span> <span class="code">sorry ignore this</span> <span class="code">oops please ignore</span> <span class="code">sorry for the mistake</span> <span class="code">double confirm</span> <span class="code">pls ignore</span> <span class="code">pls ignore thanks</span> <span class="code">sorry for the mistake pls ignore thanks</span> <span class="code">sorry for the mistake please ignore</span> <span class="code">sorry for the mistake please ignore thanks</span> <span class="code">may ignore</span> <span class="code">may ignore this</span> <span class="code">may ignore team</span> <span class="code">may ignore thanks</span> <span class="code">may ignore team thanks</span>
+        </p>
+        <p><strong>中文問候／感謝／道別</strong></p>
+        <p style="font-size:13.5px">
+          <span class="code">好的</span> <span class="code">收到</span> <span class="code">明白了</span> <span class="code">明白</span> <span class="code">了解</span> <span class="code">知道了</span> <span class="code">辛苦了</span> <span class="code">請忽略</span> <span class="code">請忽略上面</span> <span class="code">請忽略以上</span> <span class="code">忽略上面</span> <span class="code">忽略以上</span> <span class="code">不用理會</span> <span class="code">當我沒說</span> <span class="code">取消</span> <span class="code">謝謝</span> <span class="code">谢谢</span> <span class="code">多謝</span> <span class="code">多谢</span> <span class="code">感謝</span> <span class="code">感谢</span> <span class="code">謝謝晒</span> <span class="code">谢谢晒</span> <span class="code">唔該</span> <span class="code">唔该</span> <span class="code">你好</span> <span class="code">您好</span> <span class="code">嗨</span> <span class="code">哈囉</span> <span class="code">哈罗</span> <span class="code">早安</span> <span class="code">午安</span> <span class="code">晚安</span> <span class="code">再見</span> <span class="code">再见</span> <span class="code">拜拜</span>
+        </p>
+      </div>
+      <div class="callout">
+        <strong>「team」尾綴自動衍生機制</strong>
+        以下 33 個短語會自動衍生出「{短語} team」版本一併納入完全比對清單（例如 <span class="code">ok thanks</span> 會自動多一條 <span class="code">ok thanks team</span>），不需手動窮舉所有排列組合：<br>
+        <span class="code">ok</span> <span class="code">okay</span> <span class="code">ok thanks</span> <span class="code">okay thanks</span> <span class="code">thanks</span> <span class="code">thank you</span> <span class="code">got it</span> <span class="code">noted</span> <span class="code">understood</span> <span class="code">roger</span> <span class="code">received</span> <span class="code">cheers</span> <span class="code">great thanks</span> <span class="code">perfect thanks</span> <span class="code">many thanks</span> <span class="code">thanks a lot</span> <span class="code">bye</span> <span class="code">goodbye</span> <span class="code">good morning</span> <span class="code">good afternoon</span> <span class="code">good evening</span> <span class="code">good night</span> <span class="code">ignore</span> <span class="code">please ignore</span> <span class="code">kindly ignore</span> <span class="code">disregard</span> <span class="code">please disregard</span> <span class="code">never mind</span> <span class="code">hold on</span> <span class="code">hold up</span> <span class="code">wait</span> <span class="code">one moment</span> <span class="code">one sec</span>
+      </div>
+      <div class="callout warn">
+        <strong>目前清單總數</strong>
+        基本詞組＋自動衍生的 team 版本後，<span class="code">_GREETING_PHRASES</span> 共 <strong>167 條</strong>完全比對項目。
       </div>
     </section>
 
