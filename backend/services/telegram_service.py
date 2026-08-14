@@ -84,6 +84,11 @@ _NO_KB_TOPIC_KEYWORDS = (
     "新账号", "新帳號", "please whitelist", "please help whitelist",
     "这个呢", "這個呢", "bet id :", "如何查詢", "怎么算",
     "game log", "tak dapat login",
+    # 個案帳號狀態/白名單協助/系統操作異常，屬於即時個案，知識庫不會有答案
+    "顺便帮我", "順便幫我", "没有记录", "沒有記錄", "一直卡",
+    "目前这款", "目前這款", "已停用",
+    "whitelist bo", "帮忙加白", "幫忙加白", "进去查", "進去查",
+    "assist to disable", "wrong wallet", "total bet是多少", "please add",
 )
 
 
