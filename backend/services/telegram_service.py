@@ -312,6 +312,13 @@ def _is_greeting_or_thanks(text: str) -> bool:
     return normalized in _GREETING_PHRASES
 
 
+def _contains_ignore_keyword(text: str) -> bool:
+    """訊息中只要出現「ignore」這個字（不限完整一句、不分大小寫、不需整句相符），就視為要忽略、
+    不需處理，直接略過（不回覆、不記錄）。跟純問候/感謝語一樣是完全靜默的處理方式——這類訊息
+    幾乎都是「請忽略我剛才那則」的意思，即使還夾雜其他文字，通常也不是真正需要回答的問題。"""
+    return "ignore" in text.lower()
+
+
 async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_fn, label: str):
     """遊戲素材查詢共用邏輯（JILI/TADA 皆呼叫此函式，僅資料來源不同）。
     偵測到關鍵字才會查詢；一則訊息可能同時問多款遊戲，逐一查詢後整合成一則回覆；
@@ -919,9 +926,9 @@ class BotManager:
             logger.debug(f"Bot {bot_id} 訊息長度 {len(text.strip())} < {_MIN_TEXT_LEN}，略過")
             return
 
-        # 功能一-a：純問候/感謝/道別語（不含實際問題內容）→ 跳過，不回覆不記錄
-        if _is_greeting_or_thanks(text):
-            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語，略過：「{text[:30]}」")
+        # 功能一-a：純問候/感謝/道別語，或訊息含「ignore」字樣 → 跳過，不回覆不記錄
+        if _is_greeting_or_thanks(text) or _contains_ignore_keyword(text):
+            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語或ignore關鍵字，略過：「{text[:30]}」")
             return
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback

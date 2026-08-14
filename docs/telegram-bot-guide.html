@@ -788,8 +788,12 @@
         <a href="#bots-tab-list">TADA Gamelist進階查詢</a>判斷「單一遊戲欄位查詢」條件不足（有欄位、沒指定遊戲）時，預設會直接轉人工；但 icon／material／rtp 這三個欄位額外設有例外——若知識庫裡已補上「沒有指定遊戲時」的通用問答（例如統一的素材資料夾連結），會改為放行給知識庫查詢，而不是直接轉人工。其餘欄位（如 min bet、volatility）沒有這個例外，沒指定遊戲時仍一律轉人工，因為這些欄位沒有指定遊戲就沒有意義的通用答案。
       </div>
 
-      <h3 id="kb-skip-greeting">純問候／感謝／道別語（<span class="code">_is_greeting_or_thanks()</span>）</h3>
-      <p>訊息去除標點符號與大小寫後，若整句<strong>完全等於</strong>清單中的問候／感謝／道別語才算命中（不是包含，是整句相符），避免像「Hi Team, would like to ask...」這種開頭是問候語、但後面有實際問題內容的訊息被誤擋。命中後直接結束，<strong>不回覆、不記錄</strong>（與其他機制會回覆制式訊息不同）。</p>
+      <h3 id="kb-skip-greeting">純問候／感謝／道別語，以及含「ignore」字樣（<span class="code">_is_greeting_or_thanks()</span> / <span class="code">_contains_ignore_keyword()</span>）</h3>
+      <p>這兩個判斷命中後都是<strong>直接結束、不回覆、不記錄</strong>（與其他機制會回覆制式訊息不同）：</p>
+      <ul>
+        <li><strong>純問候／感謝／道別語</strong>：訊息去除標點符號與大小寫後，若整句<strong>完全等於</strong>清單中的問候／感謝／道別語才算命中（不是包含，是整句相符），避免像「Hi Team, would like to ask...」這種開頭是問候語、但後面有實際問題內容的訊息被誤擋。</li>
+        <li><strong>含「ignore」字樣</strong>：訊息中只要出現「ignore」這個字（不分大小寫、<strong>不限完整一句、可包含在其他文字中</strong>），就直接略過。與上面「整句完全相符」不同，這條是<strong>子字串比對</strong>——即使訊息裡還夾雜其他文字（例如「sorry ignore my last message, but can you help check the RTP」），整則訊息仍會被略過，不會另外處理後面的問題。此為刻意的設計取捨：這類訊息絕大多數情況下確實不需要處理，極少數例外由人員自行查看群組對話即可，不需要機器人額外攔截處理。</li>
+      </ul>
       <div class="card">
         <p style="margin-top:0"><strong>英文基本詞組</strong></p>
         <p style="font-size:13.5px">
