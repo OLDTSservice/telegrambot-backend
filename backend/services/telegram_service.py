@@ -89,6 +89,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "目前这款", "目前這款", "已停用",
     "whitelist bo", "帮忙加白", "幫忙加白", "进去查", "進去查",
     "assist to disable", "wrong wallet", "total bet是多少", "please add",
+    "改代理", "有新消息", "有消息",
 )
 
 
