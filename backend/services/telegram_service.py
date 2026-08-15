@@ -90,6 +90,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "whitelist bo", "帮忙加白", "幫忙加白", "进去查", "進去查",
     "assist to disable", "wrong wallet", "total bet是多少", "please add",
     "改代理", "有新消息", "有消息",
+    "投注是否正常", "对下情况", "對下情況", "玩了多少", "assist to check",
+    "记录有问题", "記錄有問題",
 )
 
 
@@ -147,8 +149,9 @@ _RTP_REF_WORDS = (
 _RTP_ANOMALY_WORDS = (
     "偏高", "偏低", "太高", "太低", "很高", "有點高", "有点高", "有點低", "有点低", "變高", "变高", "變低", "变低",
     "異常", "异常", "不對", "不对", "有問題", "有问题", "一直", "持續", "持续", "下降", "變差", "变差",
-    "波動", "波动",
+    "波動", "波动", "正常",
     "so high", "too high", "too low", "lower down", "rate continues", "keeps dropping", "dropping", "fluctuating",
+    "normal",
 )
 
 
