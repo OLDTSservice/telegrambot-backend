@@ -402,17 +402,20 @@ async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_
         game_result = await asyncio.to_thread(search_fn, query)
         if game_result.get("found") and game_result.get("game_id") not in seen_game_ids:
             seen_game_ids.add(game_result.get("game_id"))
-            icon = game_result.get("icon_url")
-            material = game_result.get("material_url")
-            if not icon and not material:
+            # icon_url/material_url 為陣列（同一款遊戲可能有多個 Drive 資料夾），無資料夾時是 null
+            icon_urls = game_result.get("icon_url") or []
+            material_urls = game_result.get("material_url") or []
+            if not icon_urls and not material_urls:
                 # 兩者皆無：不確定是真的沒有素材還是資料來源缺漏，不由 AI/程式直接斷定「無」，
                 # 交由人員確認（多款遊戲同時詢問時，這款先略過不列出，其他有素材的照常列出）。
                 no_asset_found = True
                 continue
+            icon_text = "\n".join(icon_urls) if icon_urls else "（無）"
+            material_text = "\n".join(material_urls) if material_urls else "（無）"
             found_blocks.append(
                 f"🎮 {game_result['name']} (ID: {game_result['game_id']})\n"
-                f"🖼 Icon：{icon or '（無）'}\n"
-                f"📦 Material：{material or '（無）'}"
+                f"🖼 Icon：\n{icon_text}\n"
+                f"📦 Material：\n{material_text}"
             )
     if found_blocks:
         logger.info(f"Bot {bot_id} {label}遊戲素材查詢成功：{len(found_blocks)}/{len(all_queries)} 款")
