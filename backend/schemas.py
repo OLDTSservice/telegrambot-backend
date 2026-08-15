@@ -59,6 +59,7 @@ class BotUpdate(BaseModel):
     game_asset_enabled: Optional[bool] = None
     tada_asset_enabled: Optional[bool] = None
     tada_gamelist_query_enabled: Optional[bool] = None
+    tada_certification_query_enabled: Optional[bool] = None
 
 
 class BotOut(BotBase):
@@ -69,6 +70,7 @@ class BotOut(BotBase):
     game_asset_enabled: bool = False
     tada_asset_enabled: bool = False
     tada_gamelist_query_enabled: bool = False
+    tada_certification_query_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 

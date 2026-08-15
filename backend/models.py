@@ -32,6 +32,7 @@ class TelegramBot(Base):
     game_asset_enabled = Column(Boolean, default=False) # JILI 遊戲素材查詢開關
     tada_asset_enabled = Column(Boolean, default=False) # TADA 遊戲素材查詢開關
     tada_gamelist_query_enabled = Column(Boolean, default=False) # TADA Gamelist進階查詢開關（熱門排行/欄位查詢/複合篩選）
+    tada_certification_query_enabled = Column(Boolean, default=False) # TADA 認證文件查詢開關（含多輪追問機制）
 
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
@@ -46,6 +47,7 @@ class TelegramBot(Base):
     no_answer_logs = relationship("NoAnswerLog", back_populates="bot", cascade="all, delete-orphan")
     ai_rescue_setting = relationship("AIRescueSetting", back_populates="bot", uselist=False, cascade="all, delete-orphan")
     rescue_candidates = relationship("AIRescueCandidate", back_populates="bot", cascade="all, delete-orphan")
+    cert_pending = relationship("TadaCertPending", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -394,6 +396,29 @@ class AIRescueCandidate(Base):
     handled_at = Column(DateTime, nullable=True)
 
     bot = relationship("TelegramBot", back_populates="rescue_candidates")
+
+
+class TadaCertPending(Base):
+    """TADA 認證文件查詢的追問待答狀態（每人同時只保留一筆，等待廠商回覆缺少的市場/遊戲資訊）"""
+    __tablename__ = "tada_cert_pending"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    user_id = Column(String(64), nullable=False)
+    prompt_message_id = Column(Integer, nullable=False)  # 機器人發出的追問訊息 id，比對 reply_to_message_id 用
+    missing = Column(String(16), nullable=False)          # "market" 或 "game"：還缺哪一項資訊
+    doc_keyword = Column(String(255), nullable=False)     # 命中的文件類型關鍵字（原文）
+    doc_type = Column(String(32), nullable=False)         # "game"（需指定遊戲）或 "platform"（不分遊戲）
+    candidate_markets = Column(Text, nullable=True)       # JSON 陣列字串，缺市場時的候選清單
+    resolved_market = Column(String(64), nullable=True)   # 市場已確定後存這裡
+    original_text = Column(Text, nullable=False)          # 使用者原始問句，逾時重問時要用
+    is_chinese = Column(Boolean, default=True)             # 觸發當下問句的語言，後續追問/回覆都沿用同一語言，避免中英夾雜
+    reasked = Column(Boolean, default=False)              # 是否已經逾時重問過一次
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+    bot = relationship("TelegramBot", back_populates="cert_pending")
 
 
 class NotifySetting(Base):

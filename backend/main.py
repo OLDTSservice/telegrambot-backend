@@ -48,6 +48,8 @@ def _migrate_columns():
         "ALTER TABLE knowledge_qas ADD COLUMN chunk_id INTEGER",
         "ALTER TABLE telegram_bots ADD COLUMN tada_asset_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_bots ADD COLUMN tada_gamelist_query_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE telegram_bots ADD COLUMN tada_certification_query_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE tada_cert_pending ADD COLUMN is_chinese BOOLEAN DEFAULT 1",
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -147,6 +149,13 @@ async def lifespan(app: FastAPI):
         logger.info("AI 救援排程已啟動")
     except Exception as e:
         logger.warning(f"AI 救援排程啟動失敗：{e}")
+    # 啟動 TADA 認證文件查詢的追問逾時背景排程
+    try:
+        from services.tada_certification_service import cert_followup_timeout_loop
+        asyncio.ensure_future(cert_followup_timeout_loop())
+        logger.info("TADA 認證文件追問逾時排程已啟動")
+    except Exception as e:
+        logger.warning(f"TADA 認證文件追問逾時排程啟動失敗：{e}")
     yield
 
 

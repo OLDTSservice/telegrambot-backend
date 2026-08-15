@@ -1,12 +1,13 @@
 import asyncio
 import ipaddress
+import json
 import re
 import threading
 import logging
 import time
 import requests
 from typing import Dict
-from telegram import Update
+from telegram import ForceReply, Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 logger = logging.getLogger(__name__)
@@ -590,8 +591,9 @@ class BotManager:
             del self._apps[bot_id]
         logger.info(f"Bot {bot_id} 已停止")
 
-    def send_message(self, bot_id: int, chat_id: str, text: str, reply_to_message_id: int = None):
-        """從後台主動向指定聊天室發送訊息（同步呼叫），可帶 reply_to_message_id 引用原訊息"""
+    def send_message(self, bot_id: int, chat_id: str, text: str, reply_to_message_id: int = None, reply_markup=None):
+        """從後台主動向指定聊天室發送訊息（同步呼叫），可帶 reply_to_message_id 引用原訊息、
+        reply_markup 附加鍵盤（例如 ForceReply）。回傳送出的 Message 物件，方便呼叫端取得 message_id。"""
         if bot_id not in self._apps or bot_id not in self._loops:
             raise ValueError(f"Bot {bot_id} 未在運行中")
         loop = self._loops[bot_id]
@@ -599,11 +601,13 @@ class BotManager:
         kwargs = {"chat_id": int(chat_id), "text": text}
         if reply_to_message_id:
             kwargs["reply_to_message_id"] = reply_to_message_id
+        if reply_markup is not None:
+            kwargs["reply_markup"] = reply_markup
         future = asyncio.run_coroutine_threadsafe(
             app.bot.send_message(**kwargs),
             loop
         )
-        future.result(timeout=10)
+        return future.result(timeout=10)
 
     async def _run_bot(self, bot_id: int, token: str):
         from database import SessionLocal
@@ -731,6 +735,52 @@ class BotManager:
 
         # 每次收到訊息都更新群組名稱（確保改名後能同步）
         _refresh_chat_name(bot_id, chat_id, chat_name, db)
+
+        # 0.3 TADA 認證文件查詢的追問回覆比對（需開啟開關；訊息必須是「回覆」機器人先前
+        # 發出的追問訊息，用 reply_to_message_id 精準比對，不受中間插入其他訊息影響）
+        if bot_record.tada_certification_query_enabled and sender_id and update.message.reply_to_message:
+            from services.tada_certification_service import (
+                get_pending, clear_pending, resolve_market_reply, extract_game_identifier,
+                save_pending, build_final_reply, game_question, market_mismatch_message,
+            )
+            _cert_pending = get_pending(db, bot_id, chat_id, sender_id)
+            if _cert_pending and update.message.reply_to_message.message_id == _cert_pending.prompt_message_id:
+                _cert_zh = _cert_pending.is_chinese
+                if _cert_pending.missing == "market":
+                    _cert_candidates = json.loads(_cert_pending.candidate_markets or "[]")
+                    _cert_market = resolve_market_reply(text, _cert_candidates)
+                    if not _cert_market:
+                        _cert_sent = await update.message.reply_text(
+                            market_mismatch_message(_cert_candidates, _cert_zh),
+                            reply_markup=ForceReply(selective=True),
+                        )
+                        _cert_pending.prompt_message_id = _cert_sent.message_id
+                        db.commit()
+                        return
+                    if _cert_pending.doc_type == "game":
+                        _cert_sent = await update.message.reply_text(
+                            game_question(_cert_zh), reply_markup=ForceReply(selective=True)
+                        )
+                        save_pending(db, bot_id, chat_id, sender_id, _cert_sent.message_id, "game",
+                                     _cert_pending.doc_keyword, _cert_pending.doc_type, _cert_zh,
+                                     resolved_market=_cert_market, original_text=_cert_pending.original_text)
+                    else:
+                        _cert_reply = await asyncio.to_thread(
+                            build_final_reply, _cert_market, _cert_pending.doc_keyword, _cert_pending.doc_type, _cert_zh
+                        )
+                        await update.message.reply_text(_cert_reply)
+                        clear_pending(db, _cert_pending)
+                        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                else:
+                    _cert_game_id = extract_game_identifier(text)
+                    _cert_reply = await asyncio.to_thread(
+                        build_final_reply, _cert_pending.resolved_market, _cert_pending.doc_keyword,
+                        _cert_pending.doc_type, _cert_zh, _cert_game_id
+                    )
+                    await update.message.reply_text(_cert_reply)
+                    clear_pending(db, _cert_pending)
+                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                return
 
         # 0.5. 後台白名單自動處理（優先於關鍵字/KB，管控模式下仍執行）
         # 預先讀取群組設定（廠商驗證 + 群組層級管控模式皆從此讀取）
@@ -903,6 +953,59 @@ class BotManager:
                     _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
                 return
             # 與 Gamelist 查詢無關：不中止，改走知識庫查詢
+
+        # 0.85 TADA 認證文件查詢（獨立開關，偵測到文件類型關鍵字才觸發；
+        # 缺市場/缺遊戲時用 ForceReply 追問，見 services/tada_certification_service.py）
+        if bot_record.tada_certification_query_enabled and sender_id:
+            from services.tada_certification_service import (
+                detect_doc_query, detect_market_in_text, save_pending, build_final_reply, build_market_question,
+                game_question, is_chinese_text, no_data_message, vendor_escalate_message,
+                is_whole_market_request, whole_market_reply,
+            )
+            _cert_hit = detect_doc_query(text)
+            if _cert_hit:
+                _doc_keyword, _cert_markets, _doc_type = _cert_hit
+                _is_zh_cert = is_chinese_text(text)
+                if _doc_type == "no_data":
+                    await update.message.reply_text(no_data_message(_is_zh_cert))
+                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                    return
+                if _doc_type == "vendor_escalate":
+                    await update.message.reply_text(vendor_escalate_message(_is_zh_cert))
+                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                    return
+                if len(_cert_markets) == 1:
+                    _cert_market = _cert_markets[0]
+                else:
+                    _mentioned = [m for m in detect_market_in_text(text) if m in _cert_markets]
+                    _cert_market = _mentioned[0] if len(_mentioned) == 1 else None
+                if not _cert_market:
+                    _cert_sent = await update.message.reply_text(
+                        build_market_question(_doc_keyword, _cert_markets, _is_zh_cert),
+                        reply_markup=ForceReply(selective=True),
+                    )
+                    save_pending(db, bot_id, chat_id, sender_id, _cert_sent.message_id, "market",
+                                 _doc_keyword, _doc_type, _is_zh_cert, candidate_markets=_cert_markets, original_text=text)
+                    return
+                if _doc_type == "game":
+                    # 廠商已明確表示要「整個市場」而非單一遊戲：不追問遊戲，直接給市場層級連結（文件 5a）
+                    if is_whole_market_request(text):
+                        await update.message.reply_text(whole_market_reply(_cert_market, _is_zh_cert))
+                        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                        return
+                    _cert_sent = await update.message.reply_text(
+                        game_question(_is_zh_cert), reply_markup=ForceReply(selective=True)
+                    )
+                    save_pending(db, bot_id, chat_id, sender_id, _cert_sent.message_id, "game",
+                                 _doc_keyword, _doc_type, _is_zh_cert, resolved_market=_cert_market, original_text=text)
+                    return
+                # doc_type == "platform"：市場唯一且不分遊戲，直接查表回覆（不需要追問）
+                _cert_reply = await asyncio.to_thread(build_final_reply, _cert_market, _doc_keyword, _doc_type, _is_zh_cert)
+                await update.message.reply_text(_cert_reply)
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                return
 
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(

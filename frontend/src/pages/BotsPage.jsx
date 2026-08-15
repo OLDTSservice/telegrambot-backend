@@ -69,6 +69,11 @@ function BotListTab({ user }) {
     catch { message.error('切換失敗') }
   }
 
+  const handleToggleTadaCertQuery = async (bot, checked) => {
+    try { await updateBot(bot.id, { tada_certification_query_enabled: checked }); message.success(checked ? 'TADA認證文件查詢已啟用' : 'TADA認證文件查詢已關閉'); load() }
+    catch { message.error('切換失敗') }
+  }
+
   const handleDelete = async (id) => {
     try { await deleteBot(id); message.success('已刪除'); load() }
     catch { message.error('刪除失敗') }
@@ -107,6 +112,12 @@ function BotListTab({ user }) {
       title: 'TADA Gamelist進階查詢', dataIndex: 'tada_gamelist_query_enabled', width: 150,
       render: (val, record) => (
         <Switch checked={!!val} onChange={checked => handleToggleTadaGamelistQuery(record, checked)} disabled={!canEdit(user)} size="small" />
+      ),
+    },
+    {
+      title: 'TADA認證文件查詢', dataIndex: 'tada_certification_query_enabled', width: 150,
+      render: (val, record) => (
+        <Switch checked={!!val} onChange={checked => handleToggleTadaCertQuery(record, checked)} disabled={!canEdit(user)} size="small" />
       ),
     },
     {
