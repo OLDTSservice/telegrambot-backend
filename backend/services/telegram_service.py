@@ -93,6 +93,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "改代理", "有新消息", "有消息",
     "投注是否正常", "对下情况", "對下情況", "玩了多少", "assist to check",
     "记录有问题", "記錄有問題",
+    "no record", "could you explain", "how many", "screenshot",
+    "注单号", "注單號", "round id", "ipv6",
 )
 
 
