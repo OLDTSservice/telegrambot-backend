@@ -95,6 +95,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "记录有问题", "記錄有問題",
     "no record", "could you explain", "how many", "screenshot",
     "注单号", "注單號", "round id", "ipv6",
+    "too many", "这个jackpot", "這個jackpot", "abnormal/arbitrage", "arbitrage betting",
 )
 
 
