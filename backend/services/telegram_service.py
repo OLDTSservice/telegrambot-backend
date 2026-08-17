@@ -101,6 +101,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "anything suspocious", "to enable", "跟这个一样", "跟這個一樣", "referring to", "this ya",
     "the legitimacy", "player's winnings", "absence of bugs", "winning amount",
     "返奖是否正确", "返獎是否正確", "对局详情", "對局詳情", "爆奖", "爆獎",
+    "set bet limit", "bet limit", "apply to",
 )
 
 
