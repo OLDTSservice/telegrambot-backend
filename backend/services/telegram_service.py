@@ -98,6 +98,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "too many", "这个jackpot", "這個jackpot", "abnormal/arbitrage", "arbitrage betting",
     "查詢這局", "查询这局", "查一下为什么", "查一下為什麼", "是否正常",
     "檢查這個玩家", "检查这个玩家", "查看這個玩家", "查看这个玩家",
+    "anything suspocious", "to enable", "跟这个一样", "跟這個一樣", "referring to", "this ya",
 )
 
 
