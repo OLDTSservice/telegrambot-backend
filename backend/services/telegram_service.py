@@ -99,6 +99,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "查詢這局", "查询这局", "查一下为什么", "查一下為什麼", "是否正常",
     "檢查這個玩家", "检查这个玩家", "查看這個玩家", "查看这个玩家",
     "anything suspocious", "to enable", "跟这个一样", "跟這個一樣", "referring to", "this ya",
+    "the legitimacy", "player's winnings", "absence of bugs", "winning amount",
+    "返奖是否正确", "返獎是否正確", "对局详情", "對局詳情", "爆奖", "爆獎",
 )
 
 
