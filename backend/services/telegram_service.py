@@ -93,6 +93,9 @@ _NO_KB_TOPIC_KEYWORDS = (
     "改代理", "有新消息", "有消息",
     "投注是否正常", "对下情况", "對下情況", "玩了多少", "assist to check",
     "记录有问题", "記錄有問題",
+    "connection error", "for your assistance", "this whitelisted ip", "get big wins", "ratio",
+    "创建总代理", "創建總代理", "建立一个", "建立一個", "之前对接", "之前對接",
+    "下面创建", "下面創建", "帮忙创建", "幫忙創建", "帮忙建立", "幫忙建立",
 )
 
 
