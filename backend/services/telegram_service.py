@@ -108,6 +108,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "关掉", "關掉", "关闭", "關閉", "打開", "打开", "啟用", "启用", "開啟", "开启",
     "invalid response", "show anything", "后台显示", "後台顯示", "any suspicious", "detail image",
     "player use", "different bet", "different agent",
+    "进入后台", "進入後台", "member abnormal", "abnormal behavior", "behavior betting",
 )
 
 
