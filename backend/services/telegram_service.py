@@ -105,6 +105,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "connection error", "for your assistance", "this whitelisted ip", "get big wins", "ratio",
     "创建总代理", "創建總代理", "建立一个", "建立一個", "之前对接", "之前對接",
     "下面创建", "下面創建", "帮忙创建", "幫忙創建", "帮忙建立", "幫忙建立",
+    "关掉", "關掉", "关闭", "關閉", "打開", "打开", "啟用", "启用", "開啟", "开启",
 )
 
 
@@ -575,6 +576,71 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
     return False, None
 
 
+async def _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_id, is_zh,
+                                   doc_keyword, cert_markets, doc_type, text, update, db):
+    """處理一次已經偵測到認證關鍵字的查詢（不論是原始訊息命中，還是「籠統」追問後廠商回覆
+    再次命中）。市場/文件類型都確定後的判斷順序完全比照文件《1.問題類型整理》5a~5d：
+    5d 查無資料 → 5c 廠商別不追問轉人工 → 太籠統追問市場+文件類型 → 市場不確定則追問市場 →
+    Belarus/Ukraine 共用庫直接給整份 Game List → 廠商明確要整個市場給市場層級連結 →
+    問句已帶 GameID 直接查表回答 → 都沒有才追問遊戲。"""
+    from services.tada_certification_service import (
+        detect_market_in_text, save_pending, build_final_reply, build_market_question,
+        game_question, vague_question, no_data_message, vendor_escalate_message,
+        is_whole_market_request, whole_market_reply, extract_inline_game_id,
+        is_shared_repo_market, shared_repo_reply,
+    )
+    if doc_type == "no_data":
+        await update.message.reply_text(no_data_message(is_zh))
+        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+        _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+        return
+    if doc_type == "vendor_escalate":
+        await update.message.reply_text(vendor_escalate_message(is_zh))
+        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+        _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+        return
+    if doc_type == "vague":
+        _sent = await update.message.reply_text(vague_question(is_zh), reply_markup=ForceReply(selective=True))
+        save_pending(db, bot_id, chat_id, sender_id, _sent.message_id, "vague",
+                     doc_keyword, doc_type, is_zh, original_text=text)
+        return
+    if len(cert_markets) == 1:
+        market = cert_markets[0]
+    else:
+        mentioned = [m for m in detect_market_in_text(text) if m in cert_markets]
+        market = mentioned[0] if len(mentioned) == 1 else None
+    if not market:
+        _sent = await update.message.reply_text(
+            build_market_question(doc_keyword, cert_markets, is_zh), reply_markup=ForceReply(selective=True)
+        )
+        save_pending(db, bot_id, chat_id, sender_id, _sent.message_id, "market",
+                     doc_keyword, doc_type, is_zh, candidate_markets=cert_markets, original_text=text)
+        return
+    if doc_type == "game":
+        if is_shared_repo_market(market):
+            await update.message.reply_text(shared_repo_reply(market, is_zh))
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            return
+        if is_whole_market_request(text):
+            await update.message.reply_text(whole_market_reply(market, is_zh, doc_keyword))
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            return
+        inline_game_id = extract_inline_game_id(text)
+        if inline_game_id:
+            reply = await asyncio.to_thread(build_final_reply, market, doc_keyword, doc_type, is_zh, inline_game_id)
+            await update.message.reply_text(reply)
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            return
+        _sent = await update.message.reply_text(game_question(is_zh), reply_markup=ForceReply(selective=True))
+        save_pending(db, bot_id, chat_id, sender_id, _sent.message_id, "game",
+                     doc_keyword, doc_type, is_zh, resolved_market=market, original_text=text)
+        return
+    # doc_type == "platform"：市場唯一且不分遊戲，直接查表回覆
+    reply = await asyncio.to_thread(build_final_reply, market, doc_keyword, doc_type, is_zh)
+    await update.message.reply_text(reply)
+    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+
+
 class BotManager:
     def __init__(self):
         self._bots: Dict[int, threading.Thread] = {}
@@ -757,11 +823,26 @@ class BotManager:
             from services.tada_certification_service import (
                 get_pending, clear_pending, resolve_market_reply, extract_game_identifier,
                 save_pending, build_final_reply, game_question, market_mismatch_message,
+                detect_doc_query, no_data_message as _cert_no_data_message,
             )
             _cert_pending = get_pending(db, bot_id, chat_id, sender_id)
             if _cert_pending and update.message.reply_to_message.message_id == _cert_pending.prompt_message_id:
                 _cert_zh = _cert_pending.is_chinese
-                if _cert_pending.missing == "market":
+                if _cert_pending.missing == "vague":
+                    # 太籠統的追問只給廠商一次機會：這次回覆能對到具體的市場/文件類型就照正常流程走，
+                    # 對不到就直接轉人工，不會無限循環一直重問（比照文件「否則就只能進入人工處理」）
+                    clear_pending(db, _cert_pending)
+                    _retry_hit = detect_doc_query(text)
+                    # 回覆還是只對到籠統字眼（doc_type 仍是 "vague"）視同對不到，不能再問一次形成循環
+                    if _retry_hit and _retry_hit[2] != "vague":
+                        _retry_keyword, _retry_markets, _retry_type = _retry_hit
+                        await _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_id, _cert_zh,
+                                                       _retry_keyword, _retry_markets, _retry_type, text, update, db)
+                    else:
+                        await update.message.reply_text(_cert_no_data_message(_cert_zh))
+                        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                        _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                elif _cert_pending.missing == "market":
                     _cert_candidates = json.loads(_cert_pending.candidate_markets or "[]")
                     _cert_market = resolve_market_reply(text, _cert_candidates)
                     if not _cert_market:
@@ -972,54 +1053,13 @@ class BotManager:
         # 0.85 TADA 認證文件查詢（獨立開關，偵測到文件類型關鍵字才觸發；
         # 缺市場/缺遊戲時用 ForceReply 追問，見 services/tada_certification_service.py）
         if bot_record.tada_certification_query_enabled and sender_id:
-            from services.tada_certification_service import (
-                detect_doc_query, detect_market_in_text, save_pending, build_final_reply, build_market_question,
-                game_question, is_chinese_text, no_data_message, vendor_escalate_message,
-                is_whole_market_request, whole_market_reply,
-            )
+            from services.tada_certification_service import detect_doc_query, is_chinese_text
             _cert_hit = detect_doc_query(text)
             if _cert_hit:
                 _doc_keyword, _cert_markets, _doc_type = _cert_hit
                 _is_zh_cert = is_chinese_text(text)
-                if _doc_type == "no_data":
-                    await update.message.reply_text(no_data_message(_is_zh_cert))
-                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
-                    return
-                if _doc_type == "vendor_escalate":
-                    await update.message.reply_text(vendor_escalate_message(_is_zh_cert))
-                    _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
-                    return
-                if len(_cert_markets) == 1:
-                    _cert_market = _cert_markets[0]
-                else:
-                    _mentioned = [m for m in detect_market_in_text(text) if m in _cert_markets]
-                    _cert_market = _mentioned[0] if len(_mentioned) == 1 else None
-                if not _cert_market:
-                    _cert_sent = await update.message.reply_text(
-                        build_market_question(_doc_keyword, _cert_markets, _is_zh_cert),
-                        reply_markup=ForceReply(selective=True),
-                    )
-                    save_pending(db, bot_id, chat_id, sender_id, _cert_sent.message_id, "market",
-                                 _doc_keyword, _doc_type, _is_zh_cert, candidate_markets=_cert_markets, original_text=text)
-                    return
-                if _doc_type == "game":
-                    # 廠商已明確表示要「整個市場」而非單一遊戲：不追問遊戲，直接給市場層級連結（文件 5a）
-                    if is_whole_market_request(text):
-                        await update.message.reply_text(whole_market_reply(_cert_market, _is_zh_cert))
-                        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                        return
-                    _cert_sent = await update.message.reply_text(
-                        game_question(_is_zh_cert), reply_markup=ForceReply(selective=True)
-                    )
-                    save_pending(db, bot_id, chat_id, sender_id, _cert_sent.message_id, "game",
-                                 _doc_keyword, _doc_type, _is_zh_cert, resolved_market=_cert_market, original_text=text)
-                    return
-                # doc_type == "platform"：市場唯一且不分遊戲，直接查表回覆（不需要追問）
-                _cert_reply = await asyncio.to_thread(build_final_reply, _cert_market, _doc_keyword, _doc_type, _is_zh_cert)
-                await update.message.reply_text(_cert_reply)
-                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                await _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_id, _is_zh_cert,
+                                               _doc_keyword, _cert_markets, _doc_type, text, update, db)
                 return
 
         # 1. 先嘗試關鍵字規則比對

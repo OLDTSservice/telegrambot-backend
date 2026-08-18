@@ -16,11 +16,13 @@ TADA 認證文件查詢的多輪追問機制（依據《TADA客服機器人_認�
 其餘列才是逐遊戲的認證資料。
 
 `build_final_reply()` 現在會直接讀取對應市場的 Game List 試算表查表（24 小時快取，
-與 tada_gamelist_service.py 相同做法），找不到遊戲/該欄位沒有資料時，如實回覆查無資料
-並轉人工，不會用猜的。
+匯出網址跟 tada_gamelist_service.py 一樣是公開匯出、不需 API Key，差別是這裡改用
+export?format=xlsx（而非 csv）＋ openpyxl 讀取，因為認證欄位存的是「檔名文字 + 儲存格
+超連結」，CSV 匯出只會保留檔名文字、超連結會遺失，XLSX 用 openpyxl 讀 cell.hyperlink.target
+才能把真正的 Google Drive 連結一併帶出來），找不到遊戲/該欄位沒有資料時，如實回覆查無
+資料並轉人工，不會用猜的。
 """
 import asyncio
-import csv
 import io
 import json
 import logging
@@ -28,6 +30,7 @@ import re
 import time
 from datetime import datetime, timedelta
 
+import openpyxl
 import requests
 
 logger = logging.getLogger(__name__)
@@ -41,7 +44,8 @@ _ZH_RE = re.compile(r'[一-鿿㐀-䶿]')
 # 文件性質："game"=需指定遊戲才能查、"platform"=平台層級不分遊戲、"vendor_escalate"=依廠商各自產生，不追問直接轉人工
 _DOC_KEYWORD_RULES = (
     (("certificate file", "certification authority"),
-     ["Greece", "Italy", "Malta", "Netherlands", "Portugal", "Romania", "South Africa", "Spain", "Sweden", "UK", "Brazil"],
+     ["Greece", "Italy", "Malta", "Netherlands", "Portugal", "Romania", "South Africa", "Spain", "Sweden", "UK", "Brazil",
+      "Belarus", "Ukraine"],
      "game"),
     (("hgc approval letter",), ["Greece"], "game"),
     (("symbol mapping",), ["Portugal"], "game"),
@@ -50,12 +54,20 @@ _DOC_KEYWORD_RULES = (
     (("ukgc registration",), ["UK"], "game"),
     (("rgs certificate", "rng certificate"), ["Brazil"], "platform"),
     (("branded report",), ["Brazil", "Italy"], "vendor_escalate"),
+    (("game project", "game rule+screeshots"), ["Italy"], "game"),
+    (("resolucion directorial", "mincetur approval letter"), ["Peru"], "game"),
 )
 
 # 5d：關鍵字命中後市場已固定，但實際核對過資料來源整份表格皆為空，直接轉人工、不追問
 _NO_DATA_KEYWORDS = (
     "malta license", "gli 19", "colombia certificate", "ukgc certificate", "malta certificate",
 )
+
+# certificate/certification（含中文「認證」）本身就代表在問認證相關的事，但沒有具體到能對到
+# 上面任何一組關鍵字時，仍然要當成認證問題處理（追問市場+文件類型），而不是完全放過不理。
+# 這幾個字本身已經包含在 _DOC_KEYWORD_RULES 的具體詞組裡（例如 "certificate file"），所以
+# detect_doc_query 會先比對具體詞組，比對不到才會落到這裡的籠統判斷。
+_GENERIC_CERT_WORDS = ("certification", "certificate", "認證", "认证")
 
 _MARKET_ALIASES = {
     "Greece": ["greece", "希臘", "希腊"],
@@ -69,7 +81,29 @@ _MARKET_ALIASES = {
     "Sweden": ["sweden", "瑞典"],
     "UK": ["uk", "united kingdom", "英國", "英国"],
     "Brazil": ["brazil", "巴西"],
+    "Peru": ["peru", "秘魯", "秘鲁"],
+    "Belarus": ["belarus", "白俄羅斯", "白俄罗斯"],
+    "Ukraine": ["ukraine", "烏克蘭", "乌克兰"],
 }
+
+# Belarus/Ukraine 沒有自己專屬的認證欄位，是跟其他 11 個國家共用同一組欄位（Y欄起）存放，
+# 目前解析不出「廠商問的是哪一份文件」，與其亂猜，不如直接把整份 Game List 連結給廠商自己查。
+_SHARED_REPO_MARKETS = {
+    "Belarus": "https://docs.google.com/spreadsheets/d/1tP3ax65heTM_njAHz-INDWEIEYFIZ-4pb7LUN0VlRaU/edit",
+    "Ukraine": "https://docs.google.com/spreadsheets/d/1S-NQCvf8Re3_4Wcf53CphMv3sxxSHxDiVRImioQ6ck4/edit",
+}
+
+
+def is_shared_repo_market(market: str) -> bool:
+    return market in _SHARED_REPO_MARKETS
+
+
+def shared_repo_reply(market: str, is_chinese: bool) -> str:
+    link = _SHARED_REPO_MARKETS.get(market, "")
+    if is_chinese:
+        return f"{market} 的認證資料是跟其他市場共用同一份資料表，無法單獨查詢特定文件，請直接參考完整 Game List：\n{link}"
+    return (f"{market}'s certification data is shared with other markets in one combined sheet and can't be "
+            f"looked up individually, please check the full Game List directly:\n{link}")
 
 # 各市場 Game List 試算表：sheet_id/gid 已逐一開啟核對過分頁名稱與欄位配置。
 # folder_link 對應文件《附錄A》的「備用資料夾連結」，沒有的市場填 None，
@@ -149,12 +183,47 @@ _WHOLE_MARKET_PHRASES = (
     "整個市場", "整个市场", "全部遊戲", "全部游戏", "總表", "总表",
 )
 
+# (市場, 文件關鍵字) → 這個文件性質「針對遊戲」但目前完全沒有逐遊戲資料，只能給整個市場的
+# 資料夾連結（文件 5a 規則②：「沒有逐遊戲資料時，誠實告知並退回整個市場的資料夾連結」）。
+# 這裡的連結是各自獨立的專屬資料夾，跟該市場主要認證的備用資料夾連結不是同一個。
+_NO_PER_GAME_DATA = {
+    ("Spain", "help files"): "https://drive.google.com/drive/folders/1wu00tHoXEf0TmqRnG13QBHswN2qXbtwX",
+    ("Italy", "game project"): "https://drive.google.com/drive/folders/1BDXoe8CsKvgMyNCqLqvDmCEeXK5pZveV",
+    ("Italy", "game rule+screeshots"): "https://drive.google.com/drive/folders/1BDXoe8CsKvgMyNCqLqvDmCEeXK5pZveV",
+    ("Peru", "resolucion directorial"): "https://drive.google.com/drive/folders/14y6kLreVW_oljFNCqh6ydolF67qEhPYP",
+    ("Peru", "mincetur approval letter"): "https://drive.google.com/drive/folders/14y6kLreVW_oljFNCqh6ydolF67qEhPYP",
+}
+
+_GAME_ID_INLINE_RE = re.compile(r'game\s*id\s*[:#]?\s*(\d+)', re.IGNORECASE)
+
+
+def extract_inline_game_id(text: str):
+    """從原始問句裡直接找有沒有已經帶 GameID（例如「for GameID 659」），
+    有的話就不用再追問遊戲——廠商一次講清楚的問題不該被迫多問一輪。
+    只認「GameID + 數字」這種明確格式，不猜測裸數字或遊戲名稱，避免誤判。"""
+    m = _GAME_ID_INLINE_RE.search(text)
+    return m.group(1) if m else None
+
 _market_table_cache = {}
 _brazil_table_cache = {"fetched_at": 0.0}
 
 
 def _normalize_header(h: str) -> str:
     return re.sub(r'\s+', ' ', h or "").strip().lower()
+
+
+def _cell_text(value) -> str:
+    """openpyxl 讀出的數值型儲存格（例如 GameID）是 float，轉成字串時去掉多餘的 .0。"""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _extract_row(ws_row) -> list:
+    """把一列 openpyxl Cell 轉成 (文字, 超連結網址或None) 的 tuple 清單。"""
+    return [(_cell_text(c.value), c.hyperlink.target if c.hyperlink else None) for c in ws_row]
 
 
 def _find_col(headers: list, substr: str):
@@ -170,17 +239,27 @@ def _find_row(rows: list, id_col, name_col, identifier: str):
     digits = re.sub(r'\D', '', ident)
     if id_col is not None and digits:
         for row in rows:
-            if id_col < len(row) and row[id_col].strip() == digits:
+            if id_col < len(row) and row[id_col][0] == digits:
                 return row
     if name_col is not None:
         lower_ident = ident.lower()
         for row in rows:
-            if name_col < len(row) and row[name_col].strip().lower() == lower_ident:
+            if name_col < len(row) and row[name_col][0].lower() == lower_ident:
                 return row
         for row in rows:
-            if name_col < len(row) and lower_ident and lower_ident in row[name_col].strip().lower():
+            if name_col < len(row) and lower_ident and lower_ident in row[name_col][0].lower():
                 return row
     return None
+
+
+def _fetch_xlsx(sheet_id: str, gid: str):
+    """公開匯出網址不需登入/不需 API Key，改用 xlsx 格式是為了保留儲存格超連結
+    （csv 匯出只會留下純檔名文字，超連結會遺失）。"""
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx&gid={gid}"
+    resp = requests.get(url, timeout=20)
+    resp.raise_for_status()
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content), data_only=True)
+    return wb.active
 
 
 def _fetch_market_table(market: str):
@@ -190,11 +269,9 @@ def _fetch_market_table(market: str):
     if cached and now - cached["fetched_at"] < _TABLE_CACHE_TTL_SECONDS:
         return cached["headers"], cached["rows"]
     cfg = _MARKET_DATA_SOURCES[market]
-    url = f"https://docs.google.com/spreadsheets/d/{cfg['sheet_id']}/export?format=csv&gid={cfg['gid']}"
-    resp = requests.get(url, timeout=15)
-    resp.raise_for_status()
-    all_rows = list(csv.reader(io.StringIO(resp.text)))
-    headers = [_normalize_header(h) for h in all_rows[0]]
+    ws = _fetch_xlsx(cfg["sheet_id"], cfg["gid"])
+    all_rows = [_extract_row(r) for r in ws.iter_rows()]
+    headers = [_normalize_header(text) for text, _ in all_rows[0]]
     data_rows = all_rows[1:]
     _market_table_cache[market] = {"headers": headers, "rows": data_rows, "fetched_at": now}
     return headers, data_rows
@@ -207,18 +284,16 @@ def _fetch_brazil_table():
     cached = _brazil_table_cache.get("headers")
     if cached and now - _brazil_table_cache["fetched_at"] < _TABLE_CACHE_TTL_SECONDS:
         return _brazil_table_cache["headers"], _brazil_table_cache["rows"], _brazil_table_cache["platform_rows"]
-    url = f"https://docs.google.com/spreadsheets/d/{_BRAZIL_SHEET_ID}/export?format=csv&gid={_BRAZIL_GID}"
-    resp = requests.get(url, timeout=15)
-    resp.raise_for_status()
-    all_rows = list(csv.reader(io.StringIO(resp.text)))
+    ws = _fetch_xlsx(_BRAZIL_SHEET_ID, _BRAZIL_GID)
+    all_rows = [_extract_row(r) for r in ws.iter_rows()]
     header_idx = None
     for i, row in enumerate(all_rows):
-        if "game id" in [_normalize_header(c) for c in row]:
+        if "game id" in [_normalize_header(text) for text, _ in row]:
             header_idx = i
             break
     if header_idx is None:
         raise ValueError("Brazil Game List 找不到表頭列（Game ID 欄位）")
-    headers = [_normalize_header(c) for c in all_rows[header_idx]]
+    headers = [_normalize_header(text) for text, _ in all_rows[header_idx]]
     platform_rows = all_rows[:header_idx]
     data_rows = all_rows[header_idx + 1:]
     _brazil_table_cache.update(
@@ -234,10 +309,13 @@ def _resolve_brazil(doc_keyword: str, game_identifier: str = None):
     if doc_keyword in ("rgs certificate", "rng certificate"):
         want = "rgs" if "rgs" in doc_keyword else "rng"
         for row in platform_rows:
-            if lab_col is not None and lab_col < len(row) and row[lab_col].strip().lower() == want:
-                val = row[cert_col].strip() if cert_col is not None and cert_col < len(row) else ""
-                if val:
-                    return True, f"{doc_keyword.upper()}: {val}"
+            if lab_col is not None and lab_col < len(row) and row[lab_col][0].lower() == want:
+                text, link = row[cert_col] if cert_col is not None and cert_col < len(row) else ("", None)
+                if text:
+                    parts = [f"{doc_keyword.upper()}: {text}"]
+                    if link:
+                        parts.append(link)
+                    return True, "\n".join(parts)
         return False, None
     if not game_identifier:
         return False, None
@@ -246,12 +324,14 @@ def _resolve_brazil(doc_keyword: str, game_identifier: str = None):
     row = _find_row(rows, id_col, name_col, game_identifier)
     if row is None:
         return False, None
-    val = row[cert_col].strip() if cert_col is not None and cert_col < len(row) else ""
-    if not val:
+    text, link = row[cert_col] if cert_col is not None and cert_col < len(row) else ("", None)
+    if not text:
         return False, None
-    parts = [f"Certificate: {val}"]
-    if lab_col is not None and lab_col < len(row) and row[lab_col].strip():
-        parts.append(f"Lab: {row[lab_col].strip()}")
+    parts = [f"Certificate: {text}"]
+    if link:
+        parts.append(link)
+    if lab_col is not None and lab_col < len(row) and row[lab_col][0]:
+        parts.append(f"Lab: {row[lab_col][0]}")
     return True, "\n".join(parts)
 
 
@@ -273,12 +353,26 @@ def resolve_document(market: str, doc_keyword: str, game_identifier: str = None)
         row = _find_row(rows, id_col, name_col, game_identifier)
         if row is None or target_col is None:
             return False, None
-        value = row[target_col].strip() if target_col < len(row) else ""
-        if not value:
+        text, link = row[target_col] if target_col < len(row) else ("", None)
+        if not text:
             return False, None
-        parts = [f"{doc_keyword}: {value}"]
-        if target_col == cert_col and auth_col is not None and auth_col < len(row) and row[auth_col].strip():
-            parts.append(f"Certification Authority: {row[auth_col].strip()}")
+        parts = [f"{doc_keyword}: {text}"]
+        if link:
+            parts.append(link)
+        if target_col == cert_col:
+            # 問的本來就是通用認證檔：直接附上機構
+            if auth_col is not None and auth_col < len(row) and row[auth_col][0]:
+                parts.append(f"Certification Authority: {row[auth_col][0]}")
+        elif cert_col is not None and cert_col < len(row):
+            # 問的是特定文件類型（Help Files/DGOJ/HGC/Symbol Mapping/UKGC 等）：
+            # 額外附上該市場通用的認證檔資訊做補充，比照文件範例（見「3.範例問答」GameID 659 那則）
+            cert_text, cert_link = row[cert_col]
+            if cert_text:
+                auth_text = row[auth_col][0] if auth_col is not None and auth_col < len(row) else ""
+                cert_line = f"Certificate file: {cert_text}" + (f" (Authority: {auth_text})" if auth_text else "")
+                parts.append(cert_line)
+                if cert_link:
+                    parts.append(cert_link)
         return True, "\n".join(parts)
     except Exception as e:
         logger.error(f"[TadaCert] 查表失敗 market={market} keyword={doc_keyword}: {e}")
@@ -290,15 +384,19 @@ def is_whole_market_request(text: str) -> bool:
     return any(p.lower() in lower for p in _WHOLE_MARKET_PHRASES)
 
 
-def market_reference_link(market: str) -> str:
+def market_reference_link(market: str, doc_keyword: str = None) -> str:
+    """市場層級參考連結：該(市場,關鍵字)若屬於完全沒有逐遊戲資料的情況，優先給那個專屬資料夾連結；
+    否則退回市場自己的備用資料夾連結，都沒有的話再退回整份 Game List 連結。"""
+    if doc_keyword and (market, doc_keyword) in _NO_PER_GAME_DATA:
+        return _NO_PER_GAME_DATA[(market, doc_keyword)]
     cfg = _MARKET_DATA_SOURCES.get(market)
     if cfg:
         return cfg["folder_link"] or cfg["gamelist_link"]
     return ""
 
 
-def whole_market_reply(market: str, is_chinese: bool) -> str:
-    link = market_reference_link(market)
+def whole_market_reply(market: str, is_chinese: bool, doc_keyword: str = None) -> str:
+    link = market_reference_link(market, doc_keyword)
     if is_chinese:
         return f"請參考 {market} 認證文件總資料夾：\n{link}" if link else f"目前查詢不到 {market} 的相關資料，已為您轉接專人確認。"
     return f"Please refer to the {market} certification reference:\n{link}" if link else f"This certification data is currently unavailable for {market}, our team will assist you shortly."
@@ -311,7 +409,9 @@ def is_chinese_text(text: str) -> bool:
 
 def detect_doc_query(text: str):
     """偵測訊息是否命中認證文件關鍵字。回傳 (doc_keyword, markets, doc_type) 或 None。
-    doc_type 為 "no_data" 時 markets 固定回傳空清單（5d 情境不需要市場清單，直接轉人工）。"""
+    doc_type 為 "no_data" 時 markets 固定回傳空清單（5d 情境不需要市場清單，直接轉人工）；
+    doc_type 為 "vague" 時代表只看得出「這是在問認證」，但完全對不到具體的市場/文件類型，
+    markets 也固定回傳空清單，呼叫端要追問「哪個市場、哪一種認證文件」。"""
     lower = text.lower()
     for kw in _NO_DATA_KEYWORDS:
         if kw in lower:
@@ -320,7 +420,17 @@ def detect_doc_query(text: str):
         for kw in keywords:
             if kw in lower:
                 return (kw, markets, doc_type)
+    for kw in _GENERIC_CERT_WORDS:
+        if kw in lower:
+            return (kw, [], "vague")
     return None
+
+
+def _alias_in(alias: str, lower_text: str) -> bool:
+    """英文別名用詞界比對，避免像 "uk" 是 "ukraine" 子字串這種誤配；中文沒有詞界概念，維持子字串比對。"""
+    if alias.isascii():
+        return bool(re.search(r'\b' + re.escape(alias) + r'\b', lower_text))
+    return alias in lower_text
 
 
 def detect_market_in_text(text: str) -> list:
@@ -328,7 +438,7 @@ def detect_market_in_text(text: str) -> list:
     lower = text.lower()
     hits = []
     for market, aliases in _MARKET_ALIASES.items():
-        if any(alias.lower() in lower for alias in aliases):
+        if any(_alias_in(alias.lower(), lower) for alias in aliases):
             hits.append(market)
     return hits
 
@@ -354,6 +464,12 @@ def game_question(is_chinese: bool) -> str:
     return "請問是哪一款遊戲（GameID或遊戲名稱）？" if is_chinese else "Which game is this regarding? (GameID or game name)"
 
 
+def vague_question(is_chinese: bool) -> str:
+    """訊息只看得出跟認證有關，但完全對不到具體市場/文件類型時的最寬泛追問。"""
+    return ("請問是哪個市場、需要哪一種認證文件呢？" if is_chinese
+            else "Which market and which type of certification document do you need?")
+
+
 def build_market_question(doc_keyword: str, candidates: list, is_chinese: bool) -> str:
     options = " / ".join(candidates)
     if is_chinese:
@@ -373,6 +489,14 @@ def no_data_message(is_chinese: bool) -> str:
             else "This certification data is currently unavailable, our team will assist you shortly.")
 
 
+def no_per_game_data_message(is_chinese: bool, link: str) -> str:
+    """該市場/文件類型目前完全沒有整併進逐遊戲資料（例如 Spain Help Files、Italy Game Project、
+    Peru），誠實告知並退回專屬的整個市場資料夾連結，不要因為查不到就直接轉人工escalate。"""
+    if is_chinese:
+        return f"目前這項文件還沒有逐遊戲的資料，請參考以下整個市場的資料夾：\n{link}"
+    return f"Per-game data isn't available for this document yet, please refer to the market folder:\n{link}"
+
+
 def vendor_escalate_message(is_chinese: bool) -> str:
     return ("這份文件依廠商各自產生，無法自動提供通用版本，已為您轉接專人確認。" if is_chinese
             else "This document is generated per vendor and has no generic version, our team will assist you shortly.")
@@ -380,7 +504,10 @@ def vendor_escalate_message(is_chinese: bool) -> str:
 
 def build_final_reply(market: str, doc_keyword: str, doc_type: str, is_chinese: bool, game_identifier: str = None) -> str:
     """market+doc_type（+game）都確定後：實際查表，找得到就回文件內容，找不到就誠實告知查無資料並轉人工。
-    這裡會做網路請求（讀 Google Sheet CSV），呼叫端須用 asyncio.to_thread 包起來，不要在事件迴圈裡直接呼叫。"""
+    這裡會做網路請求（讀 Google Sheet XLSX），呼叫端須用 asyncio.to_thread 包起來，不要在事件迴圈裡直接呼叫。"""
+    no_data_link = _NO_PER_GAME_DATA.get((market, doc_keyword))
+    if no_data_link:
+        return no_per_game_data_message(is_chinese, no_data_link)
     found, content = resolve_document(market, doc_keyword, game_identifier)
     if found:
         return content
@@ -394,6 +521,8 @@ def _timeout_reask_question(p) -> str:
         if p.is_chinese:
             return f"請問您方才詢問的「{p.doc_keyword}」，是要查哪個市場的資料呢？（{options}）"
         return f"Regarding your earlier question about \"{p.doc_keyword}\", which market is this for? ({options})"
+    if p.missing == "vague":
+        return vague_question(p.is_chinese)
     if p.is_chinese:
         return f"請問您方才詢問的「{p.doc_keyword}」，是要查哪一款遊戲的資料呢？（GameID或遊戲名稱）"
     return f"Regarding your earlier question about \"{p.doc_keyword}\", which game is this for? (GameID or game name)"
