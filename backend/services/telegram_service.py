@@ -349,6 +349,30 @@ def _contains_ignore_keyword(text: str) -> bool:
     return "ignore" in text.lower()
 
 
+def _is_pure_numeric_message(text: str) -> bool:
+    """訊息裡沒有任何英文字母、也沒有中文字元，但至少含一個數字（例如單純貼上的 IP 位址、
+    電話號碼、單號等，像「18.143.207.15 18.139.76.215」），本質上不是一個問題，
+    跟純問候/感謝語一樣完全靜默略過（不回覆、不記錄）。"""
+    if re.search(r'[A-Za-z]', text) or re.search(r'[一-鿿㐀-䶿]', text):
+        return False
+    return bool(re.search(r'\d', text))
+
+
+_URL_RE = re.compile(r'https?://\S+', re.IGNORECASE)
+_BARE_URL_LEFTOVER_RE = re.compile(r'^[\s,，、;；/|]*$')
+
+
+def _is_bare_url_message(text: str) -> bool:
+    """訊息整段內容只有一個或多個網址（可能中間用逗號/斜線/換行等分隔），沒有其他任何
+    英文/中文說明文字（例如單純貼上的 API 連結），本質上不是一個問題，跟純問候/感謝語
+    一樣完全靜默略過（不回覆、不記錄）。網址本身一定含英文字母，不能套用純數字訊息那組
+    判斷，所以另外用「把網址都拿掉後，剩下的內容是不是空的」來判斷。"""
+    if not _URL_RE.search(text):
+        return False
+    remainder = _URL_RE.sub('', text)
+    return bool(_BARE_URL_LEFTOVER_RE.match(remainder))
+
+
 async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_fn, label: str):
     """遊戲素材查詢共用邏輯（JILI/TADA 皆呼叫此函式，僅資料來源不同）。
     偵測到關鍵字才會查詢；一則訊息可能同時問多款遊戲，逐一查詢後整合成一則回覆；
@@ -1107,9 +1131,11 @@ class BotManager:
             logger.debug(f"Bot {bot_id} 訊息長度 {len(text.strip())} < {_MIN_TEXT_LEN}，略過")
             return
 
-        # 功能一-a：純問候/感謝/道別語，或訊息含「ignore」字樣 → 跳過，不回覆不記錄
-        if _is_greeting_or_thanks(text) or _contains_ignore_keyword(text):
-            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語或ignore關鍵字，略過：「{text[:30]}」")
+        # 功能一-a：純問候/感謝/道別語、訊息含「ignore」字樣、完全沒有英文/中文字元的純數字訊息
+        # （例如單純貼上的 IP 位址），或整段只有一個/多個網址、沒有其他文字說明 → 跳過，不回覆不記錄
+        if (_is_greeting_or_thanks(text) or _contains_ignore_keyword(text)
+                or _is_pure_numeric_message(text) or _is_bare_url_message(text)):
+            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語、ignore關鍵字、純數字或純網址訊息，略過：「{text[:30]}」")
             return
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
