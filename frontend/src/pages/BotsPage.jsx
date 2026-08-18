@@ -828,15 +828,25 @@ function NotifyTab({ user }) {
       </Card>
 
       <Card title="通知訊息格式預覽" size="small">
-        <div style={{ fontFamily: 'monospace', fontSize: 13, background: '#f5f7fa', padding: 12, borderRadius: 6, lineHeight: 2 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: 13, background: '#f5f7fa', padding: 12, borderRadius: 6, lineHeight: 1.6 }}>
           <div>群組名稱：{chatName || '（目標群組名稱）'}</div>
+          <div>&nbsp;</div>
           <div>問題訊息：請問遊戲清單在哪裡看？</div>
+          <div>&nbsp;</div>
+          <div>回覆內容：您好，遊戲清單可以透過機器人指令查詢，詳見置頂訊息。</div>
+          <div>&nbsp;</div>
           <div style={{ color: '#52c41a' }}>建立狀態：✅ 成功</div>
+          <div>&nbsp;</div>
           <div>工單編號：#12345</div>
-          <hr style={{ border: 'none', borderTop: '1px dashed #ccc', margin: '8px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px dashed #ccc', margin: '12px 0' }} />
           <div>群組名稱：{chatName || '（目標群組名稱）'}</div>
+          <div>&nbsp;</div>
           <div>問題訊息：請問遊戲清單在哪裡看？</div>
+          <div>&nbsp;</div>
+          <div>回覆內容：（知識庫查無符合答案）</div>
+          <div>&nbsp;</div>
           <div style={{ color: '#f5222d' }}>建立狀態：❌ 失敗</div>
+          <div>&nbsp;</div>
           <div>失敗原因：HTTP 500: Internal Server Error</div>
         </div>
       </Card>

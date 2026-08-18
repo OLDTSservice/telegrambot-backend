@@ -1025,7 +1025,26 @@ class BotManager:
                 return
             # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
 
-        # 0.8 TADA Gamelist 進階查詢（熱門排行/欄位查詢/複合篩選，獨立開關，預設關閉，僅該機器人開啟時執行）
+        # 0.8 TADA 認證文件查詢（獨立開關，偵測到文件類型關鍵字才觸發；缺市場/缺遊戲時用
+        # ForceReply 追問，見 services/tada_certification_service.py）。
+        # 排在 Gamelist 進階查詢「之前」：認證查詢純規則判斷、不花 Token、判斷穩定；
+        # Gamelist 的快篩關鍵字裡有 "gameid"，認證問句常常會帶 GameID（例如「for GameID 659」），
+        # 若排在 Gamelist 後面，這類認證問句會先被 Gamelist 的快篩攔下去呼叫 AI 判斷意圖，
+        # 不但白花 Token，AI 還可能誤判成 Gamelist 查詢（實測會誤猜成 game type/tag 等不相關
+        # 欄位）直接回覆或轉人工，導致認證查詢完全沒有機會執行到。兩個關鍵字集合彼此不重疊，
+        # 對調順序不影響一般 Gamelist 查詢。
+        if bot_record.tada_certification_query_enabled and sender_id:
+            from services.tada_certification_service import detect_doc_query, is_chinese_text
+            _cert_hit = detect_doc_query(text)
+            if _cert_hit:
+                _doc_keyword, _cert_markets, _doc_type = _cert_hit
+                _is_zh_cert = is_chinese_text(text)
+                await _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_id, _is_zh_cert,
+                                               _doc_keyword, _cert_markets, _doc_type, text, update, db)
+                return
+            # 與認證查詢無關：不中止，改走 Gamelist 查詢
+
+        # 0.85 TADA Gamelist 進階查詢（熱門排行/欄位查詢/複合篩選，獨立開關，預設關閉，僅該機器人開啟時執行）
         if bot_record.tada_gamelist_query_enabled:
             gl_handled, gl_reply = await _try_tada_gamelist_reply(bot_id, text, db)
             if gl_handled:
@@ -1049,18 +1068,6 @@ class BotManager:
                     _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
                 return
             # 與 Gamelist 查詢無關：不中止，改走知識庫查詢
-
-        # 0.85 TADA 認證文件查詢（獨立開關，偵測到文件類型關鍵字才觸發；
-        # 缺市場/缺遊戲時用 ForceReply 追問，見 services/tada_certification_service.py）
-        if bot_record.tada_certification_query_enabled and sender_id:
-            from services.tada_certification_service import detect_doc_query, is_chinese_text
-            _cert_hit = detect_doc_query(text)
-            if _cert_hit:
-                _doc_keyword, _cert_markets, _doc_type = _cert_hit
-                _is_zh_cert = is_chinese_text(text)
-                await _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_id, _is_zh_cert,
-                                               _doc_keyword, _cert_markets, _doc_type, text, update, db)
-                return
 
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
@@ -1412,7 +1419,8 @@ def _send_notify_message(ticket_id, group_name: str, question: str, error_msg: s
                 lines.append(f"工單編號：#{ticket_id}")
             else:
                 lines.append(f"失敗原因：{error_msg or '未知錯誤'}")
-            text = "\n".join(lines)
+            # 每個欄位標題之間空一行，避免問題訊息/回覆內容字數較多時跟下一個標題黏在一起難以辨識
+            text = "\n\n".join(lines)
             bot_manager.send_message(setting.bot_id, setting.chat_id, text)
         finally:
             db.close()

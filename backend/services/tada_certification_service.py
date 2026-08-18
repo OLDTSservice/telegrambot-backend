@@ -234,7 +234,10 @@ def _find_col(headers: list, substr: str):
 
 
 def _find_row(rows: list, id_col, name_col, identifier: str):
-    """先用 GameID（純數字比對）找，找不到再用遊戲名稱（先完全相符，再退而找子字串）。"""
+    """先用 GameID（純數字比對）找，找不到再用遊戲名稱（先完全相符，再退而找子字串）。
+    子字串比對時如果同時符合超過一款遊戲（例如問「Charge Buffalo」，清單裡剛好同時有
+    「3 Charge Buffalo」跟「Charge Buffalo-ASCENT」），寧可當作找不到、交由呼叫端誠實
+    回覆查無資料，也不要隨便挑第一個猜——猜錯會直接給廠商錯誤的證書，比「答不出來」更糟。"""
     ident = identifier.strip()
     digits = re.sub(r'\D', '', ident)
     if id_col is not None and digits:
@@ -246,9 +249,13 @@ def _find_row(rows: list, id_col, name_col, identifier: str):
         for row in rows:
             if name_col < len(row) and row[name_col][0].lower() == lower_ident:
                 return row
-        for row in rows:
-            if name_col < len(row) and lower_ident and lower_ident in row[name_col][0].lower():
-                return row
+        if lower_ident:
+            substring_matches = [
+                row for row in rows
+                if name_col < len(row) and lower_ident in row[name_col][0].lower()
+            ]
+            if len(substring_matches) == 1:
+                return substring_matches[0]
     return None
 
 
