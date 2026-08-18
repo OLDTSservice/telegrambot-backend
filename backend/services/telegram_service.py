@@ -106,6 +106,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "创建总代理", "創建總代理", "建立一个", "建立一個", "之前对接", "之前對接",
     "下面创建", "下面創建", "帮忙创建", "幫忙創建", "帮忙建立", "幫忙建立",
     "关掉", "關掉", "关闭", "關閉", "打開", "打开", "啟用", "启用", "開啟", "开启",
+    "invalid response", "show anything", "后台显示", "後台顯示", "any suspicious", "detail image",
+    "player use", "different bet", "different agent",
 )
 
 
