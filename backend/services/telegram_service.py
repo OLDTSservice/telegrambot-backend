@@ -111,6 +111,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "进入后台", "進入後台", "member abnormal", "abnormal behavior", "behavior betting",
     "不见了", "不見了", "用掉了", "是免费", "是免費",
     "help me whitelist", "automatically add", "update", "provide today", "the details",
+    "玩家betting", "有没有问题", "有沒有問題", "需要多久",
+    "开通", "開通", "麻烦尽快", "麻煩儘快", "处理中", "處理中", "怎么判断", "怎麼判斷",
 )
 
 
@@ -236,7 +238,7 @@ def _is_bare_timestamp_message(text: str) -> bool:
 # 知識庫不會有答案；但廠商也可能在正常問題訊息裡「順帶」tag這些帳號（例如「@OLDTS_service
 # 請問這個問題...」），這種訊息還有實際內容，應該正常走知識庫——所以不能用單一關鍵字命中
 # 就攔截，只有整段訊息「只有」這些tag、沒有其他文字時才判定。
-_BARE_MENTION_HANDLES = {"@oldts_service", "@jiliserivceprodbot"}
+_BARE_MENTION_HANDLES = {"@oldts_service", "@jiliserivceprodbot", "@finny1099"}
 
 
 def _is_bare_mention_message(text: str) -> bool:
