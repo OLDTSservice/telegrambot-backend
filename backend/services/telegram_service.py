@@ -109,6 +109,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "invalid response", "show anything", "后台显示", "後台顯示", "any suspicious", "detail image",
     "player use", "different bet", "different agent",
     "进入后台", "進入後台", "member abnormal", "abnormal behavior", "behavior betting",
+    "不见了", "不見了", "用掉了", "是免费", "是免費",
+    "help me whitelist", "automatically add", "update", "provide today", "the details",
 )
 
 
