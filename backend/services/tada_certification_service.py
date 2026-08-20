@@ -40,13 +40,15 @@ _TABLE_CACHE_TTL_SECONDS = 24 * 3600
 
 _ZH_RE = re.compile(r'[一-鿿㐀-䶿]')
 
+# 「certificate file」涵蓋的市場清單：也是 certificate/certification 等泛稱詞的預設對應
+# （見下方 _GENERIC_CERT_WORDS 說明），獨立成常數避免兩處清單各自維護、日後改市場清單漏改一邊。
+_CERTIFICATE_FILE_MARKETS = ["Greece", "Italy", "Malta", "Netherlands", "Portugal", "Romania", "South Africa",
+                             "Spain", "Sweden", "UK", "Brazil", "Belarus", "Ukraine"]
+
 # 文件類型關鍵字 → (對應市場清單, 文件性質)
 # 文件性質："game"=需指定遊戲才能查、"platform"=平台層級不分遊戲、"vendor_escalate"=依廠商各自產生，不追問直接轉人工
 _DOC_KEYWORD_RULES = (
-    (("certificate file", "certification authority"),
-     ["Greece", "Italy", "Malta", "Netherlands", "Portugal", "Romania", "South Africa", "Spain", "Sweden", "UK", "Brazil",
-      "Belarus", "Ukraine"],
-     "game"),
+    (("certificate file", "certification authority"), _CERTIFICATE_FILE_MARKETS, "game"),
     (("hgc approval letter",), ["Greece"], "game"),
     (("symbol mapping",), ["Portugal"], "game"),
     (("help files",), ["Romania", "South Africa", "Spain"], "game"),
@@ -64,9 +66,12 @@ _NO_DATA_KEYWORDS = (
 )
 
 # certificate/certification（含中文「認證」）本身就代表在問認證相關的事，但沒有具體到能對到
-# 上面任何一組關鍵字時，仍然要當成認證問題處理（追問市場+文件類型），而不是完全放過不理。
-# 這幾個字本身已經包含在 _DOC_KEYWORD_RULES 的具體詞組裡（例如 "certificate file"），所以
-# detect_doc_query 會先比對具體詞組，比對不到才會落到這裡的籠統判斷。
+# 上面任何一組關鍵字時，實際情境幾乎都是在問最常見、涵蓋最多市場的「certificate file」（逐遊戲
+# 認證文件），而不是真的完全無法判斷——所以 detect_doc_query 直接把這幾個泛稱詞當成
+# certificate file 處理（見下方），只需追問「市場」即可，不會像先前那樣要求使用者在單次回覆裡
+# 重新講出具體詞組才能往下走，避免「Can you provide the game certificate」這種很口語的問法
+# 一路掉到查無資料轉人工。這幾個字本身已經包含在 _DOC_KEYWORD_RULES 的具體詞組裡（例如
+# "certificate file"），所以 detect_doc_query 會先比對具體詞組，比對不到才會落到這裡的泛稱判斷。
 _GENERIC_CERT_WORDS = ("certification", "certificate", "認證", "认证")
 
 _MARKET_ALIASES = {
@@ -417,8 +422,9 @@ def is_chinese_text(text: str) -> bool:
 def detect_doc_query(text: str):
     """偵測訊息是否命中認證文件關鍵字。回傳 (doc_keyword, markets, doc_type) 或 None。
     doc_type 為 "no_data" 時 markets 固定回傳空清單（5d 情境不需要市場清單，直接轉人工）；
-    doc_type 為 "vague" 時代表只看得出「這是在問認證」，但完全對不到具體的市場/文件類型，
-    markets 也固定回傳空清單，呼叫端要追問「哪個市場、哪一種認證文件」。"""
+    只講泛稱詞（certificate/certification/認證/认证，見 _GENERIC_CERT_WORDS）、沒有更具體的
+    詞組時，視同在問最常見的 certificate file，doc_type 回傳 "game"、markets 回傳
+    _CERTIFICATE_FILE_MARKETS，呼叫端只需追問「哪個市場」即可。"""
     lower = text.lower()
     for kw in _NO_DATA_KEYWORDS:
         if kw in lower:
@@ -429,7 +435,7 @@ def detect_doc_query(text: str):
                 return (kw, markets, doc_type)
     for kw in _GENERIC_CERT_WORDS:
         if kw in lower:
-            return (kw, [], "vague")
+            return (kw, _CERTIFICATE_FILE_MARKETS, "game")
     return None
 
 
