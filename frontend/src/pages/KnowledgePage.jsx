@@ -193,6 +193,25 @@ function SourceTab({ user }) {
     }
   }
 
+  const handleExportQA = async (doc) => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/knowledge/${doc.id}/export_qa`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) { message.error('匯出失敗'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${doc.original_filename.replace(/\.[^.]+$/, '')}_QA內容.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      message.error('匯出失敗')
+    }
+  }
+
   const handleToggle = async (doc, checked) => {
     try {
       await updateDoc(doc.id, { is_enabled: checked })
@@ -327,7 +346,9 @@ function SourceTab({ user }) {
                     onChange={(checked, e) => { e.stopPropagation(); handleToggle(doc, checked) }}
                     disabled={!canEdit(user)} />
                   <Button size="small" icon={<DownloadOutlined />} type="link" style={{ padding: 0, height: 'auto' }}
-                    onClick={e => { e.stopPropagation(); handleDownload(doc) }}>下載</Button>
+                    onClick={e => { e.stopPropagation(); handleDownload(doc) }}>下載原始檔</Button>
+                  <Button size="small" icon={<DownloadOutlined />} type="link" style={{ padding: 0, height: 'auto' }}
+                    onClick={e => { e.stopPropagation(); handleExportQA(doc) }}>下載QA內容</Button>
                   {canEdit(user) && (
                     <>
                       <Button size="small" icon={<EditOutlined />} type="link" style={{ padding: 0, height: 'auto' }}

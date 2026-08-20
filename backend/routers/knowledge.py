@@ -1,7 +1,9 @@
+import io
 import os
 import uuid
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -85,6 +87,45 @@ def download_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(require_v
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="檔案不存在")
     return FileResponse(file_path, filename=doc.original_filename)
+
+
+@router.get("/{doc_id}/export_qa")
+def export_qa(doc_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+    """匯出此文件目前完整的 Q&A 內容（含原始上傳解析出的 + 後續手動新增/編輯的），
+    與「下載」原始檔案不同——原始檔案下載的是當初上傳的那份檔案本身，不會反映後續調整；
+    這裡是直接從資料庫 KnowledgeQA 表匯出目前最新狀態，成一份 xlsx。"""
+    doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    qas = db.query(models.KnowledgeQA).filter(
+        models.KnowledgeQA.doc_id == doc_id
+    ).order_by(models.KnowledgeQA.order_index).all()
+
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "QA"
+    ws.append(["問題 (Q)", "其他說法／關鍵字", "回答 (A)"])
+    for qa in qas:
+        ws.append([qa.question, qa.keywords or "", qa.answer])
+    ws.column_dimensions["A"].width = 40
+    ws.column_dimensions["B"].width = 30
+    ws.column_dimensions["C"].width = 60
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    base_name = os.path.splitext(doc.original_filename)[0]
+    export_filename = f"{base_name}_QA內容.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=qa_export.xlsx; filename*=UTF-8''{quote(export_filename)}"
+        },
+    )
 
 
 @router.put("/{doc_id}", response_model=schemas.DocOut)
