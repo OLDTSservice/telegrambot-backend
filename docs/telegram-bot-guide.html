@@ -885,7 +885,9 @@
 
       <h4>文件解析規則</h4>
       <ul>
-        <li><strong>Excel（.xls/.xlsx）：</strong>固定以 A 欄＝問題、B 欄＝答案，逐列自動轉為 Q&amp;A。</li>
+        <li><strong>Excel（.xls/.xlsx）：</strong>支援兩種欄位格式，逐列自動轉為 Q&amp;A：
+          <br>· 2 欄（A 欄＝問題、B 欄＝答案）：原本相容格式。
+          <br>· 3 欄（A 欄＝問題、B 欄＝其他說法／關鍵字、C 欄＝答案）：與「下載QA內容」匯出的格式一致，C 欄有值時自動判定為此格式，避免把關鍵字誤讀成答案；可直接把匯出的 xlsx 改好內容後重新上傳。</li>
         <li><strong>PDF / Word / TXT 等：</strong>依「Q&amp;A 文字格式」解析，格式為<br>
           <span class="code">Q1: 問題標題 → （可選）其他說法或關鍵字 → A1: 回答內容</span>，每組之間以一整行 10 個以上的破折號 <span class="code">----------</span> 分隔。</li>
         <li>若文件<strong>不是</strong> Q&amp;A 格式，則改用「段落切塊」方式：中文內容每 400 字一段、重疊 50 字；英文內容每 400 字一段、重疊 40 字，讓 AI 查詢時仍有上下文可用（但不會被記成 Q&amp;A 筆數）。</li>

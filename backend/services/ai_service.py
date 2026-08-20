@@ -58,23 +58,33 @@ def _extract_text(file_path: str, ext: str) -> str:
 
 
 def _parse_excel_qa(file_path: str) -> list[dict]:
-    """讀取 Excel，A 欄=問題、B 欄=答案，自動轉為 Q&A 清單。"""
+    """讀取 Excel 轉為 Q&A 清單，支援兩種欄位格式：
+    - 2 欄（A=問題、B=答案）：原本相容格式。
+    - 3 欄（A=問題、B=其他說法/關鍵字、C=答案）：「下載QA內容」匯出的格式，
+      C 欄有值時視為此格式，避免把關鍵字欄誤讀成答案。
+    """
     import openpyxl
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     qas = []
-    skip_headers = {"問題", "問題內容", "Q", "question", "題目"}
-    skip_answers = {"回覆", "回覆內容", "A", "answer", "答案"}
+    skip_headers = {"問題", "問題內容", "Q", "question", "題目", "問題 (Q)"}
+    skip_answers = {"回覆", "回覆內容", "A", "answer", "答案", "回答 (A)"}
     for sheet in wb.worksheets:
         for row in sheet.iter_rows(values_only=True):
             if len(row) < 2:
                 continue
             q = str(row[0]).strip() if row[0] is not None else ""
-            a = str(row[1]).strip() if row[1] is not None else ""
+            c_val = str(row[2]).strip() if len(row) > 2 and row[2] is not None else ""
+            if c_val:
+                k = str(row[1]).strip() if row[1] is not None else ""
+                a = c_val
+            else:
+                k = ""
+                a = str(row[1]).strip() if row[1] is not None else ""
             if not q or not a:
                 continue
             if q in skip_headers and a in skip_answers:
                 continue
-            qas.append({"question": q, "keywords": "", "answer": a})
+            qas.append({"question": q, "keywords": k, "answer": a})
     return qas
 
 
