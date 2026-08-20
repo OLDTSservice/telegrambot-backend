@@ -113,6 +113,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "help me whitelist", "automatically add", "update", "provide today", "the details",
     "玩家betting", "有没有问题", "有沒有問題", "需要多久",
     "开通", "開通", "麻烦尽快", "麻煩儘快", "处理中", "處理中", "怎么判断", "怎麼判斷",
+    "which currecny", "这笔赢", "這筆贏", "没有赔到", "沒有賠到", "没赔到", "沒賠到",
+    "for this as", "this authorization", "did not match",
 )
 
 
