@@ -234,20 +234,18 @@ def _is_bare_timestamp_message(text: str) -> bool:
     return bool(_BARE_TIMESTAMP_RE.match(text.strip()))
 
 
-# 這幾個帳號通常是內部客服／機器人自己的帳號，訊息「整段只是tag這些帳號」時不是提問，
-# 知識庫不會有答案；但廠商也可能在正常問題訊息裡「順帶」tag這些帳號（例如「@OLDTS_service
-# 請問這個問題...」），這種訊息還有實際內容，應該正常走知識庫——所以不能用單一關鍵字命中
-# 就攔截，只有整段訊息「只有」這些tag、沒有其他文字時才判定。
-_BARE_MENTION_HANDLES = {"@oldts_service", "@jiliserivceprodbot", "@finny1099"}
+_BARE_MENTION_RE = re.compile(r'^@[A-Za-z0-9_]+$')
 
 
-def _is_bare_mention_message(text: str) -> bool:
-    """訊息整段內容只是單獨tag一個或多個指定帳號（例如「@OLDTS_service」），沒有其他文字，
-    本質不是一個提問，跳過知識庫直接 fallback。"""
+def _is_mention_only_message(text: str) -> bool:
+    """訊息整段內容只由一個或多個 @帳號 組成（不限定特定帳號、tag 幾個都算），沒有其他文字
+    ——本質不是提問，直接完全靜默（不回覆、不紀錄），例如「@OLDTS_service」或
+    「@OLDTS_service @JiliSerivceprodbot @fh2980112」。若訊息除了 tag 還有其他實際內容
+    （例如「@OLDTS_service 請問這個問題...」），則不受影響，仍正常走後續流程。"""
     tokens = text.strip().split()
     if not tokens:
         return False
-    return all(tok.lower() in _BARE_MENTION_HANDLES for tok in tokens)
+    return all(_BARE_MENTION_RE.match(tok) for tok in tokens)
 
 
 def _is_application_form(text: str) -> bool:
@@ -1137,16 +1135,18 @@ class BotManager:
             return
 
         # 功能一-a：純問候/感謝/道別語、訊息含「ignore」字樣、完全沒有英文/中文字元的純數字訊息
-        # （例如單純貼上的 IP 位址），或整段只有一個/多個網址、沒有其他文字說明 → 跳過，不回覆不記錄
+        # （例如單純貼上的 IP 位址）、整段只有一個/多個網址沒有其他文字說明，或整段只是tag一個/多個
+        # 帳號沒有其他文字 → 跳過，不回覆不記錄
         if (_is_greeting_or_thanks(text) or _contains_ignore_keyword(text)
-                or _is_pure_numeric_message(text) or _is_bare_url_message(text)):
-            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語、ignore關鍵字、純數字或純網址訊息，略過：「{text[:30]}」")
+                or _is_pure_numeric_message(text) or _is_bare_url_message(text)
+                or _is_mention_only_message(text)):
+            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語、ignore關鍵字、純數字、純網址或純TAG帳號訊息，略過：「{text[:30]}」")
             return
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
         if (_is_application_form(text) or _is_no_kb_topic(text) or _is_player_report(text)
                 or _is_bare_ip_message(text) or _is_bare_code_message(text) or _is_rtp_anomaly_complaint(text)
-                or _is_bare_mention_message(text) or _is_bare_timestamp_message(text)):
+                or _is_bare_timestamp_message(text)):
             logger.info(f"Bot {bot_id} 偵測到申請表單格式或無解答主題，跳過知識庫直接 fallback")
             if bool(_group_setting.silent_no_answer if _group_setting else False):
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db)

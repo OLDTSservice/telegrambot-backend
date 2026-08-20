@@ -330,7 +330,7 @@
       <a class="toc-link toc-sub" href="#kb-skip-combo">— 雙關鍵字組合判斷</a>
       <a class="toc-link toc-sub" href="#kb-skip-bare">— 整段訊息格式判斷</a>
       <a class="toc-link toc-sub" href="#kb-skip-form">— 申請表單／客服工單</a>
-      <a class="toc-link toc-sub" href="#kb-skip-greeting">— 問候／感謝／道別語</a>
+      <a class="toc-link toc-sub" href="#kb-skip-greeting">— 問候／感謝／道別語／純TAG</a>
     </div>
 
     <div class="toc-group">
@@ -772,9 +772,9 @@
           <tr><td><span class="code">_is_bare_ip_message()</span></td><td>整段是單一個 IP 位址（IPv4 或 IPv6），用標準庫 <span class="code">ipaddress</span> 判斷，正確涵蓋各種 IPv6 縮寫格式。</td><td><span class="code">182.11.152.163</span><br><span class="code">2a09:bac5:d5f4:101e::19b:17f</span></td></tr>
           <tr><td><span class="code">_is_bare_code_message()</span></td><td>整段是單一個英數混合的代碼／單號，要求同時包含英文字母與數字（純英文單字或純數字不算），且長度至少 8 碼。</td><td><span class="code">27063759W1X8</span><br><span class="code">ACNM27063759W1X8</span></td></tr>
           <tr><td><span class="code">_is_bare_timestamp_message()</span></td><td>整段是單一個時間戳記，正則涵蓋常見日期／時間格式組合：分隔符可為 <span class="code">-</span> <span class="code">/</span> <span class="code">.</span>，時間部分可有可無、可含秒數與毫秒，結尾可有時區或 <span class="code">Z</span>。</td><td><span class="code">2026-08-12 12:14:52</span><br><span class="code">2026/08/12</span><br><span class="code">12:14:52</span><br><span class="code">2026-08-12T12:14:52Z</span></td></tr>
-          <tr><td><span class="code">_is_bare_mention_message()</span></td><td>整段只是單獨 tag 一個或多個指定的內部客服／機器人帳號，沒有其他文字。若訊息除了 tag 還有其他實際問題內容，則不受影響，仍正常走知識庫。</td><td><span class="code">@OLDTS_service</span><br><span class="code">@JiliSerivceprodbot</span><br><span class="code">@finny1099</span></td></tr>
         </tbody>
       </table>
+      <p style="font-size:13.5px;color:#666">整段只是單獨 tag 帳號、沒有其他文字的訊息（例如 <span class="code">@OLDTS_service</span>），判定方式和後續處理方式跟本節其他機制不同——命中後是<strong>完全靜默、不回覆不紀錄</strong>，歸類在下方「<a href="#kb-skip-greeting">純問候／感謝／道別語、含「ignore」字樣、純TAG帳號</a>」同一組，詳見該節的 <span class="code">_is_mention_only_message()</span> 說明。</p>
 
       <h3 id="kb-skip-form">申請表單／客服工單偵測（<span class="code">_is_application_form()</span>）</h3>
       <p>符合以下任一規則即判定為結構化申請表單或客服工單，跳過知識庫，直接回覆制式等待訊息（此機制也同時用於<a href="#flow-whitelist">排除白名單自動處理的誤判</a>）：</p>
@@ -792,11 +792,12 @@
         <a href="#bots-tab-list">TADA Gamelist進階查詢</a>判斷「單一遊戲欄位查詢」條件不足（有欄位、沒指定遊戲）時，預設會直接轉人工；但 icon／material／rtp 這三個欄位額外設有例外——若知識庫裡已補上「沒有指定遊戲時」的通用問答（例如統一的素材資料夾連結），會改為放行給知識庫查詢，而不是直接轉人工。其餘欄位（如 min bet、volatility）沒有這個例外，沒指定遊戲時仍一律轉人工，因為這些欄位沒有指定遊戲就沒有意義的通用答案。
       </div>
 
-      <h3 id="kb-skip-greeting">純問候／感謝／道別語，以及含「ignore」字樣（<span class="code">_is_greeting_or_thanks()</span> / <span class="code">_contains_ignore_keyword()</span>）</h3>
-      <p>這兩個判斷命中後都是<strong>直接結束、不回覆、不記錄</strong>（與其他機制會回覆制式訊息不同）：</p>
+      <h3 id="kb-skip-greeting">純問候／感謝／道別語、含「ignore」字樣、純TAG帳號（<span class="code">_is_greeting_or_thanks()</span> / <span class="code">_contains_ignore_keyword()</span> / <span class="code">_is_mention_only_message()</span>）</h3>
+      <p>這三個判斷命中後都是<strong>直接結束、不回覆、不記錄</strong>（與其他機制會回覆制式訊息不同）：</p>
       <ul>
         <li><strong>純問候／感謝／道別語</strong>：訊息去除標點符號與大小寫後，若整句<strong>完全等於</strong>清單中的問候／感謝／道別語才算命中（不是包含，是整句相符），避免像「Hi Team, would like to ask...」這種開頭是問候語、但後面有實際問題內容的訊息被誤擋。</li>
         <li><strong>含「ignore」字樣</strong>：訊息中只要出現「ignore」這個字（不分大小寫、<strong>不限完整一句、可包含在其他文字中</strong>），就直接略過。與上面「整句完全相符」不同，這條是<strong>子字串比對</strong>——即使訊息裡還夾雜其他文字（例如「sorry ignore my last message, but can you help check the RTP」），整則訊息仍會被略過，不會另外處理後面的問題。此為刻意的設計取捨：這類訊息絕大多數情況下確實不需要處理，極少數例外由人員自行查看群組對話即可，不需要機器人額外攔截處理。</li>
+        <li><strong>純TAG帳號</strong>：訊息去除頭尾空白後，切成一個個 token，若<strong>每一個</strong> token 都符合 <span class="code">@帳號</span> 格式（英數字與底線），就判定為純TAG訊息，不限定特定帳號、tag 幾個都算，例如 <span class="code">@OLDTS_service</span> 或 <span class="code">@OLDTS_service @JiliSerivceprodbot @fh2980112</span>。若訊息除了 tag 還有其他實際文字內容（例如「@OLDTS_service 請問這個問題...」），則不受影響，仍正常走後續流程。</li>
       </ul>
       <div class="card">
         <p style="margin-top:0"><strong>英文基本詞組</strong></p>
