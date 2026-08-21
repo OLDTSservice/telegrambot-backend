@@ -115,6 +115,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "开通", "開通", "麻烦尽快", "麻煩儘快", "处理中", "處理中", "怎么判断", "怎麼判斷",
     "which currecny", "这笔赢", "這筆贏", "没有赔到", "沒有賠到", "没赔到", "沒賠到",
     "for this as", "this authorization", "did not match",
+    "the issue below", "查看该玩家", "查看該玩家", "玩家说", "玩家說", "refer here",
+    "not confirmed", "apply for", "異常下注", "异常下注",
 )
 
 
