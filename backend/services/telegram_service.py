@@ -119,6 +119,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "not confirmed", "apply for", "異常下注", "异常下注",
     "这几局", "這幾局", "provide latest bo link", "password reset", "pw reset", "assist create",
     "是否有找到", "记录却显示", "記錄卻顯示", "need to change", "处理加白", "處理加白", "好吐",
+    "有影响", "有影響", "如果他玩", "无法进入", "無法進入", "search不到",
+    "要放什么", "要放什麼", "没record", "沒record", "符号", "符號", "remove",
 )
 
 
