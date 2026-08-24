@@ -487,6 +487,15 @@ _FALLBACK_TRANSFER_MSG_ZH = "您好，人員將會協助確認，請稍後"
 _FALLBACK_TRANSFER_MSG_EN = "Hello, our team will assist you shortly. Please wait."
 
 
+def _is_self_fallback_message(text: str) -> bool:
+    """訊息整段內容剛好就是機器人自己會回覆的轉人工制式訊息（_FALLBACK_TRANSFER_MSG_ZH /
+    _FALLBACK_TRANSFER_MSG_EN），代表這是「機器人對機器人」測試情境下收到了對方機器人的
+    自動回覆，不是廠商的提問——直接完全靜默（不回覆、不記錄），避免兩個機器人的制式回覆
+    互相觸發、無限迴圈。"""
+    stripped = text.strip()
+    return stripped == _FALLBACK_TRANSFER_MSG_ZH or stripped.lower() == _FALLBACK_TRANSFER_MSG_EN.lower()
+
+
 async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
     """TADA Gamelist 進階查詢（熱門排行/單一遊戲欄位查詢/複合條件篩選）共用邏輯。
     回傳 (handled, reply)：
@@ -1145,12 +1154,13 @@ class BotManager:
             return
 
         # 功能一-a：純問候/感謝/道別語、訊息含「ignore」字樣、完全沒有英文/中文字元的純數字訊息
-        # （例如單純貼上的 IP 位址）、整段只有一個/多個網址沒有其他文字說明，或整段只是tag一個/多個
-        # 帳號沒有其他文字 → 跳過，不回覆不記錄
+        # （例如單純貼上的 IP 位址）、整段只有一個/多個網址沒有其他文字說明、整段只是tag一個/多個
+        # 帳號沒有其他文字，或整段訊息就是機器人自己的轉人工制式訊息（機器人對機器人測試情境）
+        # → 跳過，不回覆不記錄
         if (_is_greeting_or_thanks(text) or _contains_ignore_keyword(text)
                 or _is_pure_numeric_message(text) or _is_bare_url_message(text)
-                or _is_mention_only_message(text)):
-            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語、ignore關鍵字、純數字、純網址或純TAG帳號訊息，略過：「{text[:30]}」")
+                or _is_mention_only_message(text) or _is_self_fallback_message(text)):
+            logger.debug(f"Bot {bot_id} 偵測到純問候/感謝語、ignore關鍵字、純數字、純網址、純TAG帳號或機器人自身制式訊息，略過：「{text[:30]}」")
             return
 
         # 功能一-b：申請表單格式偵測 / 一定查不到答案的主題（進度詢問、重置密碼、玩家個案投訴、單獨貼IP等）→ 跳過知識庫，直接 fallback
