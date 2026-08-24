@@ -99,6 +99,49 @@ def _contains_cjk(text: str) -> bool:
     return any('一' <= c <= '鿿' for c in text)
 
 
+_URL_RE_FOR_LANG_CHECK = None
+
+
+def _reply_language_mismatched(reply: str, question_has_cjk: bool) -> bool:
+    """保底檢查：系統提示雖然要求 Claude 依問題語言回覆／翻譯，但這只是「指令」，實測偶爾會被
+    忽略（尤其知識庫內容很長、混雜多語言版本時）。這裡用簡單的規則再次核對回覆語言是否符合目標，
+    不符合就交由 _force_translate() 強制修正，不完全依賴 AI 自律。網址不列入語言判斷（網址本身
+    沒有語言可言），若扣除網址後完全沒有剩餘內容（例如整則只有一個連結）也視為無從判斷、不觸發。"""
+    global _URL_RE_FOR_LANG_CHECK
+    if _URL_RE_FOR_LANG_CHECK is None:
+        import re
+        _URL_RE_FOR_LANG_CHECK = re.compile(r'https?://\S+')
+    stripped = _URL_RE_FOR_LANG_CHECK.sub('', reply).strip()
+    if not stripped:
+        return False
+    if question_has_cjk:
+        return not _contains_cjk(stripped)
+    return _contains_cjk(stripped)
+
+
+def _force_translate(client, text: str, target_is_chinese: bool):
+    """語言不符時的保底翻譯：用一次獨立、單純的翻譯任務強制修正，比原本「一次到位回答問題＋
+    判斷語言＋翻譯＋篩選多語言版本」的複合提示詞更單純，AI 遵守的可靠度更高。
+    回傳 (translated_text, input_tokens, output_tokens)，失敗時 translated_text 為 None。"""
+    target_lang = "繁體中文" if target_is_chinese else "英文"
+    try:
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            temperature=0,
+            system=(
+                f"請將使用者提供的文字整段翻譯成{target_lang}，只輸出翻譯結果本身，"
+                "不要加任何說明、開場白或引號。網址、連結、數字、產品/檔案名稱等專有名詞維持原文不變、不要翻譯。"
+            ),
+            messages=[{"role": "user", "content": text}],
+        )
+        translated = message.content[0].text.strip()
+        return translated, message.usage.input_tokens, message.usage.output_tokens
+    except Exception as e:
+        logger.error(f"強制翻譯保底機制失敗：{e}", exc_info=True)
+        return None, 0, 0
+
+
 def parse_qa_text(text: str) -> list[dict]:
     """
     解析 Q&A 格式文字，回傳 [{"question": ..., "keywords": ..., "answer": ...}, ...]
@@ -415,6 +458,19 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
         if NO_ANSWER_TOKEN in reply:
             logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")
             return None, in_tok, out_tok, cache_read, cache_write
+        _question_has_cjk = _contains_cjk(question)
+        if _reply_language_mismatched(reply, _question_has_cjk):
+            logger.warning(
+                f"Bot {bot_id} 回覆語言與問題語言不符（目標{'中文' if _question_has_cjk else '英文'}），"
+                f"觸發強制翻譯保底機制：{reply[:60]}"
+            )
+            translated, t_in, t_out = _force_translate(client, reply, _question_has_cjk)
+            if translated:
+                reply = translated
+                in_tok += t_in
+                out_tok += t_out
+            else:
+                logger.warning(f"Bot {bot_id} 強制翻譯保底機制失敗，改用原始回覆")
         return reply, in_tok, out_tok, cache_read, cache_write
     except Exception as e:
         logger.error(f"Bot {bot_id} Claude API 失敗：{e}", exc_info=True)
