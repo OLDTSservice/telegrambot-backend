@@ -805,36 +805,14 @@ class BotManager:
         if not bot_record:
             return
 
-        # 0. 忽略名單檢查
         sender_id = str(update.message.from_user.id) if update.message.from_user else None
         sender_username = (update.message.from_user.username or "").lower() if update.message.from_user else ""
-        if sender_id or sender_username:
-            ignores = db.query(models.TelegramIgnore).filter(
-                models.TelegramIgnore.bot_id == bot_id,
-                models.TelegramIgnore.is_enabled == True
-            ).all()
-            for ig in ignores:
-                val = ig.identifier.lstrip("@").lower()
-                if sender_id == val or sender_username == val:
-                    # 例外關鍵字（逗號分隔）：訊息含其中任一關鍵字時，此則訊息不忽略、照常處理
-                    if ig.exception_keyword:
-                        keywords = [k.strip() for k in ig.exception_keyword.split(',') if k.strip()]
-                        if any(k.lower() in text.lower() for k in keywords):
-                            logger.info(f"Bot {bot_id} 來自 {ig.identifier} 的訊息命中例外關鍵字，照常處理")
-                            break
-                    logger.info(f"Bot {bot_id} 忽略來自 {ig.identifier} 的訊息")
-                    return
-
-        # 取得聊天室資訊（供統計使用）
-        chat = update.message.chat
-        chat_id = str(chat.id)
-        chat_name = chat.title or chat.full_name or chat.username or f"Chat {chat.id}"
-        chat_type = chat.type or "unknown"
-        sender_name = update.message.from_user.full_name if update.message.from_user else None
 
         # 0.2 收回指令：回覆機器人自己發送的訊息 + 特定關鍵字，且發送者在「機器人管理員名單」內，
         # 才會真的刪除該則訊息（deleteMessage）。非管理員或未回覆機器人訊息時完全不處理，
-        # 不影響後續一般流程。
+        # 不影響後續一般流程。刻意排在「0. 忽略名單檢查」之前：管理員帳號有時也會同時出現在
+        # 忽略名單裡（例如內部客服帳號），收回屬於管理員的主動操作指令，優先權應該高於忽略名單，
+        # 否則管理員帳號一旦被加入忽略名單，收回指令會被忽略名單檢查直接攔截、完全無法執行。
         if text.strip().lower() in _UNDO_COMMANDS and update.message.reply_to_message:
             replied = update.message.reply_to_message
             bot_user = update.get_bot()
@@ -861,6 +839,31 @@ class BotManager:
                 else:
                     logger.info(f"Bot {bot_id} 非管理員（{sender_id or sender_username}）嘗試收回訊息，已忽略")
                 return
+
+        # 0. 忽略名單檢查
+        if sender_id or sender_username:
+            ignores = db.query(models.TelegramIgnore).filter(
+                models.TelegramIgnore.bot_id == bot_id,
+                models.TelegramIgnore.is_enabled == True
+            ).all()
+            for ig in ignores:
+                val = ig.identifier.lstrip("@").lower()
+                if sender_id == val or sender_username == val:
+                    # 例外關鍵字（逗號分隔）：訊息含其中任一關鍵字時，此則訊息不忽略、照常處理
+                    if ig.exception_keyword:
+                        keywords = [k.strip() for k in ig.exception_keyword.split(',') if k.strip()]
+                        if any(k.lower() in text.lower() for k in keywords):
+                            logger.info(f"Bot {bot_id} 來自 {ig.identifier} 的訊息命中例外關鍵字，照常處理")
+                            break
+                    logger.info(f"Bot {bot_id} 忽略來自 {ig.identifier} 的訊息")
+                    return
+
+        # 取得聊天室資訊（供統計使用）
+        chat = update.message.chat
+        chat_id = str(chat.id)
+        chat_name = chat.title or chat.full_name or chat.username or f"Chat {chat.id}"
+        chat_type = chat.type or "unknown"
+        sender_name = update.message.from_user.full_name if update.message.from_user else None
 
         # 每次收到訊息都更新群組名稱（確保改名後能同步）
         _refresh_chat_name(bot_id, chat_id, chat_name, db)
