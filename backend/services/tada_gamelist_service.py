@@ -450,6 +450,22 @@ def find_game(identifier: str):
     return None
 
 
+def find_inline_game_name(text: str):
+    """在原始問句裡直接找有沒有出現真正 Game List 清單裡的完整遊戲名稱（不分大小寫、完整詞界比對，
+    沿用 game_asset_service.find_games_by_exact_name 的作法）。這是為了彌補 AI 意圖判斷那一步
+    刻意「只做語言理解、不查資料」的限制——AI 手上沒有真正的遊戲清單，單看「Eden」這種泛用詞完全
+    無法判斷是不是遊戲名稱，常常把「Give me Eden Demo」誤判成 insufficient（只認出欄位、認不出
+    遊戲）。找到唯一一款相符的遊戲就回傳該列資料，找不到或同時比對到多款時回傳 None，維持原本的
+    追問/轉人工流程，不用猜的。"""
+    from services.game_asset_service import find_games_by_exact_name
+    games = get_cached_gamelist_rows()
+    name_list = [{"name": g.get("Name", "")} for g in games if g.get("Name")]
+    matched = find_games_by_exact_name(text, name_list)
+    if len(matched) == 1:
+        return find_game(matched[0])
+    return None
+
+
 def resolve_field_names(keywords: list) -> list:
     """把使用者提到的欄位關鍵字（例如 'min bet'）對應到 Game List 實際欄位名稱"""
     resolved = []

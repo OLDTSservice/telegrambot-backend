@@ -61,8 +61,10 @@ _DOC_KEYWORD_RULES = (
 )
 
 # 5d：關鍵字命中後市場已固定，但實際核對過資料來源整份表格皆為空，直接轉人工、不追問
+# 「malta certificate」原本也在這份清單裡，但核對後發現 Malta 市場實際上有對應的 Game List
+# 跟認證連結（跟真的查無資料的 malta license 不同），已移除，改走正常的市場/文件比對流程。
 _NO_DATA_KEYWORDS = (
-    "malta license", "gli 19", "colombia certificate", "ukgc certificate", "malta certificate",
+    "malta license", "gli 19", "colombia certificate", "ukgc certificate",
 )
 
 # certificate/certification（含中文「認證」）本身就代表在問認證相關的事，但沒有具體到能對到
@@ -389,6 +391,33 @@ def resolve_document(market: str, doc_keyword: str, game_identifier: str = None)
     except Exception as e:
         logger.error(f"[TadaCert] 查表失敗 market={market} keyword={doc_keyword}: {e}")
         return False, None
+
+
+def find_inline_game_name(market: str, text: str):
+    """在原始問句裡直接找有沒有出現該市場遊戲清單裡的完整遊戲名稱（不分大小寫、完整詞界比對，
+    沿用 game_asset_service.find_games_by_exact_name 的作法）。extract_inline_game_id() 只認
+    「GameID + 數字」這種明確格式，刻意不猜遊戲名稱，導致廠商在第一句話就講清楚市場+文件+遊戲
+    名稱（例如「Fortune gems brazil certification」）時仍然會被追問一次遊戲。這裡額外用真正的
+    遊戲清單比對一次，找到唯一一款相符的遊戲名稱就回傳，找不到、同時比對到多款、或該市場目前
+    抓不到遊戲清單時回傳 None，維持原本的追問流程，不用猜的。"""
+    from services.game_asset_service import find_games_by_exact_name
+    try:
+        if market == "Brazil":
+            headers, rows, _ = _fetch_brazil_table()
+            name_col = _find_col(headers, "game name")
+        else:
+            headers, rows = _fetch_market_table(market)
+            name_col = _find_col(headers, "name")
+    except Exception as e:
+        logger.error(f"[TadaCert] 抓取 {market} 遊戲清單失敗（用於比對文字裡的遊戲名稱）：{e}")
+        return None
+    if name_col is None:
+        return None
+    name_list = [{"name": row[name_col][0]} for row in rows if name_col < len(row) and row[name_col][0]]
+    matched = find_games_by_exact_name(text, name_list)
+    if len(matched) == 1:
+        return matched[0]
+    return None
 
 
 def is_whole_market_request(text: str) -> bool:

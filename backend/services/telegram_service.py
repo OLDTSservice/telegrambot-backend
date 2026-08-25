@@ -510,7 +510,8 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
     """
     from services.tada_gamelist_service import (
         detect_gamelist_query_request, parse_gamelist_intent, resolve_region_and_subgroup,
-        get_top_games, find_game, resolve_field_names, filter_games,
+        get_top_games, find_game, resolve_field_names, filter_games, find_inline_game_name,
+        display_field_name,
     )
     if not detect_gamelist_query_request(text):
         return False, None
@@ -532,11 +533,20 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
             # 不主動觸發轉人工回覆／記 log，交由既有的短訊息略過規則統一處理。
             logger.info(f"Bot {bot_id} TADA Gamelist 查詢：問題不完整且訊息過短，視為無關略過")
             return False, None
+        insufficient_fields = {str(f).strip().lower() for f in (intent.get("fields") or [])}
+        # AI 意圖判斷這一步刻意不查資料，手上沒有真正的遊戲清單，像「Give me Eden Demo」這種
+        # 泛用詞當遊戲名稱時常判斷不出來、只認出欄位。這裡用真正的 Game List 名稱清單對原始
+        # 文字做一次確定性的完整詞界比對，找到唯一一款相符的遊戲就直接回答，不用再追問一次。
+        resolved_fields = resolve_field_names(list(insufficient_fields)) if insufficient_fields else []
+        if resolved_fields:
+            matched_game = await asyncio.to_thread(find_inline_game_name, text)
+            if matched_game:
+                parts = [f"{display_field_name(f)}：{matched_game.get(f) or '（無資料）'}" for f in resolved_fields]
+                return True, "\n".join(parts)
         # icon/material/rtp 沒指定遊戲時例外：這幾個欄位廠商在知識庫另外設有「沒有指定遊戲時」
         # 的通用問答（不像 min bet、volatility 等欄位，沒有指定遊戲就完全沒有意義的答案），
         # 所以不要在這裡直接攔截轉人工，讓它改走知識庫查詢，才能查到那份通用問答的內容。
         _KB_FALLBACK_FIELDS = {"icon", "material", "rtp"}
-        insufficient_fields = {str(f).strip().lower() for f in (intent.get("fields") or [])}
         if insufficient_fields and insufficient_fields <= _KB_FALLBACK_FIELDS:
             logger.info(f"Bot {bot_id} TADA Gamelist 查詢：僅提及{insufficient_fields}且無指定遊戲，改走知識庫查詢")
             return False, None
@@ -639,7 +649,8 @@ async def _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_
         detect_market_in_text, save_pending, build_final_reply, build_market_question,
         game_question, vague_question, no_data_message, vendor_escalate_message,
         is_whole_market_request, whole_market_reply, extract_inline_game_id,
-        is_shared_repo_market, shared_repo_reply,
+        is_shared_repo_market, shared_repo_reply, find_inline_game_name,
+        _NO_PER_GAME_DATA, no_per_game_data_message,
     )
     if doc_type == "no_data":
         await update.message.reply_text(no_data_message(is_zh))
@@ -677,9 +688,23 @@ async def _handle_tada_cert_query(bot_id, chat_id, chat_name, chat_type, sender_
             await update.message.reply_text(whole_market_reply(market, is_zh, doc_keyword))
             _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
             return
+        no_per_game_link = _NO_PER_GAME_DATA.get((market, doc_keyword))
+        if no_per_game_link:
+            # 已知這個市場/文件類型完全沒有整併進逐遊戲資料（附錄B：Italy Game Project／
+            # Spain Help Files／Peru Resolucion Directorial），問哪一款遊戲都不會有差別，
+            # 不追問、直接給該文件專屬的整個市場資料夾連結。
+            await update.message.reply_text(no_per_game_data_message(is_zh, no_per_game_link))
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            return
         inline_game_id = extract_inline_game_id(text)
         if inline_game_id:
             reply = await asyncio.to_thread(build_final_reply, market, doc_keyword, doc_type, is_zh, inline_game_id)
+            await update.message.reply_text(reply)
+            _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+            return
+        inline_game_name = await asyncio.to_thread(find_inline_game_name, market, text)
+        if inline_game_name:
+            reply = await asyncio.to_thread(build_final_reply, market, doc_keyword, doc_type, is_zh, inline_game_name)
             await update.message.reply_text(reply)
             _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
             return
