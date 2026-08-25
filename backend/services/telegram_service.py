@@ -125,6 +125,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "此注单", "此注單", "符合条件", "符合條件", "收到了", "无须协助", "無須協助", "不好意思",
     "这些是不是", "這些是不是", "feed back stuck", "betting record", "wallet balance",
     "领取这些", "領取這些", "masih tak", "不会是用", "不會是用",
+    "okay thank", "这个时间", "這個時間", "to search", "can setting to",
+    "applicable for", "制作", "製作", "修正了",
 )
 
 
