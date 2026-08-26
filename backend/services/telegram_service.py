@@ -127,6 +127,9 @@ _NO_KB_TOPIC_KEYWORDS = (
     "领取这些", "領取這些", "masih tak", "不会是用", "不會是用",
     "okay thank", "这个时间", "這個時間", "to search", "can setting to",
     "applicable for", "制作", "製作", "修正了",
+    "單純詢問", "单纯询问", "乘多少", "为什么没有", "為什麼沒有", "assist to close",
+    "怎样claim", "怎樣claim", "怎么claim", "怎麼claim", "game details", "暫時是", "暂时是",
+    "oading normally", "unable to access", "right now",
 )
 
 
