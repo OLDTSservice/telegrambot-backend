@@ -24,8 +24,13 @@ _game_list_cache = {"data": None, "fetched_at": 0.0}
 _tada_game_list_cache = {"data": None, "fetched_at": 0.0}
 _CACHE_TTL_SECONDS = 24 * 3600  # 對方每日 09:36 GMT+8 更新資料，快取 24 小時即可
 
-# 獨立成一個詞的純數字（前後不緊連其他數字），視為 Game ID 候選
-_GAME_ID_TOKEN_RE = re.compile(r'(?<!\d)\d{1,6}(?!\d)')
+# 獨立成一個詞的純數字（前後不緊連其他英文字母或數字），視為 Game ID 候選。
+# 前後排除條件原本只排除數字，沒有排除英文字母，導致帳號代碼裡夾雜的數字片段（例如
+# "HWTYBMSTR1to1_hwtyb0019_MYR"、"JILI2:"）會被誤判成獨立的 GameID，答非所問。
+_GAME_ID_TOKEN_RE = re.compile(r'(?<![A-Za-z0-9])\d{1,6}(?![A-Za-z0-9])')
+# 明確寫「GameID」/「ID」後面緊接的數字，即使沒有空格（例如 "GameID49"）也視為候選——
+# 這種情況數字緊貼在英文字母後面，不會被上面那條規則抓到，需要另外處理。
+_GAME_ID_PREFIXED_RE = re.compile(r'game\s*id\s*[:#]?\s*(\d{1,6})(?!\d)', re.IGNORECASE)
 
 
 def detect_game_asset_request(text: str) -> bool:
@@ -43,7 +48,7 @@ def find_games_by_id(text: str, game_list: list) -> list[str]:
         return []
     valid_ids = {str(g.get("game_id")) for g in game_list if g.get("game_id") is not None}
     ids = []
-    for tok in _GAME_ID_TOKEN_RE.findall(text):
+    for tok in _GAME_ID_TOKEN_RE.findall(text) + _GAME_ID_PREFIXED_RE.findall(text):
         if tok in valid_ids and tok not in ids:
             ids.append(tok)
     return ids
