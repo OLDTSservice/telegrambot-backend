@@ -436,6 +436,20 @@ def market_reference_link(market: str, doc_keyword: str = None) -> str:
     return ""
 
 
+def market_gamelist_link(market: str) -> str:
+    """指定市場的 Game List 試算表連結（一定是試算表本身，不是認證文件的 Drive 資料夾）——
+    給 TADA Gamelist 進階查詢用，例如廠商只問「Demo Link」但有講市場、沒講遊戲時，
+    直接給該市場清單參考，因為 Game Demo 這類欄位只會存在於試算表裡，不在資料夾連結裡。"""
+    cfg = _MARKET_DATA_SOURCES.get(market)
+    if cfg:
+        return cfg["gamelist_link"]
+    if market in _SHARED_REPO_MARKETS:
+        return _SHARED_REPO_MARKETS[market]
+    if market == "Brazil":
+        return f"https://docs.google.com/spreadsheets/d/{_BRAZIL_SHEET_ID}/edit"
+    return ""
+
+
 def whole_market_reply(market: str, is_chinese: bool, doc_keyword: str = None) -> str:
     link = market_reference_link(market, doc_keyword)
     if is_chinese:
@@ -535,8 +549,8 @@ def no_per_game_data_message(is_chinese: bool, link: str) -> str:
     """該市場/文件類型目前完全沒有整併進逐遊戲資料（例如 Spain Help Files、Italy Game Project、
     Peru），誠實告知並退回專屬的整個市場資料夾連結，不要因為查不到就直接轉人工escalate。"""
     if is_chinese:
-        return f"目前這項文件還沒有逐遊戲的資料，請參考以下整個市場的資料夾：\n{link}"
-    return f"Per-game data isn't available for this document yet, please refer to the market folder:\n{link}"
+        return f"這份文件目前還沒有整併成逐遊戲資料，請參考以下連結：\n{link}"
+    return f"This document isn't organized per game yet, please check the link below:\n{link}"
 
 
 def vendor_escalate_message(is_chinese: bool) -> str:
@@ -552,7 +566,8 @@ def build_final_reply(market: str, doc_keyword: str, doc_type: str, is_chinese: 
         return no_per_game_data_message(is_chinese, no_data_link)
     found, content = resolve_document(market, doc_keyword, game_identifier)
     if found:
-        return content
+        intro = "請見以下認證連結：" if is_chinese else "Please see the certification link below:"
+        return f"{intro}\n{content}"
     return no_data_message(is_chinese)
 
 

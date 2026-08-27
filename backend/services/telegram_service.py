@@ -503,6 +503,23 @@ def _is_self_fallback_message(text: str) -> bool:
     return stripped == _FALLBACK_TRANSFER_MSG_ZH or stripped.lower() == _FALLBACK_TRANSFER_MSG_EN.lower()
 
 
+def _demo_link_no_game_reply(text: str, is_zh: bool) -> str:
+    """廠商只問 Demo Link/遊戲試玩、沒有指定是哪一款遊戲時的回覆：不猜、不轉人工，
+    直接給 Game Demo 欄位所在的清單連結——訊息裡有明確講到市場就給該市場自己的
+    Game List，沒講就給共用總表。「insufficient」和「filter」兩種 AI 意圖判斷結果
+    都可能對應到這個情境（AI 有時會把「有市場+缺遊戲」誤判成複合篩選），共用同一份邏輯。"""
+    from services.tada_certification_service import detect_market_in_text, market_gamelist_link
+    from services.tada_gamelist_service import GAMELIST_SHEET_URL
+    mentioned_markets = detect_market_in_text(text)
+    market_link = market_gamelist_link(mentioned_markets[0]) if len(mentioned_markets) == 1 else ""
+    link = market_link or GAMELIST_SHEET_URL
+    return (
+        f"請參考以下清單連結：\n{link}"
+        if is_zh else
+        f"Please check the full list here:\n{link}"
+    )
+
+
 async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
     """TADA Gamelist 進階查詢（熱門排行/單一遊戲欄位查詢/複合條件篩選）共用邏輯。
     回傳 (handled, reply)：
@@ -546,6 +563,12 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
             if matched_game:
                 parts = [f"{display_field_name(f)}：{matched_game.get(f) or '（無資料）'}" for f in resolved_fields]
                 return True, "\n".join(parts)
+        # Demo Link/遊戲試玩沒指定遊戲時例外：不用猜、也不用轉人工，直接給 Game Demo 欄位
+        # 所在的清單連結參考——有講明是哪個市場就給該市場自己的 Game List，沒講就給共用總表。
+        if insufficient_fields and insufficient_fields <= {"game demo", "demo"}:
+            logger.info(f"Bot {bot_id} TADA Gamelist 查詢：僅問 Demo Link 且無指定遊戲，改給清單連結參考")
+            return True, _demo_link_no_game_reply(text, is_zh)
+
         # icon/material/rtp 沒指定遊戲時例外：這幾個欄位廠商在知識庫另外設有「沒有指定遊戲時」
         # 的通用問答（不像 min bet、volatility 等欄位，沒有指定遊戲就完全沒有意義的答案），
         # 所以不要在這裡直接攔截轉人工，讓它改走知識庫查詢，才能查到那份通用問答的內容。
@@ -615,6 +638,18 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
         conditions = intent.get("conditions") or {}
         if not conditions:
             return True, None
+        # AI 有時會把「有講市場、但沒有指定遊戲，只問 Demo Link」誤判成 filter 意圖，把
+        # region_text/fields 這種不是真正欄位鍵值配對的內容塞進 conditions（而不是正常的
+        # {"欄位關鍵字": "條件值"} 格式），例如 {"region_text": "Spain", "fields": ["game demo"]}。
+        # 這種格式底下比對不到任何有效欄位、最後會被下面的 resolved_conditions 判斷成
+        # 「條件不足」直接轉人工——但這其實跟「insufficient」判斷出 Demo Link 缺遊戲是同一種
+        # 情境，比照相同處理：不猜、不轉人工，直接給市場（或共用）清單連結。
+        raw_fields = conditions.get("fields")
+        if isinstance(raw_fields, list):
+            normalized_fields = {str(f).strip().lower() for f in raw_fields}
+            if normalized_fields and normalized_fields <= {"game demo", "demo"}:
+                logger.info(f"Bot {bot_id} TADA Gamelist 查詢：filter 意圖誤判但實為 Demo Link 缺遊戲，改給清單連結參考")
+                return True, _demo_link_no_game_reply(text, is_zh)
         resolved_conditions = {}
         for kw, val in conditions.items():
             cols = resolve_field_names([kw])
@@ -624,18 +659,21 @@ async def _try_tada_gamelist_reply(bot_id: int, text: str, db):
             return True, None
         matches = await asyncio.to_thread(filter_games, resolved_conditions)
         if not matches:
+            # 不講「查無符合條件」——條件比對這一步本來就可能有漏（例如篩選邏輯沒完全覆蓋
+            # 到清單裡的寫法），直接講「查無資料」感覺像機器人在講幹話，清單裡其實可能就有，
+            # 只需要引導廠商自己去清單確認即可，不用強調「找不到」。
             return True, (
-                f"目前查詢不到符合條件的遊戲，建議您參考總表確認最新清單：{GAMELIST_SHEET_URL}"
+                f"請參考以下清單連結：\n{GAMELIST_SHEET_URL}"
                 if is_zh else
-                f"No games found matching those conditions, please check the full list here: {GAMELIST_SHEET_URL}"
+                f"Please check the full list here:\n{GAMELIST_SHEET_URL}"
             )
         # 比照規格文件範例：只示意列出幾筆，完整清單附總表連結，不把符合的全部條列出來
         shown = matches[:5]
         names = "、".join(f"{g.get('Name')}" for g in shown) if is_zh else ", ".join(f"{g.get('Name')}" for g in shown)
         if is_zh:
-            reply = f"符合的遊戲有：{names}（示意，完整需查總表：{GAMELIST_SHEET_URL}）。"
+            reply = f"符合的遊戲有：{names}，完整清單請參考以下連結：\n{GAMELIST_SHEET_URL}"
         else:
-            reply = f"Matching games include: {names} (for reference only, full list: {GAMELIST_SHEET_URL})."
+            reply = f"Matching games include: {names}. Please check the full list here:\n{GAMELIST_SHEET_URL}"
         return True, reply
 
     return False, None

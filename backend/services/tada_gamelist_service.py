@@ -14,6 +14,7 @@ import logging
 import re
 import time
 
+import openpyxl
 import requests
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,43 @@ def _fetch_csv_rows(url: str, label: str) -> list:
         return [row for row in reader]
     except Exception as e:
         logger.error(f"[{label}] 下載 CSV 失敗：{e}")
+        return []
+
+
+def _xlsx_cell_value(cell) -> str:
+    """取儲存格文字；若儲存格有掛超連結則改回傳超連結網址——Game List 裡 Game Demo/
+    Game ICON/Thumbnails/Game Materials 這三欄，畫面上顯示的文字通常只是「Go Here」
+    「ICON」「MATERIAL」這種佔位字樣，真正的連結是掛在儲存格上的超連結，csv 匯出只會
+    保留顯示文字、超連結會遺失，所以改用 xlsx + openpyxl 讀取。其餘欄位沒有超連結，
+    行為跟原本讀 csv 一致。數值型儲存格（例如 GameID）轉字串時去掉多餘的 .0；日期型儲存格
+    （例如 Release Date）xlsx 讀出來是 datetime 物件、時間部分固定是 00:00:00，只取日期部分，
+    避免顯示變成「2026-04-30 00:00:00」這種看起來多了一段沒意義時間的格式。"""
+    if cell.hyperlink:
+        return cell.hyperlink.target
+    v = cell.value
+    if v is None:
+        return ""
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    if hasattr(v, "strftime"):
+        if getattr(v, "hour", 0) == 0 and getattr(v, "minute", 0) == 0 and getattr(v, "second", 0) == 0:
+            return v.strftime("%Y-%m-%d")
+        return str(v)
+    return str(v).strip()
+
+
+def _fetch_xlsx_rows(gid: str, label: str) -> list:
+    """回傳跟 _fetch_csv_rows 相容的 [[儲存格文字, ...], ...] 格式，但有超連結的儲存格
+    改回傳超連結網址，解決 csv 匯出遺失超連結的問題。"""
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{_SHEET_ID}/export?format=xlsx&gid={gid}"
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        wb = openpyxl.load_workbook(io.BytesIO(resp.content), data_only=True)
+        ws = wb.active
+        return [[_xlsx_cell_value(c) for c in row] for row in ws.iter_rows()]
+    except Exception as e:
+        logger.error(f"[{label}] 下載 XLSX 失敗：{e}")
         return []
 
 
@@ -418,7 +456,7 @@ def get_cached_gamelist_rows() -> list:
     """回傳 Game List 分頁解析後的結構化資料（每列一個 dict，key 為欄位標題原文）"""
     now = time.time()
     if _gamelist_cache["data"] is None or (now - _gamelist_cache["fetched_at"]) > _CACHE_TTL_SECONDS:
-        rows = _fetch_csv_rows(_csv_export_url(_GAMELIST_GID), "TADA-GameList")
+        rows = _fetch_xlsx_rows(_GAMELIST_GID, "TADA-GameList")
         if rows:
             # 實際欄位標題有些跨行換行（例如 "Defalut\nMin Bet"）、有些帶尾端空白
             # （"FreeGame Rate "），需正規化成單行、去除多餘空白才能跟別名字典比對上。
