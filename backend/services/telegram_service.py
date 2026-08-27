@@ -393,6 +393,17 @@ def _is_bare_url_message(text: str) -> bool:
     return bool(_BARE_URL_LEFTOVER_RE.match(remainder))
 
 
+def _ensure_link_intro(reply: str, is_zh: bool) -> str:
+    """回覆內容如果整段只有網址、沒有任何說明文字（例如知識庫問答或關鍵字規則裡剛好只設定
+    了一個連結），補上一句「請參考以下連結：」開頭，避免回覆看起來像是純粹丟一個連結給廠商，
+    比較不生硬。已經有其他文字說明的回覆不受影響（判斷方式沿用 _is_bare_url_message 那組，
+    把網址拿掉後如果還有其他文字，就不是「純網址」，不會被這裡改動）。"""
+    if reply and _is_bare_url_message(reply):
+        intro = "請參考以下連結：" if is_zh else "Please refer to the link below:"
+        return f"{intro}\n{reply.strip()}"
+    return reply
+
+
 async def _try_game_asset_reply(bot_id: int, text: str, db, get_list_fn, search_fn, label: str):
     """遊戲素材查詢共用邏輯（JILI/TADA 皆呼叫此函式，僅資料來源不同）。
     偵測到關鍵字才會查詢；一則訊息可能同時問多款遊戲，逐一查詢後整合成一則回覆；
@@ -1208,6 +1219,7 @@ class BotManager:
                     if _is_chinese or not rule.reply_message_en
                     else rule.reply_message_en
                 )
+                reply_text = _ensure_link_intro(reply_text, _is_chinese)
                 if is_managed:
                     # 管控模式：記錄訊息 + 建立待發送回覆
                     msg = _save_live_message(bot_id, chat_id, chat_name, chat_type,
@@ -1313,6 +1325,7 @@ class BotManager:
         # result = (reply, in_tok, out_tok, cache_read, cache_write)
         reply, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = \
             result if result else (None, 0, 0, 0, 0)
+        reply = _ensure_link_intro(reply, _is_chinese)
 
         if input_tokens or cache_read_tokens:
             record_usage(bot_id, input_tokens, output_tokens, db,
