@@ -130,6 +130,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "單純詢問", "单纯询问", "乘多少", "为什么没有", "為什麼沒有", "assist to close",
     "怎样claim", "怎樣claim", "怎么claim", "怎麼claim", "game details", "暫時是", "暂时是",
     "oading normally", "unable to access", "right now",
+    "need to whitelist", "bo whitelisted", "玩家账号", "玩家帳號",
+    "help me login", "如果要", "check game detai",
 )
 
 
