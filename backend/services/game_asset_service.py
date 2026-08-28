@@ -24,13 +24,34 @@ _game_list_cache = {"data": None, "fetched_at": 0.0}
 _tada_game_list_cache = {"data": None, "fetched_at": 0.0}
 _CACHE_TTL_SECONDS = 24 * 3600  # 對方每日 09:36 GMT+8 更新資料，快取 24 小時即可
 
-# 獨立成一個詞的純數字（前後不緊連其他英文字母或數字），視為 Game ID 候選。
-# 前後排除條件原本只排除數字，沒有排除英文字母，導致帳號代碼裡夾雜的數字片段（例如
-# "HWTYBMSTR1to1_hwtyb0019_MYR"、"JILI2:"）會被誤判成獨立的 GameID，答非所問。
-_GAME_ID_TOKEN_RE = re.compile(r'(?<![A-Za-z0-9])\d{1,6}(?![A-Za-z0-9])')
+# 獨立成一個詞的純數字（前後不緊連其他英文字母、數字，或中文字元），視為 Game ID 候選。
+# 排除條件原本只排除英文字母/數字，沒有排除中文字元，導致中文日期用語裡夾雜的數字（例如
+# 「2026年09月01日」的「09」「01」、「10月13日」的「13」）會被誤判成獨立的 GameID，答非所問。
+_GAME_ID_TOKEN_RE = re.compile(r'(?<![A-Za-z0-9一-鿿㐀-䶿])\d{1,6}(?![A-Za-z0-9一-鿿㐀-䶿])')
 # 明確寫「GameID」/「ID」後面緊接的數字，即使沒有空格（例如 "GameID49"）也視為候選——
 # 這種情況數字緊貼在英文字母後面，不會被上面那條規則抓到，需要另外處理。
 _GAME_ID_PREFIXED_RE = re.compile(r'game\s*id\s*[:#]?\s*(\d{1,6})(?!\d)', re.IGNORECASE)
+
+# 找 GameID 候選之前，先把網址、常見日期格式整段從文字裡移除——這幾種情境裡的數字前後緊貼的
+# 是空白/斜線/句點等符號，不會被上面的詞界排除規則擋掉，但實際上根本不是在講 GameID：
+# - 網址路徑裡的數字片段（例如 Google Drive 連結 ".../u/2/folders/13fPBS..." 裡的 "2"）
+# - 中文日期「2026年09月01日」（雖然已被中文字元排除規則擋掉大部分，這裡再擋一次做雙重保險）
+# - 英文月份縮寫+日期「Jul. 21」「Sep. 01 2026」這種數字前面緊貼月份名稱、後面只接空白的格式
+# - 常見數字日期格式「2026-09-01」「09/01/2026」
+_URL_RE_FOR_GAME_ID = re.compile(r'https?://\S+', re.IGNORECASE)
+_DATE_STRIP_PATTERNS = (
+    re.compile(r'\d{2,4}年\d{1,2}月\d{1,2}日'),
+    re.compile(r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:,?\s+\d{2,4})?\b',
+               re.IGNORECASE),
+    re.compile(r'\b\d{1,4}[-/]\d{1,2}[-/]\d{1,4}\b'),
+)
+
+
+def _strip_urls_and_dates(text: str) -> str:
+    text = _URL_RE_FOR_GAME_ID.sub(' ', text)
+    for pat in _DATE_STRIP_PATTERNS:
+        text = pat.sub(' ', text)
+    return text
 
 
 def detect_game_asset_request(text: str) -> bool:
@@ -47,8 +68,9 @@ def find_games_by_id(text: str, game_list: list) -> list[str]:
     if not game_list:
         return []
     valid_ids = {str(g.get("game_id")) for g in game_list if g.get("game_id") is not None}
+    cleaned = _strip_urls_and_dates(text)
     ids = []
-    for tok in _GAME_ID_TOKEN_RE.findall(text) + _GAME_ID_PREFIXED_RE.findall(text):
+    for tok in _GAME_ID_TOKEN_RE.findall(cleaned) + _GAME_ID_PREFIXED_RE.findall(cleaned):
         if tok in valid_ids and tok not in ids:
             ids.append(tok)
     return ids
@@ -70,9 +92,14 @@ def find_games_by_exact_name(text: str, game_list: list) -> list[str]:
     只保留最長、最完整的那個，避免把使用者提到的同一款遊戲拆成兩個結果。
 
     找不到任何完全相符的名稱時回傳空清單，由呼叫端改用 AI 語意比對處理改述、縮寫、翻譯等
-    AI才能理解、無法用純文字比對找到的情況。"""
+    AI才能理解、無法用純文字比對找到的情況。
+
+    比對前會先把網址整段移除：忽略空白比對這一段曾經在真實訊息裡誤判過——一則活動公告裡的網址
+    網域「jlfafafa3.com」，去空白後剛好包含「fafafa」這個子字串，被誤判成遊戲「Fa Fa Fa」，
+    答非所問。網址裡的文字不會是真正在講遊戲名稱，先移除可以同時避免這種巧合。"""
     if not game_list:
         return []
+    text = _URL_RE_FOR_GAME_ID.sub(' ', text)
     lower = text.lower()
     lower_nospace = re.sub(r'\s+', '', lower)
     matched = []
@@ -167,6 +194,7 @@ def match_game_names(text: str, game_list: list) -> tuple[list[str], int, int, i
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=200,
+            temperature=0,
             system=[
                 {"type": "text", "text": system_prompt},
                 {
