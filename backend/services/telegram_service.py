@@ -133,6 +133,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "need to whitelist", "bo whitelisted", "玩家账号", "玩家帳號",
     "help me login", "如果要", "check game detai",
     "any unsettled", "history report", "need vpn", "domain blocked", "adjust show", "this player",
+    "suggest how", "you suggest", "shows this", "show this", "assist disable", "wrong details",
 )
 
 
