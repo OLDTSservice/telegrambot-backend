@@ -132,6 +132,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "oading normally", "unable to access", "right now",
     "need to whitelist", "bo whitelisted", "玩家账号", "玩家帳號",
     "help me login", "如果要", "check game detai",
+    "any unsettled", "history report", "need vpn", "domain blocked", "adjust show", "this player",
 )
 
 
