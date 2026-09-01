@@ -134,6 +134,10 @@ _NO_KB_TOPIC_KEYWORDS = (
     "help me login", "如果要", "check game detai",
     "any unsettled", "history report", "need vpn", "domain blocked", "adjust show", "this player",
     "suggest how", "you suggest", "shows this", "show this", "assist disable", "wrong details",
+    "请稍等", "請稍等", "再次发生", "再次發生", "登錄不到", "登录不到", "登陆不了", "登陸不了",
+    "reset bo password", "可以登录", "可以登錄", "new password", "change bo link", "update password",
+    "加急", "申请加入", "申請加入", "什么通知", "什麼通知", "对外发布", "對外發布", "都不能",
+    "旧数据", "舊數據",
 )
 
 
