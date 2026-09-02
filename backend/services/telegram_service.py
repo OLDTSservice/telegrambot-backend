@@ -138,6 +138,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "reset bo password", "可以登录", "可以登錄", "new password", "change bo link", "update password",
     "加急", "申请加入", "申請加入", "什么通知", "什麼通知", "对外发布", "對外發布", "都不能",
     "旧数据", "舊數據",
+    "for abnormal", "check this member", "发送相关", "發送相關", "更新通知",
 )
 
 
