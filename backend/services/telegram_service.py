@@ -139,6 +139,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "加急", "申请加入", "申請加入", "什么通知", "什麼通知", "对外发布", "對外發布", "都不能",
     "旧数据", "舊數據",
     "for abnormal", "check this member", "发送相关", "發送相關", "更新通知",
+    "disregard", "应该到期", "應該到期", "需要申请", "需要申請", "申请延长", "申請延長",
+    "bet details", "what problems", "why the", "please advise", "please assist", "ipv4",
 )
 
 
