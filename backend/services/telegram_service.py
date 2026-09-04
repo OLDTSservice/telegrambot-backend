@@ -141,6 +141,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "for abnormal", "check this member", "发送相关", "發送相關", "更新通知",
     "disregard", "应该到期", "應該到期", "需要申请", "需要申請", "申请延长", "申請延長",
     "bet details", "what problems", "why the", "please advise", "please assist", "ipv4",
+    "还是没有", "還是沒有", "whitelist this", "backoffice support", "bet history",
+    "补充说明", "補充說明", "agent want to", "setup feature", "一樣沒有", "一样没有",
 )
 
 
