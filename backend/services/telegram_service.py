@@ -143,6 +143,8 @@ _NO_KB_TOPIC_KEYWORDS = (
     "bet details", "what problems", "why the", "please advise", "please assist", "ipv4",
     "还是没有", "還是沒有", "whitelist this", "backoffice support", "bet history",
     "补充说明", "補充說明", "agent want to", "setup feature", "一樣沒有", "一样没有",
+    "betting history", "check bet record", "这个好像", "這個好像", "查不到log",
+    "重设密码", "重設密碼", "试试看", "試試看",
 )
 
 
