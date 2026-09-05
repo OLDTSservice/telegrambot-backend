@@ -58,6 +58,20 @@ def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(ge
         bot.tada_gamelist_query_enabled = payload.tada_gamelist_query_enabled
     if payload.tada_certification_query_enabled is not None:
         bot.tada_certification_query_enabled = payload.tada_certification_query_enabled
+    if payload.netwin_query_enabled is not None:
+        bot.netwin_query_enabled = payload.netwin_query_enabled
+    if payload.netwin_key_id is not None:
+        bot.netwin_key_id = payload.netwin_key_id
+    if payload.netwin_api_key is not None:
+        bot.netwin_api_key = payload.netwin_api_key
+    if payload.netwin_api_base_url is not None:
+        bot.netwin_api_base_url = payload.netwin_api_base_url
+    if payload.netwin_threshold is not None:
+        bot.netwin_threshold = payload.netwin_threshold
+    if payload.netwin_reply_zh is not None:
+        bot.netwin_reply_zh = payload.netwin_reply_zh
+    if payload.netwin_reply_en is not None:
+        bot.netwin_reply_en = payload.netwin_reply_en
     if payload.is_enabled is not None:
         bot.is_enabled = payload.is_enabled
         if payload.is_enabled:

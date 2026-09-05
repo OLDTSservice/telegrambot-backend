@@ -22,6 +22,7 @@ import TeamsIgnorePage from './pages/TeamsIgnorePage'
 import TelegramReplyStatsPage from './pages/TelegramReplyStatsPage'
 import TelegramLivePage from './pages/TelegramLivePage'
 import WhitelistPage from './pages/WhitelistPage'
+import NetwinPage from './pages/NetwinPage'
 import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
 import TelegramBotAdminPage from './pages/TelegramBotAdminPage'
 
@@ -79,6 +80,7 @@ export default function App() {
         { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆工單統計' },
         { key: '/telegram/live', icon: <MessageOutlined />, label: '即時對話管控' },
         { key: '/telegram/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
+        { key: '/telegram/netwin', icon: <LineChartOutlined />, label: '查輸贏回覆' },
       ],
     },
     {
@@ -167,6 +169,7 @@ export default function App() {
             <Route path="/telegram/reply-stats" element={<TelegramReplyStatsPage />} />
             <Route path="/telegram/live" element={<TelegramLivePage user={user} />} />
             <Route path="/telegram/whitelist" element={<WhitelistPage user={user} />} />
+            <Route path="/telegram/netwin" element={<NetwinPage user={user} />} />
             <Route path="/teams/bots" element={<TeamsBotsPage user={user} />} />
             <Route path="/teams/rules" element={<TeamsRulesPage user={user} />} />
             <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />

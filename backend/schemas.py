@@ -60,6 +60,13 @@ class BotUpdate(BaseModel):
     tada_asset_enabled: Optional[bool] = None
     tada_gamelist_query_enabled: Optional[bool] = None
     tada_certification_query_enabled: Optional[bool] = None
+    netwin_query_enabled: Optional[bool] = None
+    netwin_key_id: Optional[str] = None
+    netwin_api_key: Optional[str] = None
+    netwin_api_base_url: Optional[str] = None
+    netwin_threshold: Optional[float] = None
+    netwin_reply_zh: Optional[str] = None
+    netwin_reply_en: Optional[str] = None
 
 
 class BotOut(BotBase):
@@ -71,6 +78,13 @@ class BotOut(BotBase):
     tada_asset_enabled: bool = False
     tada_gamelist_query_enabled: bool = False
     tada_certification_query_enabled: bool = False
+    netwin_query_enabled: bool = False
+    netwin_key_id: Optional[str] = None
+    netwin_api_key: Optional[str] = None
+    netwin_api_base_url: Optional[str] = None
+    netwin_threshold: float = 5000
+    netwin_reply_zh: Optional[str] = None
+    netwin_reply_en: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -134,6 +148,19 @@ class WhitelistLogOut(BaseModel):
     full_username: Optional[str] = None
     ip_list: str
     status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NetwinQueryLogOut(BaseModel):
+    id: int
+    chat_name: str
+    extracted_account: Optional[str] = None
+    match_count: Optional[int] = None
+    netwin_2d_thb: Optional[float] = None
+    outcome: str
     created_at: datetime
 
     class Config:

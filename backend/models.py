@@ -34,6 +34,16 @@ class TelegramBot(Base):
     tada_gamelist_query_enabled = Column(Boolean, default=False) # TADA Gamelist進階查詢開關（熱門排行/欄位查詢/複合篩選）
     tada_certification_query_enabled = Column(Boolean, default=False) # TADA 認證文件查詢開關（含多輪追問機制）
 
+    # 查輸贏回覆：偵測到廠商在問「這個玩家/這筆下注是否正常」時，先呼叫 tjadmin 外部客服 API
+    # 查該玩家近2日淨值，淨值在門檻以下才讓機器人直接依固定內容回覆，否則轉人工。
+    netwin_query_enabled = Column(Boolean, default=False)
+    netwin_key_id = Column(String(24), nullable=True)      # tjadmin API 金鑰前24字元識別段
+    netwin_api_key = Column(String(64), nullable=True)     # tjadmin API 完整64字元金鑰（機密）
+    netwin_api_base_url = Column(String(255), nullable=True)  # tjadmin API 網域，例如 https://xxx.example.com
+    netwin_threshold = Column(Float, default=5000)         # netwin_2d_thb 門檻，低於此值才自動回覆
+    netwin_reply_zh = Column(Text, nullable=True)          # 自動回覆固定內容（中文）
+    netwin_reply_en = Column(Text, nullable=True)          # 自動回覆固定內容（英文）
+
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("UsageStat", back_populates="bot", cascade="all, delete-orphan")
@@ -48,6 +58,7 @@ class TelegramBot(Base):
     ai_rescue_setting = relationship("AIRescueSetting", back_populates="bot", uselist=False, cascade="all, delete-orphan")
     rescue_candidates = relationship("AIRescueCandidate", back_populates="bot", cascade="all, delete-orphan")
     cert_pending = relationship("TadaCertPending", back_populates="bot", cascade="all, delete-orphan")
+    netwin_query_logs = relationship("NetwinQueryLog", back_populates="bot", cascade="all, delete-orphan")
 
 
 class KeywordRule(Base):
@@ -253,6 +264,29 @@ class WhitelistLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="whitelist_logs")
+
+
+# ── 查輸贏回覆 Log ────────────────────────────────────────────────────────
+class NetwinQueryLog(Base):
+    """查輸贏回覆功能：每次偵測到查詢意圖時的處理紀錄。
+    outcome：auto_replied（自動回覆）／no_account（偵測到意圖但擷取不到帳號）／
+    zero_match（查無此玩家）／multi_match（比對到多筆玩家）／over_threshold（淨值超過門檻）／
+    null_netwin（淨值查詢失敗，欄位為null）／api_error（呼叫API本身失敗）。
+    除了 auto_replied 以外都算「未查詢的次數」（統計頁面用）。"""
+    __tablename__ = "netwin_query_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    chat_type = Column(String(30), nullable=True)
+    extracted_account = Column(String(255), nullable=True)
+    match_count = Column(Integer, nullable=True)
+    netwin_2d_thb = Column(Float, nullable=True)
+    outcome = Column(String(32), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TelegramBot", back_populates="netwin_query_logs")
 
 
 # ── Teams Bot ──────────────────────────────────────────────────────────────

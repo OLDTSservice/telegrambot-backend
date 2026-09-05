@@ -1214,6 +1214,73 @@ class BotManager:
                 return
             # 與 Gamelist 查詢無關：不中止，改走知識庫查詢
 
+        # 0.9 查輸贏回覆（獨立開關）：偵測到廠商在問「這個玩家/這筆下注或贏分是否正常」時，
+        # 先呼叫 tjadmin 外部客服 API 查該玩家近2日淨值，淨值在門檻以下才讓機器人直接依固定
+        # 內容回覆，其餘情況（擷取不到帳號／查無此人／比對到多筆／超過門檻／查詢失敗）一律
+        # 跳過知識庫、直接轉人工。這一步必須排在關鍵字規則與知識庫跳過清單「之前」——這批
+        # 訊息裡有不少本身就含有「abnormal」「valid」這類已經在跳過清單裡的字，順序顛倒的話
+        # 會被舊機制直接攔截轉人工，新功能永遠輪不到執行、查不到 API 就直接轉人工了。
+        if bot_record.netwin_query_enabled:
+            from services.tjadmin_service import (
+                detect_netwin_query_request, extract_account, query_player_by_name,
+            )
+            if detect_netwin_query_request(text):
+                import re as _re_nw
+                _nw_is_zh = bool(_re_nw.search(r'[一-鿿㐀-䶿]', text))
+                _nw_fallback = _FALLBACK_TRANSFER_MSG_ZH if _nw_is_zh else _FALLBACK_TRANSFER_MSG_EN
+                _nw_account = extract_account(text)
+                _nw_reply = _nw_fallback
+                _nw_is_auto = False
+
+                if not _nw_account:
+                    logger.info(f"Bot {bot_id} 查輸贏回覆：偵測到查詢意圖但擷取不到帳號，轉人工")
+                    _save_netwin_log(bot_id, chat_id, chat_name, chat_type, None, None, None, "no_account", db)
+                elif not (bot_record.netwin_key_id and bot_record.netwin_api_key and bot_record.netwin_api_base_url):
+                    logger.warning(f"Bot {bot_id} 查輸贏回覆已開啟但尚未設定 API 憑證，轉人工")
+                    _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, None, None, "api_error", db)
+                else:
+                    _nw_rows, _nw_err = await asyncio.to_thread(
+                        query_player_by_name, bot_record.netwin_api_base_url,
+                        bot_record.netwin_key_id, bot_record.netwin_api_key, _nw_account,
+                    )
+                    if _nw_err is not None:
+                        logger.error(f"Bot {bot_id} 查輸贏回覆 API 呼叫失敗（帳號={_nw_account}）：{_nw_err}")
+                        _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, None, None, "api_error", db)
+                    elif len(_nw_rows) == 0:
+                        _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 0, None, "zero_match", db)
+                    elif len(_nw_rows) > 1:
+                        _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, len(_nw_rows), None, "multi_match", db)
+                    else:
+                        _nw_netwin = _nw_rows[0].get("netwin_2d_thb")
+                        _nw_threshold = bot_record.netwin_threshold if bot_record.netwin_threshold is not None else 5000
+                        if _nw_netwin is None:
+                            _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, None, "null_netwin", db)
+                        elif _nw_netwin < _nw_threshold:
+                            _nw_reply = (
+                                (bot_record.netwin_reply_zh if _nw_is_zh else bot_record.netwin_reply_en)
+                                or _nw_fallback
+                            )
+                            _nw_is_auto = True
+                            _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "auto_replied", db)
+                        else:
+                            _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "over_threshold", db)
+
+                if not _nw_is_auto and bool(_group_setting.silent_no_answer if _group_setting else False):
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                    return
+                await update.message.reply_text(_nw_reply)
+                _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
+                if _nw_is_auto:
+                    if _ticket_creation_enabled:
+                        threading.Thread(
+                            target=_create_freshdesk_ticket_bg,
+                            args=(text, _nw_reply, chat_name), daemon=True
+                        ).start()
+                else:
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                return
+            # 未命中查輸贏觸發關鍵字：不中止，改走原本流程
+
         # 1. 先嘗試關鍵字規則比對
         rules = db.query(models.KeywordRule).filter(
             models.KeywordRule.bot_id == bot_id,
@@ -1521,6 +1588,22 @@ def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status
         db.commit()
     except Exception as e:
         logger.error(f"儲存白名單 log 失敗：{e}")
+        db.rollback()
+
+
+def _save_netwin_log(bot_id, chat_id, chat_name, chat_type, extracted_account, match_count,
+                      netwin_2d_thb, outcome, db):
+    import models
+    log = models.NetwinQueryLog(
+        bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, chat_type=chat_type,
+        extracted_account=extracted_account, match_count=match_count,
+        netwin_2d_thb=netwin_2d_thb, outcome=outcome,
+    )
+    db.add(log)
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"儲存查輸贏回覆 log 失敗：{e}")
         db.rollback()
 
 

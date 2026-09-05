@@ -108,6 +108,12 @@ export const getTeamsTrend = (period, value, botId) =>
 export const getWhitelistLogs = (botId, limit = 10) =>
   api.get('/whitelist/logs', { params: { bot_id: botId, limit } })
 
+// ── Netwin 查輸贏回覆 ──────────────────────────
+export const getNetwinLogs = (botId, limit = 50) =>
+  api.get('/netwin/logs', { params: { bot_id: botId, limit } })
+export const getNetwinStats = (botId) =>
+  api.get('/netwin/stats', { params: { bot_id: botId } })
+
 // ── Telegram Live 即時對話管控 ─────────────────
 export const getLiveGroups = (botId) => api.get('/telegram-live/groups', { params: { bot_id: botId } })
 export const getLiveMessages = (botId, chatId) => api.get('/telegram-live/messages', { params: { bot_id: botId, chat_id: chatId } })
