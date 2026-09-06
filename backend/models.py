@@ -43,6 +43,7 @@ class TelegramBot(Base):
     netwin_threshold = Column(Float, default=5000)         # netwin_2d_thb 門檻，低於此值才自動回覆
     netwin_reply_zh = Column(Text, nullable=True)          # 自動回覆固定內容（中文）
     netwin_reply_en = Column(Text, nullable=True)          # 自動回覆固定內容（英文）
+    netwin_reply_delay_seconds = Column(Integer, default=30)  # 自動回覆前延遲秒數，避免回覆過快讓廠商懷疑沒確認過
 
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")

@@ -67,6 +67,7 @@ class BotUpdate(BaseModel):
     netwin_threshold: Optional[float] = None
     netwin_reply_zh: Optional[str] = None
     netwin_reply_en: Optional[str] = None
+    netwin_reply_delay_seconds: Optional[int] = None
 
 
 class BotOut(BotBase):
@@ -85,6 +86,7 @@ class BotOut(BotBase):
     netwin_threshold: float = 5000
     netwin_reply_zh: Optional[str] = None
     netwin_reply_en: Optional[str] = None
+    netwin_reply_delay_seconds: int = 30
     created_at: datetime
     updated_at: datetime
 

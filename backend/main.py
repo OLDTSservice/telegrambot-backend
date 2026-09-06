@@ -57,6 +57,7 @@ def _migrate_columns():
         "ALTER TABLE telegram_bots ADD COLUMN netwin_threshold FLOAT DEFAULT 5000",
         "ALTER TABLE telegram_bots ADD COLUMN netwin_reply_zh TEXT",
         "ALTER TABLE telegram_bots ADD COLUMN netwin_reply_en TEXT",
+        "ALTER TABLE telegram_bots ADD COLUMN netwin_reply_delay_seconds INTEGER DEFAULT 30",
     ]
     with engine.connect() as conn:
         for sql in migrations:

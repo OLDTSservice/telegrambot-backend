@@ -1270,6 +1270,14 @@ class BotManager:
                 if not _nw_is_auto and bool(_group_setting.silent_no_answer if _group_setting else False):
                     _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
                     return
+                if _nw_is_auto:
+                    # 查詢到結果並符合自動回覆條件時，刻意延遲數秒再回覆，避免速度過快讓廠商
+                    # 懷疑機器人根本沒有真的去查（延遲秒數可於後台調整，預設 30 秒）。
+                    _nw_delay = bot_record.netwin_reply_delay_seconds
+                    if _nw_delay is None:
+                        _nw_delay = 30
+                    if _nw_delay > 0:
+                        await asyncio.sleep(_nw_delay)
                 await update.message.reply_text(_nw_reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
                 if _nw_is_auto:

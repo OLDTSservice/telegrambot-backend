@@ -61,6 +61,7 @@ def query_player_by_name(base_url: str, key_id: str, api_key: str, name: str, ti
 _NETWIN_TRIGGER_WORDS = (
     "abnormal", "fraud", "fraudulent", "normal or not", "log normal", "win normal",
     "normal kah", "winning is valid", "winnings are valid", "winning valid",
+    "betting is normal", "bet history normal", "activity is normal", "bet is normal",
     "正常嗎", "正常吗", "是否正常", "下注是否正常", "投注是否正常",
 )
 
@@ -71,10 +72,11 @@ def detect_netwin_query_request(text: str) -> bool:
     return any(kw.lower() in lower for kw in _NETWIN_TRIGGER_WORDS)
 
 
-# 具體欄位標籤（依優先順序）：Player ID / Member username / Player
+# 具體欄位標籤（依優先順序）：Player ID / Member username / Game Account / Player
 _LABELED_PATTERNS = (
     re.compile(r'player\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'member\s*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'game\s*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」標籤（比對到單獨的 ID 欄位，例如「ID : QOGABAE011O2」），但要排除掉

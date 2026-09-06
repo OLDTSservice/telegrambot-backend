@@ -85,6 +85,7 @@ export default function NetwinPage({ user }) {
       netwin_api_key: bot?.netwin_api_key || '',
       netwin_api_base_url: bot?.netwin_api_base_url || '',
       netwin_threshold: bot?.netwin_threshold ?? 5000,
+      netwin_reply_delay_seconds: bot?.netwin_reply_delay_seconds ?? 30,
       netwin_reply_zh: bot?.netwin_reply_zh || '',
       netwin_reply_en: bot?.netwin_reply_en || '',
     })
@@ -195,6 +196,9 @@ export default function NetwinPage({ user }) {
               </Form.Item>
               <Form.Item name="netwin_threshold" label="淨值門檻（netwin_2d_thb 低於此值才自動回覆）">
                 <InputNumber style={{ width: 200 }} disabled={!canEdit} />
+              </Form.Item>
+              <Form.Item name="netwin_reply_delay_seconds" label="自動回覆延遲秒數（避免回覆過快讓廠商懷疑沒確認過，預設 30 秒）">
+                <InputNumber style={{ width: 200 }} min={0} disabled={!canEdit} />
               </Form.Item>
               <Form.Item name="netwin_reply_zh" label="自動回覆固定內容（中文）">
                 <Input.TextArea rows={4} disabled={!canEdit} />
