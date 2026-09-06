@@ -1273,21 +1273,23 @@ class BotManager:
                 if _nw_is_auto:
                     # 查詢到結果並符合自動回覆條件時，刻意延遲數秒再回覆，避免速度過快讓廠商
                     # 懷疑機器人根本沒有真的去查（延遲秒數可於後台調整，預設 30 秒）。
+                    # 注意：python-telegram-bot 預設同一個機器人「一次只處理一則訊息」
+                    # （max_concurrent_updates=1，未額外設定為並行），若在這裡直接
+                    # await asyncio.sleep() 卡住，會連帶擋住這個機器人在等待期間收到的
+                    # 所有其他訊息（不限同一群組），變成整個機器人沒反應。因此改成丟到
+                    # 獨立的背景 asyncio task 執行，這裡立刻 return 讓訊息佇列可以繼續往
+                    # 下處理，多筆查輸贏各自倒數、互不影響。
                     _nw_delay = bot_record.netwin_reply_delay_seconds
                     if _nw_delay is None:
                         _nw_delay = 30
-                    if _nw_delay > 0:
-                        await asyncio.sleep(_nw_delay)
+                    asyncio.create_task(_send_delayed_netwin_reply(
+                        update, _nw_delay, _nw_reply, bot_id, chat_id, chat_name, chat_type,
+                        _ticket_creation_enabled, text,
+                    ))
+                    return
                 await update.message.reply_text(_nw_reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                if _nw_is_auto:
-                    if _ticket_creation_enabled:
-                        threading.Thread(
-                            target=_create_freshdesk_ticket_bg,
-                            args=(text, _nw_reply, chat_name), daemon=True
-                        ).start()
-                else:
-                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
+                _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
                 return
             # 未命中查輸贏觸發關鍵字：不中止，改走原本流程
 
@@ -1615,6 +1617,34 @@ def _save_netwin_log(bot_id, chat_id, chat_name, chat_type, extracted_account, m
     except Exception as e:
         logger.error(f"儲存查輸贏回覆 log 失敗：{e}")
         db.rollback()
+
+
+async def _send_delayed_netwin_reply(update, delay_seconds, reply_text, bot_id, chat_id,
+                                      chat_name, chat_type, ticket_creation_enabled, question_text):
+    """查輸贏自動回覆的延遲發送：獨立的背景 task，不佔用該機器人的訊息處理佇列
+    （PTB 預設同一機器人一次只處理一則訊息），讓多筆查輸贏可以各自倒數、互不影響。
+    因為是延後執行，原本呼叫端的 db session 早已隨當次訊息處理結束而關閉，這裡另外
+    開一個新的 session 使用。"""
+    if delay_seconds and delay_seconds > 0:
+        await asyncio.sleep(delay_seconds)
+    try:
+        await update.message.reply_text(reply_text)
+    except Exception as e:
+        logger.error(f"Bot {bot_id} 查輸贏延遲回覆發送失敗：{e}", exc_info=True)
+        return
+
+    from database import SessionLocal
+    db2 = SessionLocal()
+    try:
+        _record_group_stat(bot_id, chat_id, chat_name, chat_type, db2)
+    finally:
+        db2.close()
+
+    if ticket_creation_enabled:
+        threading.Thread(
+            target=_create_freshdesk_ticket_bg,
+            args=(question_text, reply_text, chat_name), daemon=True
+        ).start()
 
 
 def _save_rescue_candidate(bot_id, chat_id, chat_name, chat_type,
