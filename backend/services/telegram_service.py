@@ -1258,6 +1258,10 @@ class BotManager:
                         _nw_threshold = bot_record.netwin_threshold if bot_record.netwin_threshold is not None else 5000
                         if _nw_netwin is None:
                             _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, None, "null_netwin", db)
+                        elif _nw_netwin == 0:
+                            # 淨值剛好是 0 很可能代表這名玩家近2日根本沒有遊玩紀錄，不代表「輸贏正常」，
+                            # 不能直接套用固定回覆內容，交由人工確認實際情況。
+                            _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "zero_netwin", db)
                         elif _nw_netwin < _nw_threshold:
                             _nw_reply = (
                                 (bot_record.netwin_reply_zh if _nw_is_zh else bot_record.netwin_reply_en)
