@@ -3,7 +3,7 @@ import {
   Card, Row, Col, Select, DatePicker, Table, Tag, Space,
   Typography, Statistic, Spin, Empty, Button,
 } from 'antd'
-import { TrophyOutlined, MessageOutlined, RobotOutlined, FileTextOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { TrophyOutlined, MessageOutlined, RobotOutlined, FileTextOutlined, CheckCircleOutlined, LineChartOutlined } from '@ant-design/icons'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line,
@@ -40,7 +40,7 @@ export default function TelegramReplyStatsPage() {
   const [bots, setBots] = useState([])
   const [rankData, setRankData] = useState([])
   const [trendData, setTrendData] = useState([])
-  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, whitelist_tickets: 0 })
+  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, whitelist_tickets: 0, netwin_tickets: 0 })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -121,6 +121,10 @@ export default function TelegramReplyStatsPage() {
     {
       title: '白名單工單', dataIndex: 'whitelist_tickets', width: 110,
       render: v => <Text style={{ color: '#13c2c2' }}>{(v || 0).toLocaleString()}</Text>,
+    },
+    {
+      title: '查輸贏工單', dataIndex: 'netwin_tickets', width: 110,
+      render: v => <Text style={{ color: '#fa8c16' }}>{(v || 0).toLocaleString()}</Text>,
     },
     {
       title: '佔比', width: 100,
@@ -211,6 +215,16 @@ export default function TelegramReplyStatsPage() {
               value={ticketCounts.whitelist_tickets}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#13c2c2' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="查輸贏回覆工單數"
+              value={ticketCounts.netwin_tickets}
+              prefix={<LineChartOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
             />
           </Card>
         </Col>

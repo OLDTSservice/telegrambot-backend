@@ -74,11 +74,22 @@ def telegram_group_stats(
         wl_q = wl_q.filter(models.WhitelistLog.created_at >= start_utc, models.WhitelistLog.created_at < end_utc)
     wl_by_chat = dict(wl_q.group_by(models.WhitelistLog.chat_id).all())
 
+    # 查輸贏回覆工單數：只有 outcome=auto_replied 才會實際建立 Freshdesk 工單
+    nw_q = db.query(models.NetwinQueryLog.chat_id, func.count(models.NetwinQueryLog.id)).filter(
+        models.NetwinQueryLog.outcome == "auto_replied"
+    )
+    if bot_id:
+        nw_q = nw_q.filter(models.NetwinQueryLog.bot_id == bot_id)
+    if start_utc:
+        nw_q = nw_q.filter(models.NetwinQueryLog.created_at >= start_utc, models.NetwinQueryLog.created_at < end_utc)
+    nw_by_chat = dict(nw_q.group_by(models.NetwinQueryLog.chat_id).all())
+
     return [
         {"chat_id": r.chat_id, "chat_name": r.chat_name,
          "chat_type": r.chat_type, "reply_count": r.total,
          "kb_tickets": kb_by_chat.get(r.chat_id, 0),
-         "whitelist_tickets": wl_by_chat.get(r.chat_id, 0)}
+         "whitelist_tickets": wl_by_chat.get(r.chat_id, 0),
+         "netwin_tickets": nw_by_chat.get(r.chat_id, 0)}
         for r in rows
     ]
 
@@ -216,4 +227,13 @@ def ticket_counts(
     wl_q = apply(wl_q, models.WhitelistLog.created_at)
     wl_count = wl_q.scalar() or 0
 
-    return {"kb_tickets": kb_count, "whitelist_tickets": wl_count}
+    # 查輸贏回覆工單數：只有 outcome=auto_replied 才會實際建立 Freshdesk 工單
+    nw_q = db.query(func.count(models.NetwinQueryLog.id)).filter(
+        models.NetwinQueryLog.outcome == "auto_replied"
+    )
+    if bot_id:
+        nw_q = nw_q.filter(models.NetwinQueryLog.bot_id == bot_id)
+    nw_q = apply(nw_q, models.NetwinQueryLog.created_at)
+    nw_count = nw_q.scalar() or 0
+
+    return {"kb_tickets": kb_count, "whitelist_tickets": wl_count, "netwin_tickets": nw_count}
