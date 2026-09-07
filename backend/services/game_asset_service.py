@@ -13,10 +13,10 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-GAMELIST_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/gamelist"
-SEARCH_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/search"
-TADA_GAMELIST_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/tada-gamelist"
-TADA_SEARCH_API = "https://jili-game-icon-material.netlify.app/.netlify/functions/tada-search"
+GAMELIST_API = "https://jili-game-icon-finder.vercel.app/api/gamelist"
+SEARCH_API = "https://jili-game-icon-finder.vercel.app/api/search"
+TADA_GAMELIST_API = "https://jili-game-icon-finder.vercel.app/api/tada-gamelist"
+TADA_SEARCH_API = "https://jili-game-icon-finder.vercel.app/api/tada-search"
 
 _GAME_ASSET_KEYWORDS = ["素材", "material", "asset", "icon", "圖示", "圖標", "入口圖"]
 
