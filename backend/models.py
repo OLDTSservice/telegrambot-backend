@@ -290,6 +290,23 @@ class NetwinQueryLog(Base):
     bot = relationship("TelegramBot", back_populates="netwin_query_logs")
 
 
+class TicketCreationLog(Base):
+    """每次實際呼叫 Freshdesk 建單（_ticket_creation_enabled 開啟時）都會寫入一筆，永久保留
+    （不像 ConversationLog 只留7天），供「回覆工單統計」頁面使用。source 標示來源：
+    kb（知識庫AI回答）／jili_asset／tada_asset／tada_gamelist／keyword_rule／whitelist／netwin。
+    「建立工單數」統計只計算 source 不是 whitelist、也不是 netwin 的筆數，因為白名單和查輸贏
+    已經各自用 WhitelistLog / NetwinQueryLog 統計，避免重複計算。"""
+    __tablename__ = "ticket_creation_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
+    chat_id = Column(String(64), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    chat_type = Column(String(30), nullable=True)
+    source = Column(String(32), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ── Teams Bot ──────────────────────────────────────────────────────────────
 class TeamsBot(Base):
     __tablename__ = "teams_bots"

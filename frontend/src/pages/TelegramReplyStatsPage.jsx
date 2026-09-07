@@ -40,7 +40,7 @@ export default function TelegramReplyStatsPage() {
   const [bots, setBots] = useState([])
   const [rankData, setRankData] = useState([])
   const [trendData, setTrendData] = useState([])
-  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, whitelist_tickets: 0, netwin_tickets: 0 })
+  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, other_tickets: 0, whitelist_tickets: 0, netwin_tickets: 0 })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -119,6 +119,10 @@ export default function TelegramReplyStatsPage() {
       render: v => <Text style={{ color: '#722ed1' }}>{(v || 0).toLocaleString()}</Text>,
     },
     {
+      title: '其他工單', dataIndex: 'other_tickets', width: 110,
+      render: v => <Text style={{ color: '#eb2f96' }}>{(v || 0).toLocaleString()}</Text>,
+    },
+    {
       title: '白名單工單', dataIndex: 'whitelist_tickets', width: 110,
       render: v => <Text style={{ color: '#13c2c2' }}>{(v || 0).toLocaleString()}</Text>,
     },
@@ -185,20 +189,20 @@ export default function TelegramReplyStatsPage() {
       </Card>
 
       {/* 摘要卡片 */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col span={8}>
           <Card>
             <Statistic title="總回覆次數" value={totalReplies}
               prefix={<MessageOutlined />} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic title="活躍群組數" value={rankData.length}
               prefix={<RobotOutlined />} valueStyle={{ color: '#52c41a' }} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic
               title="知識庫建立工單數"
@@ -208,7 +212,7 @@ export default function TelegramReplyStatsPage() {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic
               title="白名單建立工單數"
@@ -218,13 +222,23 @@ export default function TelegramReplyStatsPage() {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic
               title="查輸贏回覆工單數"
               value={ticketCounts.netwin_tickets}
               prefix={<LineChartOutlined />}
               valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Statistic
+              title="其他建立工單數"
+              value={ticketCounts.other_tickets}
+              prefix={<TrophyOutlined />}
+              valueStyle={{ color: '#eb2f96' }}
             />
           </Card>
         </Col>

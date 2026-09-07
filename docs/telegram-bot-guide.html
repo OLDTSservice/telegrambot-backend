@@ -1305,16 +1305,27 @@
           <tr><td>快捷時間選擇</td><td>今日 / 昨日 / 近7日 / 近30日 / 本月 / 上個月 / 今年 / 去年，一鍵切換常用區間。</td></tr>
           <tr><td>自訂範圍</td><td>日期範圍選擇器，可指定任意起訖日期；選擇自訂範圍後快捷按鈕會取消highlight。</td></tr>
           <tr><td>機器人篩選</td><td>可選特定機器人或「全部機器人」加總。</td></tr>
-          <tr><td>摘要卡片</td><td>總回覆次數、活躍群組數、知識庫建立工單數、白名單建立工單數（皆依所選時間範圍統計）。</td></tr>
+          <tr><td>摘要卡片</td><td>總回覆次數、活躍群組數、知識庫建立工單數、白名單建立工單數、查輸贏回覆工單數、其他建立工單數（皆依所選時間範圍統計）。</td></tr>
           <tr><td>回覆趨勢折線圖</td><td>依所選時間範圍呈現每日回覆次數變化。</td></tr>
-          <tr><td>群組回覆排行（長條圖 + 表格）</td><td>各群組回覆次數排名與佔比，前三名以 🥇🥈🥉 標示；表格額外顯示每個群組個別的<strong>知識庫工單數</strong>與<strong>白名單工單數</strong>，方便看出哪些群組實際成功建立了多少工單，不只是回覆次數。</td></tr>
+          <tr><td>群組回覆排行（長條圖 + 表格）</td><td>各群組回覆次數排名與佔比，前三名以 🥇🥈🥉 標示；表格額外顯示每個群組個別的<strong>知識庫工單</strong>、<strong>其他工單</strong>、<strong>白名單工單</strong>、<strong>查輸贏工單</strong>次數，方便看出哪些群組實際成功建立了多少工單，不只是回覆次數。</td></tr>
         </tbody>
       </table>
       <div class="callout warn">
         Fallback（無解答）自動回覆<strong>也會</strong>計入這裡的回覆統計次數，因此高回覆數不完全代表「AI 有效解答率高」，需搭配「AI無解答對話紀錄」交叉比對。
       </div>
       <div class="callout">
-        知識庫工單數取自 <span class="code">ConversationLog</span>（僅保留 7 天），若選擇的時間範圍超過 7 天，較早日期的知識庫工單數會偏低（資料已被清除，非真的沒有工單）；白名單工單數取自 <span class="code">WhitelistLog</span> 沒有保留天數限制，不受此影響。
+        <strong>四種工單統計的範圍</strong>
+        四種工單數都只計算<strong>實際有建立 Freshdesk 工單</strong>的次數（來源記錄於 <span class="code">TicketCreationLog</span>，永久保留、不受時間範圍限制，白名單/查輸贏例外，見下）：
+        <ul>
+          <li><strong>知識庫建立工單數</strong>：知識庫 AI 回覆命中時建立的工單（<span class="code">source=kb</span>）。</li>
+          <li><strong>其他建立工單數</strong>：JILI／TADA遊戲素材查詢、TADA Gamelist進階查詢、關鍵字規則命中這幾種來源建立的工單加總（<span class="code">source</span> 不是 <span class="code">kb</span>／<span class="code">whitelist</span>／<span class="code">netwin</span>）。</li>
+          <li><strong>白名單建立工單數</strong>：取自 <span class="code">WhitelistLog</span>（<span class="code">status=success</span>），與其他三種工單數各自獨立統計，避免重複計算。</li>
+          <li><strong>查輸贏回覆工單數</strong>：取自 <span class="code">NetwinQueryLog</span>（僅計 <span class="code">outcome=auto_replied</span>），同樣獨立統計。</li>
+        </ul>
+      </div>
+      <div class="callout warn">
+        <strong>歷史資料缺口（2026-09-07 前）</strong>
+        知識庫／其他建立工單數原本是抓 <span class="code">ConversationLog</span>（AI對話日誌，僅保留 7 天，見<a href="#knowledge-page">知識庫管理頁面</a>說明），選擇超過 7 天前的時間範圍時數字會嚴重偏低。已改為抓永久保留的 <span class="code">TicketCreationLog</span>，此後的資料都會正確累積，但<strong>2026-09-07 之前</strong>的歷史資料已經隨 7 天清除機制遺失、無法復原，查詢當天之前的區間仍會看到偏低的數字。
       </div>
     </section>
 

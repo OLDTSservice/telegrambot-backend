@@ -55,15 +55,28 @@ def telegram_group_stats(
         models.TelegramGroupStat.chat_type,
     ).order_by(func.sum(models.TelegramGroupStat.reply_count).desc()).all()
 
-    # 依群組分別統計知識庫工單數 / 白名單工單數（僅在有指定日期範圍時套用，與整體 ticket-counts 邏輯一致）
+    # 依群組分別統計各類工單數（僅在有指定日期範圍時套用，與整體 ticket-counts 邏輯一致）
     start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)
 
-    kb_q = db.query(models.ConversationLog.chat_id, func.count(models.ConversationLog.id))
+    # 知識庫建立工單數 / 其他建立工單數：都取自 TicketCreationLog（永久保留，不像 ConversationLog
+    # 只留7天）；白名單/查輸贏已用各自的 Log 表統計，這裡一律排除避免重複計算。
+    kb_q = db.query(models.TicketCreationLog.chat_id, func.count(models.TicketCreationLog.id)).filter(
+        models.TicketCreationLog.source == "kb"
+    )
     if bot_id:
-        kb_q = kb_q.filter(models.ConversationLog.bot_id == bot_id)
+        kb_q = kb_q.filter(models.TicketCreationLog.bot_id == bot_id)
     if start_utc:
-        kb_q = kb_q.filter(models.ConversationLog.created_at >= start_utc, models.ConversationLog.created_at < end_utc)
-    kb_by_chat = dict(kb_q.group_by(models.ConversationLog.chat_id).all())
+        kb_q = kb_q.filter(models.TicketCreationLog.created_at >= start_utc, models.TicketCreationLog.created_at < end_utc)
+    kb_by_chat = dict(kb_q.group_by(models.TicketCreationLog.chat_id).all())
+
+    other_q = db.query(models.TicketCreationLog.chat_id, func.count(models.TicketCreationLog.id)).filter(
+        models.TicketCreationLog.source.notin_(["whitelist", "netwin", "kb"])
+    )
+    if bot_id:
+        other_q = other_q.filter(models.TicketCreationLog.bot_id == bot_id)
+    if start_utc:
+        other_q = other_q.filter(models.TicketCreationLog.created_at >= start_utc, models.TicketCreationLog.created_at < end_utc)
+    other_by_chat = dict(other_q.group_by(models.TicketCreationLog.chat_id).all())
 
     wl_q = db.query(models.WhitelistLog.chat_id, func.count(models.WhitelistLog.id)).filter(
         models.WhitelistLog.status == "success"
@@ -88,6 +101,7 @@ def telegram_group_stats(
         {"chat_id": r.chat_id, "chat_name": r.chat_name,
          "chat_type": r.chat_type, "reply_count": r.total,
          "kb_tickets": kb_by_chat.get(r.chat_id, 0),
+         "other_tickets": other_by_chat.get(r.chat_id, 0),
          "whitelist_tickets": wl_by_chat.get(r.chat_id, 0),
          "netwin_tickets": nw_by_chat.get(r.chat_id, 0)}
         for r in rows
@@ -202,7 +216,7 @@ def ticket_counts(
     db: Session = Depends(get_db),
     _=Depends(require_viewer),
 ):
-    """知識庫工單數 + 白名單工單數"""
+    """知識庫建立工單數 + 其他建立工單數 + 白名單工單數 + 查輸贏回覆工單數"""
     # created_at 以 UTC 儲存，但 date_from/date_to 是前端送來的台灣日曆日期，
     # 需先把台灣日期範圍換算成對應的 UTC 時間範圍，再拿去跟 created_at 比較，
     # 否則台灣時間每天 00:00–08:00 的資料會被歸類到前一天，統計對不上。
@@ -213,11 +227,23 @@ def ticket_counts(
             q = q.filter(col >= start_utc, col < end_utc)
         return q
 
-    kb_q = db.query(func.count(models.ConversationLog.id))
+    # 知識庫建立工單數 / 其他建立工單數：都取自 TicketCreationLog（永久保留，不像 ConversationLog
+    # 只留7天）；白名單/查輸贏已用各自的 Log 表統計，這裡一律排除避免重複計算。
+    kb_q = db.query(func.count(models.TicketCreationLog.id)).filter(
+        models.TicketCreationLog.source == "kb"
+    )
     if bot_id:
-        kb_q = kb_q.filter(models.ConversationLog.bot_id == bot_id)
-    kb_q = apply(kb_q, models.ConversationLog.created_at)
+        kb_q = kb_q.filter(models.TicketCreationLog.bot_id == bot_id)
+    kb_q = apply(kb_q, models.TicketCreationLog.created_at)
     kb_count = kb_q.scalar() or 0
+
+    other_q = db.query(func.count(models.TicketCreationLog.id)).filter(
+        models.TicketCreationLog.source.notin_(["whitelist", "netwin", "kb"])
+    )
+    if bot_id:
+        other_q = other_q.filter(models.TicketCreationLog.bot_id == bot_id)
+    other_q = apply(other_q, models.TicketCreationLog.created_at)
+    other_count = other_q.scalar() or 0
 
     wl_q = db.query(func.count(models.WhitelistLog.id)).filter(
         models.WhitelistLog.status == "success"
@@ -236,4 +262,5 @@ def ticket_counts(
     nw_q = apply(nw_q, models.NetwinQueryLog.created_at)
     nw_count = nw_q.scalar() or 0
 
-    return {"kb_tickets": kb_count, "whitelist_tickets": wl_count, "netwin_tickets": nw_count}
+    return {"kb_tickets": kb_count, "other_tickets": other_count,
+            "whitelist_tickets": wl_count, "netwin_tickets": nw_count}

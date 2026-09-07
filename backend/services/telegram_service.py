@@ -1084,7 +1084,7 @@ class BotManager:
                         if _ticket_creation_enabled:
                             threading.Thread(
                                 target=_create_freshdesk_ticket_bg,
-                                args=(text, "Done", chat_name), daemon=True
+                                args=(text, "Done", chat_name, bot_id, chat_id, chat_type, "whitelist"), daemon=True
                             ).start()
                     elif any_vendor_rejected:
                         _wl_reject_reply = (
@@ -1125,7 +1125,7 @@ class BotManager:
                         if _ticket_creation_enabled:
                             threading.Thread(
                                 target=_create_freshdesk_ticket_bg,
-                                args=(text, "Done", chat_name), daemon=True
+                                args=(text, "Done", chat_name, bot_id, chat_id, chat_type, "whitelist"), daemon=True
                             ).start()
                     elif vendor_rejected:
                         _wl_reject_reply2 = (
@@ -1153,7 +1153,7 @@ class BotManager:
                 if _ticket_creation_enabled:
                     threading.Thread(
                         target=_create_freshdesk_ticket_bg,
-                        args=(text, reply_text, chat_name), daemon=True
+                        args=(text, reply_text, chat_name, bot_id, chat_id, chat_type, "jili_asset"), daemon=True
                     ).start()
                 return
             # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
@@ -1168,7 +1168,7 @@ class BotManager:
                 if _ticket_creation_enabled:
                     threading.Thread(
                         target=_create_freshdesk_ticket_bg,
-                        args=(text, reply_text, chat_name), daemon=True
+                        args=(text, reply_text, chat_name, bot_id, chat_id, chat_type, "tada_asset"), daemon=True
                     ).start()
                 return
             # 完全比對不到遊戲或全部查無資料：不中止，改走知識庫查詢，找不到答案再走統一 fallback
@@ -1202,7 +1202,7 @@ class BotManager:
                     if _ticket_creation_enabled:
                         threading.Thread(
                             target=_create_freshdesk_ticket_bg,
-                            args=(text, gl_reply, chat_name), daemon=True
+                            args=(text, gl_reply, chat_name, bot_id, chat_id, chat_type, "tada_gamelist"), daemon=True
                         ).start()
                 else:
                     # 判定為 Gamelist 查詢但條件不充分/查無資料：不猜、不追問，直接轉人工
@@ -1327,7 +1327,7 @@ class BotManager:
                     await update.message.reply_text(reply_text)
                     _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
                     if _ticket_creation_enabled:
-                        threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply_text, chat_name), daemon=True).start()
+                        threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply_text, chat_name, bot_id, chat_id, chat_type, "keyword_rule"), daemon=True).start()
                 return
 
         # 功能一：訊息少於 10 字元且關鍵字無匹配 → 跳過
@@ -1446,7 +1446,7 @@ class BotManager:
                                        input_tokens=input_tokens, output_tokens=output_tokens,
                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
                 if _ticket_creation_enabled:
-                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name), daemon=True).start()
+                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name, bot_id, chat_id, chat_type, "kb"), daemon=True).start()
             else:
                 # 沒有關鍵字規則也沒有知識庫結果 → fallback
                 if bool(_group_setting.silent_no_answer if _group_setting else False):
@@ -1648,7 +1648,7 @@ async def _send_delayed_netwin_reply(update, delay_seconds, reply_text, bot_id, 
     if ticket_creation_enabled:
         threading.Thread(
             target=_create_freshdesk_ticket_bg,
-            args=(question_text, reply_text, chat_name), daemon=True
+            args=(question_text, reply_text, chat_name, bot_id, chat_id, chat_type, "netwin"), daemon=True
         ).start()
 
 
@@ -1708,8 +1708,28 @@ def _send_notify_message(ticket_id, group_name: str, question: str, error_msg: s
         logger.error(f"[Notify] 發送通知失敗: {e}")
 
 
-def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str):
-    """背景建立 Freshdesk 工單，不阻擋 bot 回覆流程"""
+def _create_freshdesk_ticket_bg(question: str, answer: str, group_name: str,
+                                 bot_id=None, chat_id=None, chat_type=None, source=None):
+    """背景建立 Freshdesk 工單，不阻擋 bot 回覆流程。
+    有帶 bot_id/chat_id/source 時，順便寫一筆永久保留的 TicketCreationLog（用於「回覆工單統計」
+    頁面），不受 ConversationLog 7天清除影響；source 用來分類統計，避免跟白名單/查輸贏的
+    既有統計重複計算。"""
+    if bot_id is not None and source is not None:
+        import models
+        from database import SessionLocal
+        db_log = SessionLocal()
+        try:
+            db_log.add(models.TicketCreationLog(
+                bot_id=bot_id, chat_id=chat_id, chat_name=group_name,
+                chat_type=chat_type, source=source,
+            ))
+            db_log.commit()
+        except Exception as e:
+            logger.error(f"儲存 TicketCreationLog 失敗（source={source}）：{e}")
+            db_log.rollback()
+        finally:
+            db_log.close()
+
     ticket_id = None
     error_msg = None
     try:
