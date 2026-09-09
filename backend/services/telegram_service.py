@@ -146,6 +146,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "betting history", "check bet record", "这个好像", "這個好像", "查不到log",
     "重设密码", "重設密碼", "试试看", "試試看",
     "try again", "请再查看", "請再查看", "不可以使用", "is this?", "disable this",
+    "不寻常", "不尋常", "是否符合", "noted on", "得到bonus", "投注检查", "投注檢查",
 )
 
 
