@@ -14,10 +14,13 @@ const OUTCOME_TAG = {
   no_account: { color: 'default', label: '擷取不到帳號' },
   zero_match: { color: 'orange', label: '查無此人' },
   multi_match: { color: 'orange', label: '比對到多筆' },
-  over_threshold: { color: 'red', label: '超過門檻' },
+  over_threshold: { color: 'red', label: '淨值超過門檻' },
   zero_netwin: { color: 'orange', label: '淨值為0（無遊玩紀錄）' },
   null_netwin: { color: 'red', label: '淨值查詢失敗' },
-  api_error: { color: 'red', label: 'API 呼叫失敗' },
+  api_error: { color: 'red', label: 'API 呼叫失敗／設定未完成' },
+  rtp_error: { color: 'red', label: 'RTP 查詢失敗' },
+  rtp_null: { color: 'orange', label: 'RTP為null（近7日無下注）' },
+  over_rtp_threshold: { color: 'red', label: 'RTP 超過門檻' },
 }
 
 function outcomeTag(outcome) {
@@ -39,7 +42,11 @@ const logColumns = [
     title: '近2日淨值(THB)', dataIndex: 'netwin_2d_thb', key: 'netwin_2d_thb', width: 130,
     render: (v) => (v == null ? '-' : v.toLocaleString()),
   },
-  { title: '結果', dataIndex: 'outcome', key: 'outcome', width: 110, render: outcomeTag },
+  {
+    title: '近7日RTP(%)', dataIndex: 'rtp', key: 'rtp', width: 110,
+    render: (v) => (v == null ? '-' : v.toLocaleString()),
+  },
+  { title: '結果', dataIndex: 'outcome', key: 'outcome', width: 130, render: outcomeTag },
   {
     title: '時間', dataIndex: 'created_at', key: 'created_at', width: 150,
     render: (v) => formatDateTime(v),
@@ -89,6 +96,7 @@ export default function NetwinPage({ user }) {
       netwin_reply_delay_seconds: bot?.netwin_reply_delay_seconds ?? 30,
       netwin_reply_zh: bot?.netwin_reply_zh || '',
       netwin_reply_en: bot?.netwin_reply_en || '',
+      netwin_rtp_threshold: bot?.netwin_rtp_threshold ?? null,
     })
   }
 
@@ -178,8 +186,11 @@ export default function NetwinPage({ user }) {
           <Card size="small" bodyStyle={{ padding: '10px 16px', background: '#fffbe6', border: '1px solid #ffe58f' }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               啟用後，當群組訊息偵測到廠商在詢問「這個玩家/這筆下注或贏分是否正常」時，機器人會先呼叫 tjadmin
-              外部客服 API 查詢該玩家近2日淨值（<Text code>netwin_2d_thb</Text>）；只有查到「唯一一位玩家」且淨值<strong>大於0、且低於下方門檻</strong>時，
-              才會直接依固定內容自動回覆，其餘情況（查無此人、比對到多筆、超過門檻、淨值剛好是0、查詢失敗、擷取不到帳號）一律跳過知識庫、直接轉人工——淨值為0很可能代表該玩家近2日根本沒有遊玩紀錄，不代表輸贏正常，故也交由人工確認。
+              外部客服 API 1 查詢該玩家近2日淨值（<Text code>netwin_2d_thb</Text>）；淨值<strong>大於0、且低於淨值門檻</strong>後，
+              再用該筆回應附帶的 <Text code>aid</Text> 呼叫 API 4 查該玩家近7日總 RTP（<Text code>summary.rtp</Text>），
+              兩個 API 都成功、且<strong>淨值與 RTP 都低於各自門檻</strong>時，才會直接依固定內容自動回覆。
+              其餘情況（查無此人、比對到多筆、任一項超過門檻、淨值剛好是0、RTP為null即近7日無下注、任一個
+              API 查詢失敗、RTP 門檻尚未設定、擷取不到帳號）一律跳過知識庫、直接轉人工。
             </Text>
           </Card>
 
@@ -197,6 +208,12 @@ export default function NetwinPage({ user }) {
               </Form.Item>
               <Form.Item name="netwin_threshold" label="淨值門檻（netwin_2d_thb 低於此值才自動回覆）">
                 <InputNumber style={{ width: 200 }} disabled={!canEdit} />
+              </Form.Item>
+              <Form.Item
+                name="netwin_rtp_threshold"
+                label="RTP 門檻（近7日總RTP，低於此值才自動回覆；未設定前一律轉人工）"
+              >
+                <InputNumber style={{ width: 200 }} placeholder="尚未設定" disabled={!canEdit} />
               </Form.Item>
               <Form.Item name="netwin_reply_delay_seconds" label="自動回覆延遲秒數（避免回覆過快讓廠商懷疑沒確認過，預設 30 秒）">
                 <InputNumber style={{ width: 200 }} min={0} disabled={!canEdit} />

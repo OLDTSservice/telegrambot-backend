@@ -74,6 +74,8 @@ def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(ge
         bot.netwin_reply_en = payload.netwin_reply_en
     if payload.netwin_reply_delay_seconds is not None:
         bot.netwin_reply_delay_seconds = payload.netwin_reply_delay_seconds
+    if payload.netwin_rtp_threshold is not None:
+        bot.netwin_rtp_threshold = payload.netwin_rtp_threshold
     if payload.is_enabled is not None:
         bot.is_enabled = payload.is_enabled
         if payload.is_enabled:

@@ -68,6 +68,7 @@ class BotUpdate(BaseModel):
     netwin_reply_zh: Optional[str] = None
     netwin_reply_en: Optional[str] = None
     netwin_reply_delay_seconds: Optional[int] = None
+    netwin_rtp_threshold: Optional[float] = None
 
 
 class BotOut(BotBase):
@@ -87,6 +88,7 @@ class BotOut(BotBase):
     netwin_reply_zh: Optional[str] = None
     netwin_reply_en: Optional[str] = None
     netwin_reply_delay_seconds: int = 30
+    netwin_rtp_threshold: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 
@@ -162,6 +164,7 @@ class NetwinQueryLogOut(BaseModel):
     extracted_account: Optional[str] = None
     match_count: Optional[int] = None
     netwin_2d_thb: Optional[float] = None
+    rtp: Optional[float] = None
     outcome: str
     created_at: datetime
 

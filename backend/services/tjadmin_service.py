@@ -4,10 +4,12 @@ tjadmin 外部客服 API 串接（查輸贏回覆功能專用）。
 依據平台人員提供的《tjadmin 外部客服 API 文件》：
 - 1.2 節 HMAC-SHA256 簽章規則
 - 3. API 1：玩家帳號查詢（GET /api/external/v1/player-account）
+- 6. API 4：玩家近 7 日每日遊戲 RTP（GET /api/external/v1/player-rtp）
 
-目前只用得到 API 1，查詢參數固定用 `name`（廠商在訊息裡提供的通常是玩家名/帳號代碼，
-不會知道內部的純數字 aid，也不會給完整帳號），文件裡的 API 2（修改後台密碼）與 `account`／
-`aid` 兩種查詢方式都不在這個功能的範圍內。
+查詢參數固定用 `name`（廠商在訊息裡提供的通常是玩家名/帳號代碼，不會知道內部的純數字
+aid，也不會給完整帳號），文件裡的 API 2（修改後台密碼）與 `account` 查詢方式都不在這個
+功能的範圍內；API 4 改用 `aid` 查詢——這是 API 1 回應裡本來就有的欄位，直接沿用不需要
+使用者另外提供。
 """
 import hashlib
 import hmac
@@ -21,6 +23,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _PLAYER_ACCOUNT_PATH = "/api/external/v1/player-account"
+_PLAYER_RTP_PATH = "/api/external/v1/player-rtp"
 
 
 def _sign(method: str, path: str, raw_query: str, api_key: str):
@@ -50,6 +53,28 @@ def query_player_by_name(base_url: str, key_id: str, api_key: str, name: str, ti
         return data.get("rows", []), None
     except Exception as e:
         logger.error(f"[tjadmin] 查詢玩家帳號失敗 name={name}: {e}")
+        return None, str(e)
+
+
+def query_player_rtp(base_url: str, key_id: str, api_key: str, aid, timeout: int = 30):
+    """呼叫 API 4（玩家近 7 日每日遊戲 RTP），依 aid（來自 API 1 回應）查詢。
+    回傳 (summary, error)：成功時 error 為 None，summary 是回應裡最外層的 summary 物件
+    （含 rtp 等欄位，7 日內完全無下注時 summary.rtp 會是 None，呼叫端需自行判斷）；
+    請求失敗（例外、非 200，含查無此玩家的 404）時 summary 為 None，error 是簡短錯誤說明。
+    文件建議此 API 對下注量大的玩家回應較慢，timeout 沿用 API 1 的 30 秒。"""
+    raw_query = f"aid={aid}"
+    hash_hex, _ = _sign("GET", _PLAYER_RTP_PATH, raw_query, api_key)
+    url = f"{base_url.rstrip('/')}{_PLAYER_RTP_PATH}?{raw_query}"
+    try:
+        resp = requests.get(
+            url, headers={"X-Key-Id": key_id, "X-Hash": hash_hex}, timeout=timeout
+        )
+        if resp.status_code != 200:
+            return None, f"HTTP {resp.status_code}"
+        data = resp.json()
+        return data.get("summary"), None
+    except Exception as e:
+        logger.error(f"[tjadmin] 查詢玩家RTP失敗 aid={aid}: {e}")
         return None, str(e)
 
 

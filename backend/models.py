@@ -44,6 +44,11 @@ class TelegramBot(Base):
     netwin_reply_zh = Column(Text, nullable=True)          # 自動回覆固定內容（中文）
     netwin_reply_en = Column(Text, nullable=True)          # 自動回覆固定內容（英文）
     netwin_reply_delay_seconds = Column(Integer, default=30)  # 自動回覆前延遲秒數，避免回覆過快讓廠商懷疑沒確認過
+    # RTP 門檻：淨值符合門檻後，再用該玩家 aid 呼叫 tjadmin API 4（近7日每日遊戲RTP），
+    # summary.rtp 必須也低於這個門檻，兩者都符合才自動回覆。刻意不給預設值（None）——
+    # 沒手動設定前視同功能尚未設定齊全，比照缺 API 憑證的處理方式直接轉人工，不會自己套用
+    # 一個沒人核准過的門檻。
+    netwin_rtp_threshold = Column(Float, nullable=True)
 
     keyword_rules = relationship("KeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("KnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
@@ -272,7 +277,9 @@ class NetwinQueryLog(Base):
     """查輸贏回覆功能：每次偵測到查詢意圖時的處理紀錄。
     outcome：auto_replied（自動回覆）／no_account（偵測到意圖但擷取不到帳號）／
     zero_match（查無此玩家）／multi_match（比對到多筆玩家）／over_threshold（淨值超過門檻）／
-    null_netwin（淨值查詢失敗，欄位為null）／api_error（呼叫API本身失敗）。
+    null_netwin（淨值查詢失敗，欄位為null）／api_error（呼叫API本身失敗，含RTP門檻未設定）／
+    rtp_error（RTP查詢API呼叫失敗）／rtp_null（近7日無下注紀錄，RTP為null）／
+    over_rtp_threshold（淨值符合但RTP超過門檻）。
     除了 auto_replied 以外都算「未查詢的次數」（統計頁面用）。"""
     __tablename__ = "netwin_query_logs"
 
@@ -284,6 +291,7 @@ class NetwinQueryLog(Base):
     extracted_account = Column(String(255), nullable=True)
     match_count = Column(Integer, nullable=True)
     netwin_2d_thb = Column(Float, nullable=True)
+    rtp = Column(Float, nullable=True)  # 玩家近7日總RTP（summary.rtp），查得到才會有值
     outcome = Column(String(32), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

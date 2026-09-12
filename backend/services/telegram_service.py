@@ -1219,14 +1219,16 @@ class BotManager:
             # 與 Gamelist 查詢無關：不中止，改走知識庫查詢
 
         # 0.9 查輸贏回覆（獨立開關）：偵測到廠商在問「這個玩家/這筆下注或贏分是否正常」時，
-        # 先呼叫 tjadmin 外部客服 API 查該玩家近2日淨值，淨值在門檻以下才讓機器人直接依固定
-        # 內容回覆，其餘情況（擷取不到帳號／查無此人／比對到多筆／超過門檻／查詢失敗）一律
-        # 跳過知識庫、直接轉人工。這一步必須排在關鍵字規則與知識庫跳過清單「之前」——這批
-        # 訊息裡有不少本身就含有「abnormal」「valid」這類已經在跳過清單裡的字，順序顛倒的話
-        # 會被舊機制直接攔截轉人工，新功能永遠輪不到執行、查不到 API 就直接轉人工了。
+        # 先呼叫 tjadmin 外部客服 API 1 查該玩家近2日淨值，淨值在門檻以下後，再用該筆回應
+        # 附帶的 aid 呼叫 API 4 查近7日總 RTP，兩個 API 都成功、且淨值與 RTP 都低於各自門檻
+        # 才自動回覆，其餘情況（擷取不到帳號／查無此人／比對到多筆／任一項超過門檻／任一個
+        # API 查詢失敗）一律跳過知識庫、直接轉人工。這一步必須排在關鍵字規則與知識庫跳過
+        # 清單「之前」——這批訊息裡有不少本身就含有「abnormal」「valid」這類已經在跳過清單
+        # 裡的字，順序顛倒的話會被舊機制直接攔截轉人工，新功能永遠輪不到執行、查不到 API
+        # 就直接轉人工了。
         if bot_record.netwin_query_enabled:
             from services.tjadmin_service import (
-                detect_netwin_query_request, extract_account, query_player_by_name,
+                detect_netwin_query_request, extract_account, query_player_by_name, query_player_rtp,
             )
             if detect_netwin_query_request(text):
                 import re as _re_nw
@@ -1239,8 +1241,11 @@ class BotManager:
                 if not _nw_account:
                     logger.info(f"Bot {bot_id} 查輸贏回覆：偵測到查詢意圖但擷取不到帳號，轉人工")
                     _save_netwin_log(bot_id, chat_id, chat_name, chat_type, None, None, None, "no_account", db)
-                elif not (bot_record.netwin_key_id and bot_record.netwin_api_key and bot_record.netwin_api_base_url):
-                    logger.warning(f"Bot {bot_id} 查輸贏回覆已開啟但尚未設定 API 憑證，轉人工")
+                elif not (bot_record.netwin_key_id and bot_record.netwin_api_key and bot_record.netwin_api_base_url
+                          and bot_record.netwin_rtp_threshold is not None):
+                    # RTP 門檻沒設定時視同功能尚未設定齊全，比照缺 API 憑證處理，兩個 API 都不呼叫，
+                    # 不會在沒人核准過門檻的情況下自己套用一個猜測值。
+                    logger.warning(f"Bot {bot_id} 查輸贏回覆已開啟但尚未設定 API 憑證或 RTP 門檻，轉人工")
                     _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, None, None, "api_error", db)
                 else:
                     _nw_rows, _nw_err = await asyncio.to_thread(
@@ -1263,15 +1268,39 @@ class BotManager:
                             # 淨值剛好是 0 很可能代表這名玩家近2日根本沒有遊玩紀錄，不代表「輸贏正常」，
                             # 不能直接套用固定回覆內容，交由人工確認實際情況。
                             _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "zero_netwin", db)
-                        elif _nw_netwin < _nw_threshold:
-                            _nw_reply = (
-                                (bot_record.netwin_reply_zh if _nw_is_zh else bot_record.netwin_reply_en)
-                                or _nw_fallback
-                            )
-                            _nw_is_auto = True
-                            _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "auto_replied", db)
-                        else:
+                        elif _nw_netwin >= _nw_threshold:
                             _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "over_threshold", db)
+                        else:
+                            # 淨值符合門檻，接著用 API 1 回應裡的 aid 查 API 4 的近7日總 RTP，
+                            # 兩個條件都符合才自動回覆；API 1 已經成功，這裡失敗一律轉人工，
+                            # 不會因為淨值符合就跳過 RTP 這關直接自動回覆。
+                            _nw_aid = _nw_rows[0].get("aid")
+                            if _nw_aid is None:
+                                logger.error(f"Bot {bot_id} 查輸贏回覆：API 1 回應缺少 aid 欄位（帳號={_nw_account}），轉人工")
+                                _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "rtp_error", db)
+                            else:
+                                _nw_rtp_summary, _nw_rtp_err = await asyncio.to_thread(
+                                    query_player_rtp, bot_record.netwin_api_base_url,
+                                    bot_record.netwin_key_id, bot_record.netwin_api_key, _nw_aid,
+                                )
+                                if _nw_rtp_err is not None:
+                                    logger.error(f"Bot {bot_id} 查輸贏回覆 RTP API 呼叫失敗（aid={_nw_aid}）：{_nw_rtp_err}")
+                                    _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "rtp_error", db)
+                                else:
+                                    _nw_rtp = (_nw_rtp_summary or {}).get("rtp")
+                                    if _nw_rtp is None:
+                                        # 近7日完全無下注紀錄時 summary.rtp 為 null，跟淨值剛好是0同樣道理，
+                                        # 不能直接套用固定回覆，交由人工確認。
+                                        _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "rtp_null", db, rtp=None)
+                                    elif _nw_rtp < bot_record.netwin_rtp_threshold:
+                                        _nw_reply = (
+                                            (bot_record.netwin_reply_zh if _nw_is_zh else bot_record.netwin_reply_en)
+                                            or _nw_fallback
+                                        )
+                                        _nw_is_auto = True
+                                        _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "auto_replied", db, rtp=_nw_rtp)
+                                    else:
+                                        _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "over_rtp_threshold", db, rtp=_nw_rtp)
 
                 if not _nw_is_auto and bool(_group_setting.silent_no_answer if _group_setting else False):
                     _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
@@ -1610,12 +1639,12 @@ def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status
 
 
 def _save_netwin_log(bot_id, chat_id, chat_name, chat_type, extracted_account, match_count,
-                      netwin_2d_thb, outcome, db):
+                      netwin_2d_thb, outcome, db, rtp=None):
     import models
     log = models.NetwinQueryLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, chat_type=chat_type,
         extracted_account=extracted_account, match_count=match_count,
-        netwin_2d_thb=netwin_2d_thb, outcome=outcome,
+        netwin_2d_thb=netwin_2d_thb, rtp=rtp, outcome=outcome,
     )
     db.add(log)
     try:
