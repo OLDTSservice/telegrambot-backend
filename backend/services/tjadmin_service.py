@@ -88,6 +88,8 @@ _NETWIN_TRIGGER_WORDS = (
     "normal kah", "winning is valid", "winnings are valid", "winning valid",
     "betting is normal", "bet history normal", "activity is normal", "bet is normal",
     "正常嗎", "正常吗", "是否正常", "下注是否正常", "投注是否正常",
+    "arbitrage betting", "异常投注", "異常投注", "投注异常", "投注異常",
+    "投注是否异常", "投注是否異常",
 )
 
 
