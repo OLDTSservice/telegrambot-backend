@@ -1260,10 +1260,83 @@
         </tbody>
       </table>
 
-      <h3>觸發與判斷流程</h3>
+      <h3 id="netwin-flow">觸發與判斷流程</h3>
       <p style="color:var(--text-secondary); font-size:13.5px; margin-top:-4px">
-        此步驟排在<a href="#flow-keyword">關鍵字規則比對</a>與<a href="#kb-skip">知識庫跳過清單</a>之前執行——這類查詢訊息本身常含有「abnormal」「valid」等已在知識庫跳過清單裡的字，順序若顛倒，會被舊機制直接攔截轉人工，新功能永遠輪不到執行。整體分成四步：<strong>① 觸發關鍵字 → ② 擷取帳號 → ③ API 1 查近2日淨值 → ④ API 4 查近7日RTP</strong>。
+        此步驟排在<a href="#flow-keyword">關鍵字規則比對</a>與<a href="#kb-skip">知識庫跳過清單</a>之前執行——這類查詢訊息本身常含有「abnormal」「valid」等已在知識庫跳過清單裡的字，順序若顛倒，會被舊機制直接攔截轉人工，新功能永遠輪不到執行。整體分成四步：<strong>① 觸發關鍵字 → ② 擷取帳號 → ③ API 1 查近2日淨值 → ④ API 4 查近7日RTP</strong>，下方流程圖為完整判斷路徑，詳細規則見流程圖後方各節。
       </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-body">
+            <div class="flow-title">觸發關鍵字偵測</div>
+            <div class="flow-desc">訊息是否含任一觸發關鍵字（見下方「① 觸發關鍵字」清單，例如 <span class="code">abnormal</span>、<span class="code">是否正常</span>、<span class="code">套利行为</span> 等）</div>
+            <div class="flow-outcome">
+              <div class="flow-branch"><span class="tag tag-gray">未命中</span> 此功能完全不介入，訊息照常走<a href="#flow-keyword">關鍵字規則</a>／<a href="#flow-kb">知識庫</a>流程</div>
+              <div class="flow-branch"><span class="tag tag-green">命中</span> 繼續下一步</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-body">
+            <div class="flow-title">擷取玩家帳號</div>
+            <div class="flow-desc">依序嘗試欄位標籤／全形【】括號／泛用 ID 標籤／獨立一行代碼（見下方「② 擷取玩家帳號」規則）</div>
+            <div class="flow-outcome">
+              <div class="flow-branch"><span class="tag tag-red">擷取不到帳號</span> 轉人工（<span class="code">no_account</span>）</div>
+              <div class="flow-branch"><span class="tag tag-green">擷取到帳號</span> 繼續下一步</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-body">
+            <div class="flow-title">檢查 API 憑證與 RTP 門檻是否設定齊全</div>
+            <div class="flow-desc">需同時具備 <span class="code">netwin_key_id</span> / <span class="code">netwin_api_key</span> / <span class="code">netwin_api_base_url</span>，且 <span class="code">netwin_rtp_threshold</span> 已手動設定（無預設值）</div>
+            <div class="flow-outcome">
+              <div class="flow-branch"><span class="tag tag-red">未設定齊全</span> 不呼叫任何 API，直接轉人工（<span class="code">api_error</span>）</div>
+              <div class="flow-branch"><span class="tag tag-green">已設定齊全</span> 繼續下一步</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-body">
+            <div class="flow-title">API 1：查詢近2日淨值（<span class="code">netwin_2d_thb</span>）</div>
+            <div class="flow-outcome">
+              <div class="flow-branch"><span class="tag tag-red">呼叫失敗</span> 轉人工（<span class="code">api_error</span>）</div>
+              <div class="flow-branch"><span class="tag tag-orange">查無此人（0 筆）</span> 轉人工（<span class="code">zero_match</span>）</div>
+              <div class="flow-branch"><span class="tag tag-orange">比對到多筆</span> 轉人工（<span class="code">multi_match</span>）</div>
+              <div class="flow-branch"><span class="tag tag-red">淨值為 null</span> 轉人工（<span class="code">null_netwin</span>）</div>
+              <div class="flow-branch"><span class="tag tag-orange">淨值剛好為 0</span> 轉人工（<span class="code">zero_netwin</span>）</div>
+              <div class="flow-branch"><span class="tag tag-red">淨值 ≥ 淨值門檻</span> 轉人工（<span class="code">over_threshold</span>）</div>
+              <div class="flow-branch"><span class="tag tag-green">淨值 &gt; 0 且 &lt; 淨值門檻</span> 繼續下一步</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-step">
+          <div class="flow-num">5</div>
+          <div class="flow-body">
+            <div class="flow-title">API 4：查詢近7日 RTP（<span class="code">summary.rtp</span>）</div>
+            <div class="flow-desc">用 API 1 回應中附帶的 <span class="code">aid</span> 呼叫</div>
+            <div class="flow-outcome">
+              <div class="flow-branch"><span class="tag tag-red">缺少 aid／呼叫失敗</span> 轉人工（<span class="code">rtp_error</span>）</div>
+              <div class="flow-branch"><span class="tag tag-orange">RTP 為 null（近7日無下注）</span> 轉人工（<span class="code">rtp_null</span>）</div>
+              <div class="flow-branch"><span class="tag tag-red">RTP ≥ RTP 門檻</span> 轉人工（<span class="code">over_rtp_threshold</span>）</div>
+              <div class="flow-branch"><span class="tag tag-green">RTP &lt; RTP 門檻</span> <strong>自動回覆</strong>固定內容（<span class="code">auto_replied</span>）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>兩項門檻缺一不可</strong>
+        API 1（淨值）與 API 4（RTP）必須都成功呼叫、且結果都低於各自門檻才會自動回覆；圖中任一個<span class="tag tag-red" style="margin:0 2px">紅色</span>／<span class="tag tag-orange" style="margin:0 2px">橘色</span>分支都會直接轉人工，不會因為其中一項符合就跳過另一項。
+      </div>
 
       <h4 style="margin-top:22px">① 觸發關鍵字（<span class="code">detect_netwin_query_request()</span>）</h4>
       <p style="margin-bottom:8px">訊息含以下任一字樣（不分大小寫）才視為查詢意圖，繼續往下擷取帳號；否則此功能完全不介入，訊息照常走關鍵字規則／知識庫流程：</p>
