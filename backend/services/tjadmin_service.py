@@ -100,12 +100,16 @@ def detect_netwin_query_request(text: str) -> bool:
     return any(kw.lower() in lower for kw in _NETWIN_TRIGGER_WORDS)
 
 
-# 具體欄位標籤（依優先順序）：Player ID / Member username / Game Account / User ID / Player。
+# 具體欄位標籤（依優先順序）：Player ID / 玩家ID / Member username / Game Account / User ID / Player。
 # 「Player:」刻意放在最後——有些廠商會同時列「Player: 暱稱」與「User ID: 帳號」兩行，
 # 前者是玩家顯示名稱、不是可查詢的帳號（查了會 zero_match），後者才是實際帳號，
 # 所以具體的 XxxID 類標籤要排在籠統的「Player:」之前，才能優先擷取到正確帳號。
+# 「玩家ID：」這種中文字直接接英文 ID（無空格）的寫法，不能用泛用 _GENERIC_ID_RE 的
+# \bid 比對到——Python 的 \w／\b 把中文字也視為單字字元，「家」和「I」之間沒有字界，
+# 所以需要獨立列一條明確比對「玩家」+ID 的規則。
 _LABELED_PATTERNS = (
     re.compile(r'player\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'玩家\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'member\s*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'game\s*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'user\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
