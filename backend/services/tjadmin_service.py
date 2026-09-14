@@ -107,9 +107,14 @@ _LABELED_PATTERNS = (
     re.compile(r'game\s*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
-# 泛用「ID：」標籤（比對到單獨的 ID 欄位，例如「ID : QOGABAE011O2」），但要排除掉
-# Kiosk ID／理帳號這種代理帳號欄位——那不是玩家帳號。
+# 泛用「ID：」／中文「帳號：」標籤（比對到單獨的帳號欄位，例如「ID : QOGABAE011O2」
+# 或「玩家賬號 : 2n3401167716」，含簡繁「帳/賬/帐」與「號/戶/户」各種寫法，「玩家」前綴
+# 可省略），但要排除掉 Kiosk ID／理帳號這種代理帳號欄位——那不是玩家帳號，在下方
+# extract_account() 依行掃描時透過 _KIOSK_LINE_MARKERS 排除，而不是在這裡直接比對整段
+# 文字，避免「代理帳號：xxx」這種同樣含「帳號」字樣的代理欄位被誤當成玩家帳號。
 _GENERIC_ID_RE = re.compile(r'(?<!kiosk )(?<!agent )\bid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE)
+_CHINESE_ACCOUNT_LABEL_RE = re.compile(r'(?:玩家)?(?:帳號|賬號|账号|帐号|帳戶|賬戶|账户|帐户)\s*[:：]\s*([A-Za-z0-9_]+)')
+_GENERIC_ACCOUNT_PATTERNS = (_GENERIC_ID_RE, _CHINESE_ACCOUNT_LABEL_RE)
 # 特定廠商固定格式：帳號包在全形【】內，且可能出現在句子中間（非獨立一行），
 # 例如「麻烦查询【 3027agent578315539 】於【JILI - 棋牌】近7日的投注是否...」。
 # 只比對【】內「純英數字（含底線）」的內容——「JILI - 棋牌」這種含中文/空格/連字號的
@@ -118,14 +123,16 @@ _BRACKETED_ACCOUNT_RE = re.compile(r'【\s*([A-Za-z0-9_]{6,20})\s*】')
 # 整行就是一個獨立代碼：6-20 碼英數字（含底線少見但保留彈性），且訊息本身沒有明確欄位標籤時的保底規則。
 _BARE_LINE_RE = re.compile(r'^[A-Za-z0-9]{6,20}$')
 
-_KIOSK_LINE_MARKERS = ("kiosk", "理账号", "理帳號")
+_KIOSK_LINE_MARKERS = (
+    "kiosk", "理账号", "理帳號", "理賬號", "理帐号", "理帳戶", "理賬戶", "理账户", "理帐户",
+)
 
 
 def extract_account(text: str):
     """從訊息裡擷取玩家帳號候選字串（給 API 的 name 參數用）。
     依序嘗試：1. 具體欄位標籤（Player ID / Member username / Player）
              2. 全形【】包住的純英數字帳號（特定廠商固定格式，帳號可能在句子中間）
-             3. 泛用 ID 標籤（排除 Kiosk/理帳號那一行）
+             3. 泛用 ID 標籤／中文「帳號：」標籤（排除 Kiosk/理帳號那一行）
              4. 整行只有一個 6-20 碼英數字代碼、且不是純數字（純數字通常是注單編號/Ticket，不是帳號）
     找不到時回傳 None，呼叫端應視為「偵測到查詢意圖但擷取不到帳號」，直接轉人工。"""
     for pat in _LABELED_PATTERNS:
@@ -139,9 +146,10 @@ def extract_account(text: str):
         low = line.lower()
         if any(marker in low or marker in line for marker in _KIOSK_LINE_MARKERS):
             continue
-        m = _GENERIC_ID_RE.search(line)
-        if m:
-            return m.group(1)
+        for pat in _GENERIC_ACCOUNT_PATTERNS:
+            m = pat.search(line)
+            if m:
+                return m.group(1)
     for line in text.splitlines():
         candidate = line.strip().strip(",.;:")
         if _BARE_LINE_RE.match(candidate) and not candidate.isdigit():
