@@ -147,6 +147,7 @@ _NO_KB_TOPIC_KEYWORDS = (
     "重设密码", "重設密碼", "试试看", "試試看",
     "try again", "请再查看", "請再查看", "不可以使用", "is this?", "disable this",
     "不寻常", "不尋常", "是否符合", "noted on", "得到bonus", "投注检查", "投注檢查",
+    "advise why", "merchant asking", "交易编号", "交易編號", "游戏编号", "遊戲編號",
 )
 
 
