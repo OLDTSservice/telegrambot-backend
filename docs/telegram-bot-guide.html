@@ -341,6 +341,7 @@
       <a class="toc-link" href="#bot-admin-page">機器人管理員名單</a>
       <a class="toc-link" href="#live-page">即時對話管控</a>
       <a class="toc-link" href="#whitelist-page">後台白名單處理</a>
+      <a class="toc-link" href="#netwin-page">查輸贏回覆</a>
       <a class="toc-link" href="#rescue-detail">AI機器人救援（運作細節）</a>
       <a class="toc-link" href="#stats-page">回覆統計</a>
       <a class="toc-link" href="#usage-page">使用量統計</a>
@@ -1235,6 +1236,119 @@
       <div class="callout danger">
         <strong>帳密與內部系統資訊</strong>
         自動化所使用的內部系統網址、登入帳密皆透過環境變數設定（部署時於 Render / 本機 <span class="code">.env</span> 配置），不會寫在程式碼明碼或此文件中，請勿將相關金鑰外流。
+      </div>
+    </section>
+
+    <!-- ═══════════ 查輸贏回覆頁面 ═══════════ -->
+    <section id="netwin-page">
+      <h2>查輸贏回覆頁面</h2>
+      <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 查輸贏回覆</span></p>
+      <p>
+        此功能用於偵測廠商在群組內詢問「這個玩家／這筆下注或贏分是否正常」時，自動呼叫 tjadmin 外部客服 API 核對該玩家的近期淨值與 RTP（返獎率），
+        兩項都在安全範圍內才直接依固定內容自動回覆，省去人工逐筆登入外部系統查證的步驟；其餘情況一律轉人工，不會自行猜測或套用沒人核准過的門檻。
+        此判斷獨立於關鍵字規則與知識庫之外，且優先於兩者執行（程式碼位置：<span class="code">backend/services/telegram_service.py</span> 步驟 0.9，
+        API 串接邏輯在 <span class="code">backend/services/tjadmin_service.py</span>）。
+      </p>
+
+      <table>
+        <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
+        <tbody>
+          <tr><td>選擇機器人</td><td>切換要檢視 / 設定的機器人。</td></tr>
+          <tr><td><strong>查輸贏回覆</strong> 開關</td><td>對應機器人的 <span class="code">netwin_query_enabled</span> 欄位，預設關閉。開啟後，偵測到觸發字樣的訊息才會進入下方判斷流程；關鍵字規則、知識庫等其他功能不受影響，仍照常運作。</td></tr>
+          <tr><td>依群組統計</td><td>各群組的「查詢後回覆次數」（<span class="code">outcome=auto_replied</span>）與「未查詢的次數」（其餘所有 outcome 加總）。</td></tr>
+          <tr><td>最近 50 筆處理記錄</td><td>顯示群組名稱、擷取到的帳號、比對筆數、近2日淨值、近7日RTP、處理結果與時間，方便追查自動化判斷是否正確。</td></tr>
+        </tbody>
+      </table>
+
+      <h3>觸發與判斷流程</h3>
+      <p style="color:var(--text-secondary); font-size:13.5px; margin-top:-4px">
+        此步驟排在<a href="#flow-keyword">關鍵字規則比對</a>與<a href="#kb-skip">知識庫跳過清單</a>之前執行——這類查詢訊息本身常含有「abnormal」「valid」等已在知識庫跳過清單裡的字，順序若顛倒，會被舊機制直接攔截轉人工，新功能永遠輪不到執行。整體分成四步：<strong>① 觸發關鍵字 → ② 擷取帳號 → ③ API 1 查近2日淨值 → ④ API 4 查近7日RTP</strong>。
+      </p>
+
+      <h4 style="margin-top:22px">① 觸發關鍵字（<span class="code">detect_netwin_query_request()</span>）</h4>
+      <p style="margin-bottom:8px">訊息含以下任一字樣（不分大小寫）才視為查詢意圖，繼續往下擷取帳號；否則此功能完全不介入，訊息照常走關鍵字規則／知識庫流程：</p>
+      <div class="callout" style="margin-top:8px">
+        <span class="code">abnormal</span> <span class="code">fraud</span> <span class="code">fraudulent</span> <span class="code">normal or not</span> <span class="code">log normal</span> <span class="code">win normal</span> <span class="code">normal kah</span> <span class="code">winning is valid</span> <span class="code">winnings are valid</span> <span class="code">winning valid</span> <span class="code">betting is normal</span> <span class="code">bet history normal</span> <span class="code">activity is normal</span> <span class="code">bet is normal</span> <span class="code">正常嗎</span> <span class="code">正常吗</span> <span class="code">是否正常</span> <span class="code">下注是否正常</span> <span class="code">投注是否正常</span>
+      </div>
+
+      <h4>② 擷取玩家帳號（<span class="code">extract_account()</span>）</h4>
+      <p style="margin-bottom:8px">依序嘗試以下規則，找到即回傳；三者皆找不到時視為「偵測到查詢意圖但擷取不到帳號」（<span class="code">no_account</span>），直接轉人工：</p>
+      <table>
+        <thead><tr><th style="width:70px">順序</th><th>規則</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>具體欄位標籤：<span class="code">Player ID:</span>／<span class="code">Member username:</span>／<span class="code">Game Account:</span>／<span class="code">Player:</span>（大小寫不拘，取冒號後的英數字/底線字串）</td></tr>
+          <tr><td>2</td><td>泛用 <span class="code">ID:</span> 標籤，但排除含 <span class="code">kiosk</span>／<span class="code">理帳號</span>／<span class="code">理帳号</span> 字樣的那一行（屬代理帳號欄位，非玩家帳號）</td></tr>
+          <tr><td>3</td><td>訊息中獨立一行、6～20 碼英數字代碼，且<strong>非純數字</strong>（純數字通常是注單編號/Ticket，不是帳號）</td></tr>
+        </tbody>
+      </table>
+
+      <h4>③ API 1：查詢近2日淨值</h4>
+      <p style="margin-bottom:8px">用擷取到的帳號呼叫 tjadmin API 1（<span class="code">GET /api/external/v1/player-account?name=...</span>，HMAC-SHA256 簽章驗證），依回應判斷：</p>
+      <table>
+        <thead><tr><th style="width:230px">情況</th><th>處理結果</th></tr></thead>
+        <tbody>
+          <tr><td>API 憑證或 RTP 門檻尚未設定齊全</td><td>不呼叫任何 API，直接轉人工（<span class="code">api_error</span>）——RTP 門檻未設定視同功能尚未設定齊全，比照缺 API 憑證處理，不會套用沒人核准過的門檻值</td></tr>
+          <tr><td>API 呼叫失敗（例外／非 200）</td><td>轉人工（<span class="code">api_error</span>）</td></tr>
+          <tr><td>查無此玩家（0 筆）</td><td>轉人工（<span class="code">zero_match</span>）</td></tr>
+          <tr><td>比對到多筆玩家</td><td>轉人工（<span class="code">multi_match</span>）</td></tr>
+          <tr><td>淨值欄位為 null（查詢失敗）</td><td>轉人工（<span class="code">null_netwin</span>）</td></tr>
+          <tr><td>淨值剛好為 0</td><td>轉人工（<span class="code">zero_netwin</span>）——很可能代表該玩家近2日根本沒有遊玩紀錄，不代表「輸贏正常」，不能直接套用固定回覆</td></tr>
+          <tr><td>淨值 ≥ 淨值門檻（<span class="code">netwin_threshold</span>，預設 5000）</td><td>轉人工（<span class="code">over_threshold</span>）</td></tr>
+          <tr><td>淨值 &gt; 0 且 &lt; 淨值門檻</td><td>繼續下一步（④ RTP 查詢）</td></tr>
+        </tbody>
+      </table>
+
+      <h4>④ API 4：查詢近7日RTP（淨值符合門檻後才會呼叫）</h4>
+      <p style="margin-bottom:8px">用 API 1 回應中附帶的 <span class="code">aid</span> 呼叫 API 4（<span class="code">GET /api/external/v1/player-rtp?aid=...</span>），取回應的 <span class="code">summary.rtp</span>：</p>
+      <table>
+        <thead><tr><th style="width:230px">情況</th><th>處理結果</th></tr></thead>
+        <tbody>
+          <tr><td>API 1 回應缺少 <span class="code">aid</span> 欄位</td><td>轉人工（<span class="code">rtp_error</span>）</td></tr>
+          <tr><td>API 4 呼叫失敗（例外／非 200，含查無此玩家的 404）</td><td>轉人工（<span class="code">rtp_error</span>）</td></tr>
+          <tr><td><span class="code">summary.rtp</span> 為 null（近7日完全無下注紀錄）</td><td>轉人工（<span class="code">rtp_null</span>）——與淨值剛好為0同樣道理，不能直接套用固定回覆</td></tr>
+          <tr><td>RTP ≥ RTP 門檻（<span class="code">netwin_rtp_threshold</span>）</td><td>轉人工（<span class="code">over_rtp_threshold</span>）</td></tr>
+          <tr><td>RTP &lt; RTP 門檻</td><td><strong>自動回覆</strong>固定內容（<span class="code">auto_replied</span>）</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>兩項門檻缺一不可</strong>
+        API 1（淨值）與 API 4（RTP）必須<strong>都成功呼叫、且結果都低於各自門檻</strong>才會自動回覆；任一個 API 失敗、任一項超過門檻、或其中一項查詢結果為 null，都會直接轉人工，不會因為淨值符合就跳過 RTP 這關直接自動回覆。
+      </div>
+
+      <h3>API 設定與自動回覆內容欄位</h3>
+      <table>
+        <thead><tr><th style="width:230px">欄位</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td>tjadmin API Key ID / 完整金鑰 / API 網域</td><td>對應 <span class="code">netwin_key_id</span> / <span class="code">netwin_api_key</span> / <span class="code">netwin_api_base_url</span>，向平台人員索取；完整金鑰僅產生當下顯示一次。</td></tr>
+          <tr><td>淨值門檻</td><td><span class="code">netwin_threshold</span>，<span class="code">netwin_2d_thb</span> 低於此值才會繼續判斷 RTP；未填時預設 5000。</td></tr>
+          <tr><td>RTP 門檻</td><td><span class="code">netwin_rtp_threshold</span>，近7日總RTP低於此值才自動回覆；<strong>無預設值</strong>，未手動設定前功能一律轉人工，不會套用未經確認的門檻。</td></tr>
+          <tr><td>自動回覆延遲秒數</td><td><span class="code">netwin_reply_delay_seconds</span>，預設 30 秒，避免回覆過快讓廠商懷疑沒有真的確認過。</td></tr>
+          <tr><td>自動回覆固定內容（中／英文）</td><td><span class="code">netwin_reply_zh</span> / <span class="code">netwin_reply_en</span>，依訊息是否含中文字元自動切換；若對應語言版本未填，退回一般 Fallback 轉人工訊息。</td></tr>
+        </tbody>
+      </table>
+
+      <h3>處理記錄 outcome 對照表</h3>
+      <table>
+        <thead><tr><th style="width:190px">outcome</th><th>意義</th></tr></thead>
+        <tbody>
+          <tr><td><span class="code">auto_replied</span></td><td>淨值與RTP皆符合門檻，已自動回覆固定內容</td></tr>
+          <tr><td><span class="code">no_account</span></td><td>偵測到查詢意圖，但擷取不到玩家帳號</td></tr>
+          <tr><td><span class="code">zero_match</span></td><td>依帳號查詢，查無此玩家</td></tr>
+          <tr><td><span class="code">multi_match</span></td><td>依帳號查詢，比對到多筆玩家</td></tr>
+          <tr><td><span class="code">null_netwin</span></td><td>淨值欄位查詢結果為 null</td></tr>
+          <tr><td><span class="code">zero_netwin</span></td><td>淨值剛好為 0（很可能近2日無遊玩紀錄）</td></tr>
+          <tr><td><span class="code">over_threshold</span></td><td>淨值 ≥ 淨值門檻</td></tr>
+          <tr><td><span class="code">rtp_error</span></td><td>RTP 查詢 API 呼叫失敗，或 API 1 回應缺少 aid</td></tr>
+          <tr><td><span class="code">rtp_null</span></td><td>近7日 RTP 為 null（完全無下注紀錄）</td></tr>
+          <tr><td><span class="code">over_rtp_threshold</span></td><td>淨值符合門檻，但 RTP ≥ RTP 門檻</td></tr>
+          <tr><td><span class="code">api_error</span></td><td>API 憑證或 RTP 門檻尚未設定齊全，或 API 1 呼叫本身失敗</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13.5px;color:#666">除 <span class="code">auto_replied</span> 外，其餘所有 outcome 都會被計入「未查詢的次數」統計，並依訊息語言回覆一般 Fallback 轉人工訊息，不會建立 Freshdesk 工單。</p>
+
+      <div class="callout danger">
+        <strong>帳密與金鑰資訊</strong>
+        tjadmin API 完整金鑰屬機密資訊，僅在產生當下顯示一次，請向平台人員索取；金鑰不會寫在程式碼明碼或此文件中，請勿外流。
       </div>
     </section>
 
