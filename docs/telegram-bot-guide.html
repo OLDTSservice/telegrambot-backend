@@ -1272,13 +1272,14 @@
       </div>
 
       <h4>② 擷取玩家帳號（<span class="code">extract_account()</span>）</h4>
-      <p style="margin-bottom:8px">依序嘗試以下規則，找到即回傳；三者皆找不到時視為「偵測到查詢意圖但擷取不到帳號」（<span class="code">no_account</span>），直接轉人工：</p>
+      <p style="margin-bottom:8px">依序嘗試以下規則，找到即回傳；四者皆找不到時視為「偵測到查詢意圖但擷取不到帳號」（<span class="code">no_account</span>），直接轉人工：</p>
       <table>
         <thead><tr><th style="width:70px">順序</th><th>規則</th></tr></thead>
         <tbody>
           <tr><td>1</td><td>具體欄位標籤：<span class="code">Player ID:</span>／<span class="code">Member username:</span>／<span class="code">Game Account:</span>／<span class="code">Player:</span>（大小寫不拘，取冒號後的英數字/底線字串）</td></tr>
-          <tr><td>2</td><td>泛用 <span class="code">ID:</span> 標籤，但排除含 <span class="code">kiosk</span>／<span class="code">理帳號</span>／<span class="code">理帳号</span> 字樣的那一行（屬代理帳號欄位，非玩家帳號）</td></tr>
-          <tr><td>3</td><td>訊息中獨立一行、6～20 碼英數字代碼，且<strong>非純數字</strong>（純數字通常是注單編號/Ticket，不是帳號）</td></tr>
+          <tr><td>2</td><td>全形【】包住的純英數字帳號，例如 <span class="code">【 3027agent578315539 】</span>；帳號可能出現在句子<strong>中間</strong>、不需獨立成行（特定廠商固定查詢格式）。同句若還有【】包住的其他欄位（例如遊戲名稱 <span class="code">【JILI - 棋牌】</span>）因含中文/空格/連字號不符合純英數字規則，不會誤命中；括號內若是<strong>純數字</strong>（如注單編號）也會排除，理由同下方規則 4。</td></tr>
+          <tr><td>3</td><td>泛用 <span class="code">ID:</span> 標籤，但排除含 <span class="code">kiosk</span>／<span class="code">理帳號</span>／<span class="code">理帳号</span> 字樣的那一行（屬代理帳號欄位，非玩家帳號）</td></tr>
+          <tr><td>4</td><td>訊息中獨立一行、6～20 碼英數字代碼，且<strong>非純數字</strong>（純數字通常是注單編號/Ticket，不是帳號）</td></tr>
         </tbody>
       </table>
 

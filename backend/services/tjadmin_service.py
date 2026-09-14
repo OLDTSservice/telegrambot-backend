@@ -110,6 +110,11 @@ _LABELED_PATTERNS = (
 # 泛用「ID：」標籤（比對到單獨的 ID 欄位，例如「ID : QOGABAE011O2」），但要排除掉
 # Kiosk ID／理帳號這種代理帳號欄位——那不是玩家帳號。
 _GENERIC_ID_RE = re.compile(r'(?<!kiosk )(?<!agent )\bid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE)
+# 特定廠商固定格式：帳號包在全形【】內，且可能出現在句子中間（非獨立一行），
+# 例如「麻烦查询【 3027agent578315539 】於【JILI - 棋牌】近7日的投注是否...」。
+# 只比對【】內「純英數字（含底線）」的內容——「JILI - 棋牌」這種含中文/空格/連字號的
+# 內容不會命中，天然排除掉同句其他用【】標示的欄位（如遊戲名稱）。
+_BRACKETED_ACCOUNT_RE = re.compile(r'【\s*([A-Za-z0-9_]{6,20})\s*】')
 # 整行就是一個獨立代碼：6-20 碼英數字（含底線少見但保留彈性），且訊息本身沒有明確欄位標籤時的保底規則。
 _BARE_LINE_RE = re.compile(r'^[A-Za-z0-9]{6,20}$')
 
@@ -119,13 +124,17 @@ _KIOSK_LINE_MARKERS = ("kiosk", "理账号", "理帳號")
 def extract_account(text: str):
     """從訊息裡擷取玩家帳號候選字串（給 API 的 name 參數用）。
     依序嘗試：1. 具體欄位標籤（Player ID / Member username / Player）
-             2. 泛用 ID 標籤（排除 Kiosk/理帳號那一行）
-             3. 整行只有一個 6-20 碼英數字代碼、且不是純數字（純數字通常是注單編號/Ticket，不是帳號）
+             2. 全形【】包住的純英數字帳號（特定廠商固定格式，帳號可能在句子中間）
+             3. 泛用 ID 標籤（排除 Kiosk/理帳號那一行）
+             4. 整行只有一個 6-20 碼英數字代碼、且不是純數字（純數字通常是注單編號/Ticket，不是帳號）
     找不到時回傳 None，呼叫端應視為「偵測到查詢意圖但擷取不到帳號」，直接轉人工。"""
     for pat in _LABELED_PATTERNS:
         m = pat.search(text)
         if m:
             return m.group(1)
+    m = _BRACKETED_ACCOUNT_RE.search(text)
+    if m and not m.group(1).isdigit():
+        return m.group(1)
     for line in text.splitlines():
         low = line.lower()
         if any(marker in low or marker in line for marker in _KIOSK_LINE_MARKERS):
