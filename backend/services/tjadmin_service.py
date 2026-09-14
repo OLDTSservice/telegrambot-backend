@@ -100,11 +100,15 @@ def detect_netwin_query_request(text: str) -> bool:
     return any(kw.lower() in lower for kw in _NETWIN_TRIGGER_WORDS)
 
 
-# 具體欄位標籤（依優先順序）：Player ID / Member username / Game Account / Player
+# 具體欄位標籤（依優先順序）：Player ID / Member username / Game Account / User ID / Player。
+# 「Player:」刻意放在最後——有些廠商會同時列「Player: 暱稱」與「User ID: 帳號」兩行，
+# 前者是玩家顯示名稱、不是可查詢的帳號（查了會 zero_match），後者才是實際帳號，
+# 所以具體的 XxxID 類標籤要排在籠統的「Player:」之前，才能優先擷取到正確帳號。
 _LABELED_PATTERNS = (
     re.compile(r'player\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'member\s*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'game\s*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'user\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」／中文「帳號：」標籤（比對到單獨的帳號欄位，例如「ID : QOGABAE011O2」
