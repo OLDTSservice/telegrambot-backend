@@ -1303,9 +1303,10 @@ class BotManager:
                                     else:
                                         _save_netwin_log(bot_id, chat_id, chat_name, chat_type, _nw_account, 1, _nw_netwin, "over_rtp_threshold", db, rtp=_nw_rtp)
 
-                if not _nw_is_auto and bool(_group_setting.silent_no_answer if _group_setting else False):
-                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db)
-                    return
+                # 查輸贏回覆刻意不套用「找不到答案時靜默」——自動回覆本身已有
+                # netwin_reply_delay_seconds 延遲，若查無結果時又靜默不回覆，兩者疊加會讓
+                # 人員誤以為訊息仍在延遲回覆中，錯過真正需要人工確認的查輸贏請求。這類訊息
+                # 一律回覆，讓人員能立即看到「已轉人工」的提示，不會被靜默設定吃掉。
                 if _nw_is_auto:
                     # 查詢到結果並符合自動回覆條件時，刻意延遲數秒再回覆，避免速度過快讓廠商
                     # 懷疑機器人根本沒有真的去查（延遲秒數可於後台調整，預設 30 秒）。

@@ -1420,6 +1420,12 @@
       </table>
       <p style="font-size:13.5px;color:#666">除 <span class="code">auto_replied</span> 外，其餘所有 outcome 都會被計入「未查詢的次數」統計，並依訊息語言回覆一般 Fallback 轉人工訊息，不會建立 Freshdesk 工單。</p>
 
+      <div class="callout warn">
+        <strong>查輸贏回覆不受群組「找不到答案時靜默」設定影響</strong>
+        知識庫等其他機制找不到答案時，若群組已開啟<a href="#kb-skip">「找不到答案時靜默」</a>就會完全不回覆；但查輸贏回覆<strong>刻意排除在這個靜默規則之外</strong>——不論該群組有沒有開靜默，只要偵測到查輸贏請求，一律會回覆（查詢成功且達標時延遲回覆固定內容，其餘情況立即回覆制式轉人工訊息）。
+        這是因為自動回覆本身已有 <span class="code">netwin_reply_delay_seconds</span> 延遲，如果查無結果時又疊加靜默不回覆，兩種「暫時看起來沒反應」的情況混在一起，容易讓人員誤以為訊息還在延遲回覆中，因而錯過真正需要人工確認的查輸贏請求。程式碼位置：<span class="code">backend/services/telegram_service.py</span>「0.9 查輸贏回覆」區塊。
+      </div>
+
       <div class="callout danger">
         <strong>帳密與金鑰資訊</strong>
         tjadmin API 完整金鑰屬機密資訊，僅在產生當下顯示一次，請向平台人員索取；金鑰不會寫在程式碼明碼或此文件中，請勿外流。
