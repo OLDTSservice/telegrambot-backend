@@ -108,12 +108,17 @@ def detect_netwin_query_request(text: str) -> bool:
 # 「玩家ID：」這種中文字直接接英文 ID（無空格）的寫法，不能用泛用 _GENERIC_ID_RE 的
 # \bid 比對到——Python 的 \w／\b 把中文字也視為單字字元，「家」和「I」之間沒有字界，
 # 所以需要獨立列一條明確比對「玩家」+ID 的規則。
+# 兩個英文字之間的分隔詞用 [\s_-]*（可以是空白、底線或連字號、也可以完全沒有），
+# 涵蓋「Player ID」「Player_ID」「Player-ID」「PlayerID」這幾種常見寫法——底線同樣
+# 是\w字元，跟中文字一樣會讓 _GENERIC_ID_RE 的 \bid 找不到字界，所以直接在這裡的
+# 具體標籤放寬分隔詞，而不是去動泛用規則（避免放寬泛用規則後誤抓到「遊戲ID」這類
+# 不是玩家帳號的欄位）。
 _LABELED_PATTERNS = (
-    re.compile(r'player\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'玩家\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'member\s*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'game\s*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'user\s*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'player[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'玩家[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'member[\s_-]*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'game[\s_-]*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'user[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」／中文「帳號：」標籤（比對到單獨的帳號欄位，例如「ID : QOGABAE011O2」
