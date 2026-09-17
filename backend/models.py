@@ -317,22 +317,99 @@ class TicketCreationLog(Base):
 
 # ── Teams Bot ──────────────────────────────────────────────────────────────
 class TeamsBot(Base):
+    """Teams 機器人 = 一個 Teams「個人帳號」。
+
+    不走 Azure Bot Framework，而是用裝置代碼登入該個人帳號後，以 Teams 網頁版同一條權杖鏈
+    （refresh token → skypetoken）輪詢它所在群組的訊息並回覆。refresh token 等同帳號密碼，
+    每次續期都會換新（滾動更新），watcher 拿到新的一定要寫回這裡。
+    """
     __tablename__ = "teams_bots"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    app_id = Column(String(255), nullable=False)        # Azure App Registration Client ID
-    app_password = Column(String(500), nullable=False)  # Azure App Registration Client Secret
-    tenant_id = Column(String(255), nullable=True)      # 空白 = 多租戶
+    # 舊版 Azure Bot Framework 欄位，已不再使用；保留只為相容既有資料表（SQLite 無法直接刪欄位）
+    app_id = Column(String(255), nullable=True, default="")
+    app_password = Column(String(500), nullable=True, default="")
+    tenant_id = Column(String(255), nullable=True)
     is_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    refresh_token = Column(Text, nullable=True)            # MSA refresh token（機密，滾動更新）
+    account_mri = Column(String(128), nullable=True)       # 8:live:.cid.xxxx，用來略過自己發的訊息
+    account_name = Column(String(255), nullable=True)      # 登入時 id_token 的 name
+    account_email = Column(String(255), nullable=True)     # 登入時 id_token 的 preferred_username
+    poll_interval_sec = Column(Integer, default=20)        # 輪詢間隔；伺服器限 15 次/分，別低於 10 秒
+    whitelist_enabled = Column(Boolean, default=False)     # 後台白名單自動處理開關
+    # log_only：只偵測、寫紀錄，不打後台、不回覆（上線前觀察誤判用）
+    # no_reply：打後台加白、寫紀錄，但不在群組回覆
+    # full：打後台 + 回覆 Done / 拒絕訊息 + 建工單
+    whitelist_mode = Column(String(16), default="full")
+    last_poll_at = Column(DateTime, nullable=True)         # watcher 最後一次成功輪詢時間
+    last_error = Column(Text, nullable=True)               # watcher 最近一次錯誤（登入失效等），成功後清空
 
     keyword_rules = relationship("TeamsKeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("TeamsKnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
     usage_stats = relationship("TeamsUsageStat", back_populates="bot", cascade="all, delete-orphan")
     ignores = relationship("TeamsIgnore", back_populates="bot", cascade="all, delete-orphan")
     group_stats = relationship("TeamsGroupStat", back_populates="bot", cascade="all, delete-orphan")
+    group_settings = relationship("TeamsGroupSetting", back_populates="bot", cascade="all, delete-orphan")
+    watch_states = relationship("TeamsWatchState", back_populates="bot", cascade="all, delete-orphan")
+    whitelist_logs = relationship("TeamsWhitelistLog", back_populates="bot", cascade="all, delete-orphan")
+
+
+class TeamsGroupSetting(Base):
+    """Teams 每個群組的設定（欄位對齊 TelegramGroupSetting 的白名單相關設定）"""
+    __tablename__ = "teams_group_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    chat_id = Column(String(128), nullable=False)             # 19:xxx@thread.v2 / @thread.skype
+    chat_name = Column(String(255), nullable=True)
+    watch_enabled = Column(Boolean, default=True)             # 是否監看此群（關閉 = 完全不讀取，省額度）
+    whitelist_vendor_check = Column(Boolean, default=False)
+    whitelist_allowed_vendors = Column(Text, nullable=True)
+    single_vendor_mode = Column(Boolean, default=False)
+    single_vendor_name = Column(String(128), nullable=True)
+    relaxed_bo_detect = Column(Boolean, default=False)
+    ticket_creation_enabled = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("TeamsBot", back_populates="group_settings")
+
+
+class TeamsWatchState(Base):
+    """watcher 每群「讀到哪一則」：只處理 id 大於 last_msg_id 的訊息（訊息 id 是毫秒時間戳，單調遞增）"""
+    __tablename__ = "teams_watch_states"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    chat_id = Column(String(128), nullable=False)
+    chat_name = Column(String(255), nullable=True)
+    last_msg_id = Column(String(32), default="0")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    bot = relationship("TeamsBot", back_populates="watch_states")
+
+
+class TeamsWhitelistLog(Base):
+    """Teams 後台白名單自動處理記錄"""
+    __tablename__ = "teams_whitelist_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    chat_id = Column(String(128), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    msg_id = Column(String(32), nullable=True)          # 觸發的 Teams 訊息 id（合併申請時為最後一則）
+    sender = Column(String(255), nullable=True)
+    vendor_name = Column(String(64), nullable=False)
+    full_username = Column(String(255), nullable=True)
+    ip_list = Column(Text, nullable=False)
+    status = Column(String(16), default="success")     # success / failed / rejected / log_only
+    reply_sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TeamsBot", back_populates="whitelist_logs")
 
 
 class TeamsKeywordRule(Base):

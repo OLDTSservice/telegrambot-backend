@@ -250,33 +250,76 @@ class StatsSummary(BaseModel):
 
 
 # ── TeamsBot ───────────────────────────────────────
-class TeamsBotBase(BaseModel):
-    name: str
-    app_id: str
-    app_password: str
-    tenant_id: Optional[str] = None
-
-
-class TeamsBotCreate(TeamsBotBase):
-    pass
-
-
 class TeamsBotUpdate(BaseModel):
     name: Optional[str] = None
-    app_id: Optional[str] = None
-    app_password: Optional[str] = None
-    tenant_id: Optional[str] = None
     is_enabled: Optional[bool] = None
+    whitelist_enabled: Optional[bool] = None
+    whitelist_mode: Optional[str] = None       # log_only / no_reply / full
+    poll_interval_sec: Optional[int] = None
 
 
 class TeamsBotOut(BaseModel):
     id: int
     name: str
-    app_id: str
-    tenant_id: Optional[str]
+    account_mri: Optional[str] = None
+    account_name: Optional[str] = None
+    account_email: Optional[str] = None
     is_enabled: bool
+    whitelist_enabled: bool = False
+    whitelist_mode: str = "full"
+    poll_interval_sec: int = 20
+    logged_in: bool = False       # 有 refresh token
+    running: bool = False         # watcher thread 存活中
+    last_poll_at: Optional[datetime] = None
+    last_error: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeamsLoginStartIn(BaseModel):
+    name: Optional[str] = None    # 新增機器人時的名稱；重新登入既有機器人時可省略
+
+
+class TeamsGroupOut(BaseModel):
+    chat_id: str
+    chat_name: str
+    last_message_at: Optional[str] = None
+    last_message_preview: Optional[str] = None
+    watch_enabled: bool = True
+    whitelist_vendor_check: bool = False
+    whitelist_allowed_vendors: Optional[str] = None
+    single_vendor_mode: bool = False
+    single_vendor_name: Optional[str] = None
+    relaxed_bo_detect: bool = False
+    ticket_creation_enabled: bool = True
+
+
+class TeamsGroupUpdateIn(BaseModel):
+    chat_name: Optional[str] = None
+    watch_enabled: Optional[bool] = None
+    whitelist_vendor_check: Optional[bool] = None
+    whitelist_allowed_vendors: Optional[str] = None
+    single_vendor_mode: Optional[bool] = None
+    single_vendor_name: Optional[str] = None
+    relaxed_bo_detect: Optional[bool] = None
+    ticket_creation_enabled: Optional[bool] = None
+
+
+class TeamsWhitelistLogOut(BaseModel):
+    id: int
+    chat_id: str
+    chat_name: str
+    msg_id: Optional[str] = None
+    sender: Optional[str] = None
+    vendor_name: str
+    full_username: Optional[str] = None
+    ip_list: str
+    status: str
+    reply_sent: bool = False
+    created_at: datetime
 
     class Config:
         from_attributes = True

@@ -59,9 +59,18 @@ export const getStats = (params = { days: 30 }) => api.get('/stats', { params })
 
 // ── Teams Bots ─────────────────────────────────
 export const getTeamsBots = () => api.get('/teams-bots')
-export const createTeamsBot = d => api.post('/teams-bots', d)
 export const updateTeamsBot = (id, d) => api.put(`/teams-bots/${id}`, d)
 export const deleteTeamsBot = id => api.delete(`/teams-bots/${id}`)
+export const restartTeamsBot = id => api.post(`/teams-bots/${id}/restart`)
+// 裝置代碼登入：start 回 {session_id, user_code, verification_uri}；status 輪詢到 success 即完成
+export const teamsLoginStart = (name, botId) =>
+  api.post('/teams-bots/login/start', { name }, { params: botId ? { bot_id: botId } : {} })
+export const teamsLoginStatus = sessionId => api.get(`/teams-bots/login/status/${sessionId}`)
+export const getTeamsGroups = botId => api.get(`/teams-bots/${botId}/groups`)
+export const updateTeamsGroup = (botId, chatId, d) =>
+  api.put(`/teams-bots/${botId}/groups/${encodeURIComponent(chatId)}`, d)
+export const getTeamsWhitelistLogs = (botId, limit = 50) =>
+  api.get(`/teams-bots/${botId}/whitelist-logs`, { params: { limit } })
 
 // ── Teams Rules ────────────────────────────────
 export const getTeamsRules = () => api.get('/teams-rules')

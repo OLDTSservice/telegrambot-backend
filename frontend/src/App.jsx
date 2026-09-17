@@ -24,6 +24,7 @@ import TelegramLivePage from './pages/TelegramLivePage'
 import WhitelistPage from './pages/WhitelistPage'
 import NetwinPage from './pages/NetwinPage'
 import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
+import TeamsWhitelistPage from './pages/TeamsWhitelistPage'
 import TelegramBotAdminPage from './pages/TelegramBotAdminPage'
 
 const { Sider, Header, Content } = Layout
@@ -93,6 +94,7 @@ export default function App() {
         { key: '/teams/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
         { key: '/teams/ignores', icon: <StopOutlined />, label: '忽略名單' },
         { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
+        { key: '/teams/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
       ],
     },
     { key: '/stats', icon: <BarChartOutlined />, label: '使用量統計' },
@@ -175,6 +177,7 @@ export default function App() {
             <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />
             <Route path="/teams/ignores" element={<TeamsIgnorePage user={user} />} />
             <Route path="/teams/reply-stats" element={<TeamsReplyStatsPage />} />
+            <Route path="/teams/whitelist" element={<TeamsWhitelistPage user={user} />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/users" element={<UsersPage user={user} />} />
             <Route path="*" element={<Navigate to="/telegram/bots" replace />} />

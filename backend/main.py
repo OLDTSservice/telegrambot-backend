@@ -60,6 +60,16 @@ def _migrate_columns():
         "ALTER TABLE telegram_bots ADD COLUMN netwin_reply_delay_seconds INTEGER DEFAULT 30",
         "ALTER TABLE telegram_bots ADD COLUMN netwin_rtp_threshold FLOAT",
         "ALTER TABLE netwin_query_logs ADD COLUMN rtp FLOAT",
+        # Teams 機器人改為個人帳號輪詢模式
+        "ALTER TABLE teams_bots ADD COLUMN refresh_token TEXT",
+        "ALTER TABLE teams_bots ADD COLUMN account_mri VARCHAR(128)",
+        "ALTER TABLE teams_bots ADD COLUMN account_name VARCHAR(255)",
+        "ALTER TABLE teams_bots ADD COLUMN account_email VARCHAR(255)",
+        "ALTER TABLE teams_bots ADD COLUMN poll_interval_sec INTEGER DEFAULT 20",
+        "ALTER TABLE teams_bots ADD COLUMN whitelist_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE teams_bots ADD COLUMN whitelist_mode VARCHAR(16) DEFAULT 'full'",
+        "ALTER TABLE teams_bots ADD COLUMN last_poll_at DATETIME",
+        "ALTER TABLE teams_bots ADD COLUMN last_error TEXT",
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -152,6 +162,12 @@ async def lifespan(app: FastAPI):
             db.close()
     except Exception as e:
         logger.warning(f"Telegram 機器人啟動失敗（API 服務仍可正常使用）：{e}")
+    # 啟動 Teams 個人帳號 watcher（每個啟用且已登入的帳號一條輪詢 thread）
+    try:
+        from services.teams_service import start_all_enabled_watchers
+        start_all_enabled_watchers()
+    except Exception as e:
+        logger.warning(f"Teams watcher 啟動失敗（API 服務仍可正常使用）：{e}")
     # 啟動 AI 救援背景排程
     try:
         from services.rescue_service import rescue_loop
