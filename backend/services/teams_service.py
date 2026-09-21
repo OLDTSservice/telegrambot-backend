@@ -524,11 +524,11 @@ class TeamsWatcher(threading.Thread):
 
     # ---- 白名單 ----
     def _try_whitelist(self, db, bot, setting, chat_id, chat_name, m, sender_mri, sender_name, text):
-        from services.telegram_service import _is_application_form
+        from services.telegram_service import _is_application_form, _is_staging_environment_request
         from services.whitelist_service import (_IP_RE, _WHITELIST_WORDS, _has_backend_indicator,
                                                 detect_whitelist_request)
 
-        if _is_application_form(text):
+        if _is_application_form(text) or _is_staging_environment_request(text):
             return
         relaxed = bool(setting.relaxed_bo_detect if setting else False)
         key = (chat_id, sender_mri)
