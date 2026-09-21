@@ -1031,10 +1031,16 @@
 
       <h3>自動偵測與比對規則</h3>
       <p style="color:var(--text-secondary); font-size:13.5px; margin-top:-4px">
-        整體流程分成四大階段，由上而下依序判斷：<strong>① 排除表單 → ② 判斷是否為白名單請求 → ③ 解析帳號 → ④ 比對廠商</strong>。
+        整體流程分成五大階段，由上而下依序判斷：<strong>⓪ 排除測試/UAT環境 → ① 排除表單 → ② 判斷是否為白名單請求 → ③ 解析帳號 → ④ 比對廠商</strong>。
       </p>
 
-      <h4 style="margin-top:22px">① 申請表單格式排除（最優先）</h4>
+      <h4 style="margin-top:22px">⓪ 測試／UAT 環境排除（比①更優先）</h4>
+      <div class="callout warn" style="margin-top:8px">
+        目前只設定了一套<strong>正式環境</strong>白名單站點（單一網域＋單一組登入憑證，沒有對應的測試環境站點），若廠商訊息裡提到 <span class="code">staging</span>／<span class="code">測試</span>／<span class="code">测试</span>／<span class="code">test</span>／<span class="code">uat</span> 等字樣，一律<strong>完全跳過</strong>白名單自動處理（連下方「② 觸發關鍵字」都不會判斷），改走一般流程轉人工——因為系統根本沒有第二套站點可以對應，而不是去猜「這是哪個環境」。<br>
+        <span class="code">test</span>／<span class="code">uat</span> 只有 3-4 個字母，採單字邊界比對，不會誤判 <span class="code">latest</span>／<span class="code">testing</span>／<span class="code">contest</span> 等字（比照下方「bo 縮寫」的處理方式）；中文與 <span class="code">staging</span> 較長、不易在其他語境下誤判，直接子字串比對即可。
+      </div>
+
+      <h4>① 申請表單格式排除</h4>
       <div class="callout" style="margin-top:8px">
         訊息若符合<a href="#flow-length">「申請表單格式」</a>（≥3 行「數字編號＋冒號欄位」，例如結構化的 AGENT 開戶申請單），
         一律<strong>不進入</strong>白名單偵測與比對，即使訊息裡也提到後台/白名單/IP 相關字樣，避免表單欄位值被誤當成代理帳號逐一嘗試比對廠商。

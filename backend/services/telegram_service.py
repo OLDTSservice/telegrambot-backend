@@ -283,6 +283,24 @@ def _is_mention_only_message(text: str) -> bool:
     return all(_BARE_MENTION_RE.match(tok) for tok in tokens)
 
 
+# 目前只設定了一套「正式環境」白名單站點（whitelist_service.SITE_BASE 只有一個網域/
+# 一組登入憑證，沒有對應的測試環境站點），若廠商訊息裡明確提到測試/UAT環境，卻仍照常
+# 執行白名單自動化，會把測試環境用的 IP 誤加進正式環境白名單。偵測到即完全跳過白名單
+# 自動處理（連 detect_whitelist_request 都不呼叫），改走一般流程轉人工，而不是嘗試判斷
+# 「這是哪個環境」再去猜對應站點——因為目前根本沒有第二套站點可以猜。
+# "test"／"uat" 只有 3-4 個字母，需要單字邊界比對避免誤判到 latest/testing/contest 等字
+# （比照 whitelist_service._BO_ABBR_RE 對 "bo" 縮寫的處理方式）；中文與 "staging" 較長、
+# 不易在其他語境下誤判，直接子字串比對即可。
+_STAGING_ENV_MARKERS = ("staging", "測試", "测试")
+_STAGING_ENV_WORD_RE = re.compile(r'\b(?:test|uat)\b', re.IGNORECASE)
+
+
+def _is_staging_environment_request(text: str) -> bool:
+    """訊息是否提及測試／UAT 環境（用於跳過白名單自動處理，見上方常數說明）。"""
+    lower = text.lower()
+    return any(marker in lower for marker in _STAGING_ENV_MARKERS) or bool(_STAGING_ENV_WORD_RE.search(text))
+
+
 def _is_application_form(text: str) -> bool:
     """
     偵測結構化申請表單/客服工單，符合任一即視為表單：
@@ -1049,7 +1067,7 @@ class BotManager:
                 if v.strip()
             ]
 
-        if bot_record.whitelist_enabled and not _is_application_form(text):
+        if bot_record.whitelist_enabled and not _is_application_form(text) and not _is_staging_environment_request(text):
             from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
             _relaxed_bo = bool(_group_setting.relaxed_bo_detect if _group_setting else False)
             if detect_whitelist_request(text, relaxed=_relaxed_bo):
