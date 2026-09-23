@@ -158,6 +158,8 @@ def extract_account(text: str):
              2. 全形【】包住的純英數字帳號（特定廠商固定格式，帳號可能在句子中間）
              3. 泛用 ID 標籤／中文「帳號：」「會員：」標籤（排除 Kiosk/理帳號/理會員那一行）
              4. 整行只有一個 6-20 碼英數字代碼（先去除頭尾括號/標點）、且不是純數字（純數字通常是注單編號/Ticket，不是帳號）
+             5. 上一步整行比對不到時，改取該行以空白分隔後的「第一段」是否符合同樣格式
+                （帳號本身不會有空白，常見於帳號後面用空白加註代理/暱稱等備註）
     找不到時回傳 None，呼叫端應視為「偵測到查詢意圖但擷取不到帳號」，直接轉人工。"""
     for pat in _LABELED_PATTERNS:
         m = pat.search(text)
@@ -177,5 +179,21 @@ def extract_account(text: str):
     for line in text.splitlines():
         candidate = line.strip().strip(_BARE_LINE_STRIP_CHARS)
         if _BARE_LINE_RE.match(candidate) and not candidate.isdigit():
+            return candidate
+    # 帳號本身不會有空白：若整行不是純帳號代碼（上一步比對失敗），但用空白分隔後的
+    # 「第一段」本身符合帳號格式，視為候選帳號——常見於廠商在帳號後面用空白加註代理/
+    # 暱稱等備註，例如「2wf247934084 - mgmpt53」。刻意排在整行比對「之後」（優先權較低），
+    # 只在整行比對不到時才用，避免影響原本就能整行比對到的既有案例。
+    # 這條規則比整行比對更鬆（只需要「第一段」符合，不要求整行），額外要求候選字串要
+    # 同時含英文字母與數字（純英文單字不算），避免訊息裡剛好有某一行是以一般英文單字
+    # 開頭（例如訊息本身用「please help check...」開頭）時被誤判成帳號——目前看到的
+    # 實際帳號範例都是英數混合，沒有純英文或純數字的情況。
+    for line in text.splitlines():
+        tokens = line.strip().split()
+        if not tokens:
+            continue
+        candidate = tokens[0].strip(_BARE_LINE_STRIP_CHARS)
+        if (_BARE_LINE_RE.match(candidate) and not candidate.isdigit()
+                and not candidate.isalpha()):
             return candidate
     return None

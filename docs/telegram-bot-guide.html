@@ -1351,7 +1351,7 @@
       </div>
 
       <h4>② 擷取玩家帳號（<span class="code">extract_account()</span>）</h4>
-      <p style="margin-bottom:8px">依序嘗試以下規則，找到即回傳；四者皆找不到時視為「偵測到查詢意圖但擷取不到帳號」（<span class="code">no_account</span>），直接轉人工：</p>
+      <p style="margin-bottom:8px">依序嘗試以下規則，找到即回傳；全部找不到時視為「偵測到查詢意圖但擷取不到帳號」（<span class="code">no_account</span>），直接轉人工：</p>
       <table>
         <thead><tr><th style="width:70px">順序</th><th>規則</th></tr></thead>
         <tbody>
@@ -1359,6 +1359,7 @@
           <tr><td>2</td><td>全形【】包住的純英數字帳號，例如 <span class="code">【 3027agent578315539 】</span>；帳號可能出現在句子<strong>中間</strong>、不需獨立成行（特定廠商固定查詢格式）。同句若還有【】包住的其他欄位（例如遊戲名稱 <span class="code">【JILI - 棋牌】</span>）因含中文/空格/連字號不符合純英數字規則，不會誤命中；括號內若是<strong>純數字</strong>（如注單編號）也會排除，理由同下方規則 4。</td></tr>
           <tr><td>3</td><td>泛用 <span class="code">ID:</span> 標籤，或中文「帳號：」／「會員：」類標籤（例如 <span class="code">玩家賬號 : 2n3401167716</span>、<span class="code">查詢會員：0zm102922342</span>，含簡繁「帳/賬/帐」與「號/戶/户」各種寫法，「玩家」／「查詢」前綴可省略——比對時不要求從行首開始，「詢會員：」「查詢會員：」這種標籤前面還有其他字的寫法一樣找得到），但排除含 <span class="code">kiosk</span>／<span class="code">理帳號</span>／<span class="code">理賬號</span>／<span class="code">理會員</span> 等「理＋帳號類字」字樣的那一行（屬代理帳號欄位，非玩家帳號）</td></tr>
           <tr><td>4</td><td>訊息中獨立一行、6～20 碼英數字代碼，且<strong>非純數字</strong>（純數字通常是注單編號/Ticket，不是帳號）。比對前會先去掉行首尾的括號（<span class="code">()</span>／<span class="code">[]</span>／<span class="code">{}</span>／全形括號等，即使只殘留單邊，例如複製訊息漏帶開頭「(」只剩結尾「)」的 <span class="code">0mi512052838)</span>）與常見標點，因為帳號本身不會含這些符號</td></tr>
+          <tr><td>5</td><td>規則 4 整行比對不到時，改取該行以空白分隔後的<strong>第一段</strong>是否符合同樣格式，例如 <span class="code">2wf247934084 - mgmpt53</span>（帳號後面用空白加註代理/暱稱等備註）取第一段 <span class="code">2wf247934084</span>。這條規則比規則 4 更寬鬆，額外要求候選字串要<strong>同時含英文字母與數字</strong>（純英文單字不算），避免訊息裡剛好有一行是以一般英文單字開頭（例如訊息用 <span class="code">please help check...</span> 開頭）時被誤判成帳號。</td></tr>
         </tbody>
       </table>
 
