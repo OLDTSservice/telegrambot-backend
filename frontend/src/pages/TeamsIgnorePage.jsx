@@ -76,7 +76,7 @@ export default function TeamsIgnorePage({ user }) {
       ),
     },
     {
-      title: '帳號識別碼', dataIndex: 'identifier',
+      title: '帳號識別碼（MRI／顯示名稱）', dataIndex: 'identifier',
       render: v => <Text code>{v}</Text>,
     },
     {
@@ -117,11 +117,15 @@ export default function TeamsIgnorePage({ user }) {
 
       <Alert
         type="warning" showIcon style={{ marginBottom: 16 }}
-        message="在此名單中的帳號，機器人將完全忽略其傳送的訊息（不回覆關鍵字也不觸發 AI）"
+        message="在此名單中的帳號，機器人將完全忽略其傳送的訊息（後台白名單與查輸贏回覆都不處理）"
         description={
           <span>
-            Teams 識別碼填入使用者的 <Text code>電子郵件</Text>（如 user@company.com）或
-            <Text code> AAD Object ID</Text>（可從 Azure AD 查詢）
+            識別碼請填發送者的 <Text code>MRI</Text>（例如 8:live:.cid.xxxxxxxx，建議）或 <Text code>Teams 顯示名稱</Text>，
+            不分大小寫、需完全相同。<strong>不支援 Email</strong>（Teams 訊息裡沒有 Email 可比對，填了不會生效）。
+            <br />
+            最簡單的方式：到「後台白名單處理」或「查輸贏回覆」的處理紀錄，點發送者旁的 <StopOutlined /> 一鍵加入（會自動帶入 MRI）。
+            顯示名稱在對方改名後會失效、同名的人也會一起被忽略；MRI 不受影響。
+            登入帳號自己發的訊息會自動略過，不需加入。
           </span>
         }
       />
@@ -151,10 +155,10 @@ export default function TeamsIgnorePage({ user }) {
           </Form.Item>
           <Form.Item
             name="identifier"
-            label="帳號識別碼（使用者 Email 或 AAD Object ID）"
+            label="帳號識別碼（發送者 MRI 或 Teams 顯示名稱）"
             rules={[{ required: true, message: '請輸入識別碼' }]}
           >
-            <Input placeholder="例如：user@company.com 或 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+            <Input placeholder="例如：8:live:.cid.1a2b3c4d5e6f7g8h 或 Service on call" />
           </Form.Item>
           <Form.Item name="note" label="備註（選填）">
             <Input placeholder="例如：廣告帳號、已離職員工" />

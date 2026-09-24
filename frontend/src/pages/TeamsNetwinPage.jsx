@@ -3,6 +3,7 @@ import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button, E
 import { ReloadOutlined } from '@ant-design/icons'
 import { getTeamsBots, updateTeamsBot, getTeamsNetwinLogs, getBots } from '../api'
 import { formatDateTime } from '../utils/datetime'
+import TeamsSenderCell from '../components/TeamsSenderCell'
 
 const { Text } = Typography
 
@@ -31,7 +32,7 @@ const MODES = [
 
 const columns = [
   { title: '群組名稱', dataIndex: 'chat_name', key: 'chat_name', ellipsis: true },
-  { title: '發送者', dataIndex: 'sender', key: 'sender', width: 140, ellipsis: true },
+  { title: '發送者', dataIndex: 'sender', key: 'sender', width: 210 },
   {
     title: '擷取到的帳號', dataIndex: 'extracted_account', key: 'extracted_account', width: 170,
     render: v => <span style={{ fontFamily: 'monospace' }}>{v || '-'}</span>,
@@ -78,6 +79,10 @@ export default function TeamsNetwinPage({ user }) {
       message.success(okMsg)
     } catch (e) { message.error(e.response?.data?.detail || '更新失敗') }
   }
+
+  const logColumns = columns.map(c => c.key !== 'sender' ? c : {
+    ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEdit} />,
+  })
 
   const fetchLogs = async () => {
     if (!botId) return
@@ -168,8 +173,8 @@ export default function TeamsNetwinPage({ user }) {
           </Card>
 
           <Card size="small" title="最近 50 筆處理紀錄">
-            <Table rowKey="id" dataSource={logs} columns={columns} loading={loading} size="small"
-              pagination={false} scroll={{ x: 1150 }} locale={{ emptyText: '尚無處理紀錄' }} />
+            <Table rowKey="id" dataSource={logs} columns={logColumns} loading={loading} size="small"
+              pagination={false} scroll={{ x: 1230 }} locale={{ emptyText: '尚無處理紀錄' }} />
           </Card>
         </>
       )}

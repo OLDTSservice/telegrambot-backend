@@ -413,6 +413,7 @@ class TeamsWhitelistLog(Base):
     chat_name = Column(String(255), nullable=False)
     msg_id = Column(String(32), nullable=True)          # 觸發的 Teams 訊息 id（合併申請時為最後一則）
     sender = Column(String(255), nullable=True)
+    sender_mri = Column(String(128), nullable=True)     # 發送者 MRI（8:live:… / 8:orgid:…），可直接加入忽略名單
     vendor_name = Column(String(64), nullable=False)
     full_username = Column(String(255), nullable=True)
     ip_list = Column(Text, nullable=False)
@@ -434,6 +435,7 @@ class TeamsNetwinLog(Base):
     chat_name = Column(String(255), nullable=False)
     msg_id = Column(String(32), nullable=True)
     sender = Column(String(255), nullable=True)
+    sender_mri = Column(String(128), nullable=True)
     extracted_account = Column(String(255), nullable=True)
     match_count = Column(Integer, nullable=True)
     netwin_2d_thb = Column(Float, nullable=True)
@@ -511,7 +513,7 @@ class TeamsIgnore(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
-    identifier = Column(String(255), nullable=False)   # Teams 使用者 email 或 AAD Object ID
+    identifier = Column(String(255), nullable=False)   # 發送者 MRI（8:live:.cid.xxx）或 Teams 顯示名稱，不分大小寫完全比對
     note = Column(String(500), nullable=True)
     is_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

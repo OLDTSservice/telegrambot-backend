@@ -3,6 +3,7 @@ import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button, E
 import { ReloadOutlined } from '@ant-design/icons'
 import { getTeamsBots, updateTeamsBot, getTeamsWhitelistLogs } from '../api'
 import { formatDateTime } from '../utils/datetime'
+import TeamsSenderCell from '../components/TeamsSenderCell'
 
 const { Text } = Typography
 
@@ -21,7 +22,7 @@ const MODES = [
 
 const columns = [
   { title: '群組名稱', dataIndex: 'chat_name', key: 'chat_name', ellipsis: true },
-  { title: '發送者', dataIndex: 'sender', key: 'sender', width: 140, ellipsis: true },
+  { title: '發送者', dataIndex: 'sender', key: 'sender', width: 210 },
   { title: '廠商名稱', dataIndex: 'vendor_name', key: 'vendor_name', width: 110 },
   {
     title: '代理帳號', dataIndex: 'full_username', key: 'full_username', width: 180,
@@ -63,6 +64,10 @@ export default function TeamsWhitelistPage({ user }) {
     } catch (e) { message.error(e.response?.data?.detail || '更新失敗') }
   }
 
+  const logColumns = columns.map(c => c.key !== 'sender' ? c : {
+    ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEdit} />,
+  })
+
   const fetchLogs = async () => {
     if (!botId) return
     setLoading(true)
@@ -103,8 +108,8 @@ export default function TeamsWhitelistPage({ user }) {
         <Card><Empty description="請先選擇機器人" style={{ padding: 48 }} /></Card>
       ) : (
         <Card size="small" title="最近 50 筆處理紀錄">
-          <Table rowKey="id" dataSource={logs} columns={columns} loading={loading} size="small"
-            pagination={false} scroll={{ x: 1000 }} locale={{ emptyText: '尚無處理紀錄' }} />
+          <Table rowKey="id" dataSource={logs} columns={logColumns} loading={loading} size="small"
+            pagination={false} scroll={{ x: 1080 }} locale={{ emptyText: '尚無處理紀錄' }} />
         </Card>
       )}
     </div>

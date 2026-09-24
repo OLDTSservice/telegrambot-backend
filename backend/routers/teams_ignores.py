@@ -18,13 +18,16 @@ def create_teams_ignore(payload: schemas.TeamsIgnoreCreate, db: Session = Depend
     bot = db.query(models.TeamsBot).filter(models.TeamsBot.id == payload.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
+    identifier = (payload.identifier or "").strip()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="請輸入識別碼")
     existing = db.query(models.TeamsIgnore).filter(
         models.TeamsIgnore.bot_id == payload.bot_id,
-        models.TeamsIgnore.identifier == payload.identifier,
+        models.TeamsIgnore.identifier == identifier,
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="此帳號已在忽略名單中")
-    item = models.TeamsIgnore(**payload.model_dump())
+    item = models.TeamsIgnore(**{**payload.model_dump(), "identifier": identifier})
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -37,7 +40,7 @@ def update_teams_ignore(item_id: int, payload: schemas.TeamsIgnoreUpdate, db: Se
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")
     for field, value in payload.model_dump(exclude_none=True).items():
-        setattr(item, field, value)
+        setattr(item, field, value.strip() if field == "identifier" else value)
     db.commit()
     db.refresh(item)
     return item

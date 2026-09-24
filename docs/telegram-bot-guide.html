@@ -1448,6 +1448,7 @@
           <tr><td>回覆方式</td><td>以<strong>引用回覆＋@原發送者</strong>的方式回覆原訊息，延遲秒數與 Telegram 相同；倒數期間若總開關、模式或該群開關被關閉，會取消回覆。回覆成功後計入 Teams 回覆統計，並依該群「自動建立工單」開關建立 Freshdesk 工單。</td></tr>
           <tr><td>處理順序</td><td>同 Telegram：<strong>白名單優先</strong>，已被白名單流程處理的訊息不會再判斷查輸贏；白名單解析不出帳號/IP 的訊息才會繼續判斷查輸贏。</td></tr>
           <tr><td>重複處理</td><td>同一則 Teams 訊息只處理一次（依訊息 id 查重）。</td></tr>
+          <tr><td>忽略特定帳號</td><td>「Teams 機器人 → 忽略名單」中的帳號，訊息會被完全略過（白名單與查輸贏都不處理）；登入帳號自己發的訊息自動略過，不需加入。識別碼填發送者的 <strong>MRI</strong>（例如 <span class="code">8:live:.cid.xxxxxxxx</span>，建議）或 <strong>Teams 顯示名稱</strong>，不分大小寫、需完全相同；<strong>不支援 Email</strong>（Teams 訊息裡沒有 Email 可比對，填了不會生效）。顯示名稱在對方改名後會失效、同名者也會一起被忽略，MRI 則不受影響。最簡單的方式是在「後台白名單處理」或「查輸贏回覆」處理紀錄的「發送者」欄（會同時顯示顯示名稱與可複製的 MRI）點 ⊘ 按鈕一鍵加入，會自動帶入 MRI；功能上線前的舊紀錄沒有 MRI，會改以顯示名稱加入。</td></tr>
         </tbody>
       </table>
 

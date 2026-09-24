@@ -364,10 +364,11 @@ def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, 
 
 
 def _save_whitelist_log(db, bot_id, chat_id, chat_name, msg_id, sender, vendor_name, ips,
-                        status, full_username=None, reply_sent=False):
+                        status, full_username=None, reply_sent=False, sender_mri=None):
     import models
     db.add(models.TeamsWhitelistLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, msg_id=str(msg_id), sender=sender,
+        sender_mri=sender_mri,
         vendor_name=vendor_name, full_username=full_username, ip_list="\n".join(ips),
         status=status, reply_sent=reply_sent,
     ))
@@ -586,6 +587,7 @@ class TeamsWatcher(threading.Thread):
             allowed_vendors = [v.strip() for v in setting.whitelist_allowed_vendors.split(",") if v.strip()]
         ticket_enabled = bool(setting.ticket_creation_enabled if setting else True)
         is_chinese = bool(re.search(r"[一-鿿㐀-䶿]", text))
+        sender_mri, _ = _sender_of(m)       # 合併申請時 m 是最後一則，pending 以 (群, 發送者) 為鍵，同一人
 
         # 要跑哪些帳號：訊息有帳號 → 逐一；沒帳號但群組設了單一總代理 → 用總代理名稱
         jobs: list[tuple[list, Optional[str]]] = []
@@ -602,7 +604,8 @@ class TeamsWatcher(threading.Thread):
             for parts, forced in jobs:
                 _save_whitelist_log(db, bot.id, chat_id, chat_name, m["id"], sender_name,
                                     (parts[0] if parts else forced) or "unknown", ips, "log_only",
-                                    full_username="_".join(parts) if parts else f"(單一總代理：{forced})")
+                                    full_username="_".join(parts) if parts else f"(單一總代理：{forced})",
+                                    sender_mri=sender_mri)
             return True
 
         any_success = any_rejected = False
@@ -616,7 +619,8 @@ class TeamsWatcher(threading.Thread):
             _save_whitelist_log(db, bot.id, chat_id, chat_name, m["id"], sender_name,
                                 matched or (parts[0] if parts else forced) or "unknown", ips, status,
                                 full_username="_".join(parts) if parts else f"(單一總代理：{forced})",
-                                reply_sent=(mode == "full" and (success or rejected)))
+                                reply_sent=(mode == "full" and (success or rejected)),
+                                sender_mri=sender_mri)
             any_success |= success
             any_rejected |= rejected
 
@@ -666,7 +670,8 @@ class TeamsWatcher(threading.Thread):
             src = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot.netwin_source_bot_id).first()
 
         log = models.TeamsNetwinLog(bot_id=bot.id, chat_id=chat_id, chat_name=chat_name, msg_id=msg_id,
-                                    sender=sender_name, extracted_account=account, outcome="querying")
+                                    sender=sender_name, sender_mri=_sender_of(m)[0],
+                                    extracted_account=account, outcome="querying")
         if mode == "log_only":
             log.outcome = "log_only"
         elif not account:

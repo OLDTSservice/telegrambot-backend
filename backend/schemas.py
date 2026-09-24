@@ -322,6 +322,7 @@ class TeamsWhitelistLogOut(BaseModel):
     chat_name: str
     msg_id: Optional[str] = None
     sender: Optional[str] = None
+    sender_mri: Optional[str] = None
     vendor_name: str
     full_username: Optional[str] = None
     ip_list: str
@@ -339,6 +340,7 @@ class TeamsNetwinLogOut(BaseModel):
     chat_name: str
     msg_id: Optional[str] = None
     sender: Optional[str] = None
+    sender_mri: Optional[str] = None
     extracted_account: Optional[str] = None
     match_count: Optional[int] = None
     netwin_2d_thb: Optional[float] = None
