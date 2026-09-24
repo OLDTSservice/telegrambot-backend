@@ -344,7 +344,8 @@
       <a class="toc-link" href="#netwin-page">查輸贏回覆</a>
       <a class="toc-link toc-sub" href="#netwin-teams">— Teams 查輸贏回覆（共用設定）</a>
       <a class="toc-link" href="#rescue-detail">AI機器人救援（運作細節）</a>
-      <a class="toc-link" href="#stats-page">回覆統計</a>
+      <a class="toc-link" href="#stats-page">回覆工單統計</a>
+      <a class="toc-link toc-sub" href="#stats-teams">— Teams 回覆工單統計</a>
       <a class="toc-link" href="#usage-page">使用量統計</a>
       <a class="toc-link" href="#users-page">帳號管理</a>
     </div>
@@ -1445,7 +1446,7 @@
           <tr><td>總開關</td><td>Teams 機器人層級的「查輸贏回覆」開關，與 Telegram 端開關互相獨立。</td></tr>
           <tr><td>逐群開關</td><td>群組設定表的「查輸贏回覆」欄，<strong>預設全部關閉</strong>。一個 Teams 帳號會監看所在的所有群組，逐群開啟才能先只在測試群驗證，確認後再逐一開啟廠商群。總開關與該群開關<strong>都開啟</strong>才會處理。</td></tr>
           <tr><td>模式</td><td><span class="code">只記錄</span>：只偵測、擷取帳號並寫紀錄，不查 API、不回覆（觀察誤觸發用）／<span class="code">查詢但不回覆</span>：查 API、寫完整結果，不回覆／<span class="code">全自動</span>：查 API，符合門檻才回覆。預設為全自動（因逐群開關預設關閉，不會一開就影響廠商群）。</td></tr>
-          <tr><td>回覆方式</td><td>以<strong>引用回覆＋@原發送者</strong>的方式回覆原訊息，延遲秒數與 Telegram 相同；倒數期間若總開關、模式或該群開關被關閉，會取消回覆。回覆成功後計入 Teams 回覆統計，並依該群「自動建立工單」開關建立 Freshdesk 工單。</td></tr>
+          <tr><td>回覆方式</td><td>以<strong>引用回覆＋@原發送者</strong>的方式回覆原訊息，延遲秒數與 Telegram 相同；倒數期間若總開關、模式或該群開關被關閉，會取消回覆。回覆成功後計入 Teams 回覆工單統計，並依該群「自動建立工單」開關建立 Freshdesk 工單。</td></tr>
           <tr><td>處理順序</td><td>同 Telegram：<strong>白名單優先</strong>，已被白名單流程處理的訊息不會再判斷查輸贏；白名單解析不出帳號/IP 的訊息才會繼續判斷查輸贏。</td></tr>
           <tr><td>重複處理</td><td>同一則 Teams 訊息只處理一次（依訊息 id 查重）。</td></tr>
           <tr><td>忽略特定帳號</td><td>「Teams 機器人 → 忽略名單」中的帳號，訊息會被完全略過（白名單與查輸贏都不處理）；登入帳號自己發的訊息自動略過，不需加入。識別碼填發送者的 <strong>MRI</strong>（例如 <span class="code">8:live:.cid.xxxxxxxx</span>，建議）或 <strong>Teams 顯示名稱</strong>，不分大小寫、需完全相同；<strong>不支援 Email</strong>（Teams 訊息裡沒有 Email 可比對，填了不會生效）。顯示名稱在對方改名後會失效、同名者也會一起被忽略，MRI 則不受影響。最簡單的方式是在「後台白名單處理」或「查輸贏回覆」處理紀錄的「發送者」欄（會同時顯示顯示名稱與可複製的 MRI）點 ⊘ 按鈕一鍵加入，會自動帶入 MRI；功能上線前的舊紀錄沒有 MRI，會改以顯示名稱加入。</td></tr>
@@ -1529,10 +1530,10 @@
       </table>
     </section>
 
-    <!-- ═══════════ 回覆統計頁面 ═══════════ -->
+    <!-- ═══════════ 回覆工單統計頁面 ═══════════ -->
     <section id="stats-page">
-      <h2>回覆統計頁面</h2>
-      <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 回覆統計</span></p>
+      <h2>回覆工單統計頁面</h2>
+      <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 回覆工單統計</span></p>
       <p>統計每個群組被機器人回覆的次數（涵蓋關鍵字規則回覆、知識庫回覆、管控模式下人工按送出的回覆），用來觀察哪些群組互動量最高。</p>
       <table>
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
@@ -1562,6 +1563,28 @@
         <strong>歷史資料缺口（2026-09-07 前）</strong>
         知識庫／其他建立工單數原本是抓 <span class="code">ConversationLog</span>（AI對話日誌，僅保留 7 天，見<a href="#knowledge-page">知識庫管理頁面</a>說明），選擇超過 7 天前的時間範圍時數字會嚴重偏低。已改為抓永久保留的 <span class="code">TicketCreationLog</span>，此後的資料都會正確累積，但<strong>2026-09-07 之前</strong>的歷史資料已經隨 7 天清除機制遺失、無法復原，查詢當天之前的區間仍會看到偏低的數字。
       </div>
+
+      <h3 id="stats-teams">Teams 回覆工單統計</h3>
+      <p class="path-crumb">側邊選單：<span class="code">Teams 機器人 → 回覆工單統計</span>（原名「回覆統計」）</p>
+      <p>操作方式與上方 Telegram 版相同：快捷時間選擇（今日／昨日／近7日／近30日／本月／上個月／今年／去年）、自訂範圍、機器人篩選、摘要卡片、回覆趨勢折線圖、群組回覆排行（長條圖＋表格，前三名 🥇🥈🥉、含佔比）。預設顯示「今日」。</p>
+      <table>
+        <thead><tr><th style="width:200px">項目</th><th>Teams 的統計方式</th></tr></thead>
+        <tbody>
+          <tr><td>回覆次數</td><td>Teams 個人帳號機器人實際在群組送出的引用回覆次數：白名單回覆（Done／廠商驗證拒絕訊息）＋查輸贏自動回覆。</td></tr>
+          <tr><td>摘要卡片</td><td>總回覆次數、活躍群組數、<strong>白名單建立工單數</strong>、<strong>查輸贏回覆工單數</strong>。</td></tr>
+          <tr><td>排行表格工單欄</td><td>每個群組個別的<strong>白名單工單</strong>、<strong>查輸贏工單</strong>次數。</td></tr>
+          <tr><td>白名單建立工單數</td><td>取自 <span class="code">TeamsWhitelistLog</span>，只算 <span class="code">status=success</span> <strong>且已回覆</strong>（<span class="code">reply_sent</span>）的紀錄。</td></tr>
+          <tr><td>查輸贏回覆工單數</td><td>取自 <span class="code">TeamsNetwinLog</span>，只算 <span class="code">outcome=auto_replied</span> <strong>且已回覆</strong>的紀錄。</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>與 Telegram 版的差異</strong>
+        <ul>
+          <li><strong>沒有「知識庫建立工單數」與「其他建立工單數」</strong>：Teams 個人帳號機器人只有後台白名單與查輸贏兩種會回覆、建單的功能（不做知識庫／AI 回覆、關鍵字規則、遊戲素材查詢），這兩項在 Teams 永遠是 0，所以不顯示。</li>
+          <li><strong>工單數額外要求「已回覆」</strong>：Telegram 沒有模式之分，查到／加白成功就一定回覆並建單；Teams 有「只記錄」「加白／查詢但不回覆」模式，這些模式下即使加白成功或符合門檻也不會回覆、不會建單，所以只計入實際已回覆的紀錄。</li>
+          <li>與 Telegram 相同，工單數<strong>不會</strong>另外檢查群組的「自動建立工單」開關；若某群關閉了自動建立工單，數字代表的是「符合建單條件的回覆次數」。</li>
+        </ul>
+      </div>
     </section>
 
     <!-- ═══════════ 使用量統計頁面 ═══════════ -->
@@ -1574,7 +1597,7 @@
         <tbody>
           <tr><td>今日 / 本月統計</td><td>總 Token 數與請求次數，固定顯示「今天」與「本月」，不受下方時間範圍篩選影響。</td></tr>
           <tr><td>本月 / 上月合計費用</td><td>依當月（及上個月）實際 Token 組成精確估算的費用預估卡片，取代舊版「最近 10 筆合計費用」的粗略估算方式。</td></tr>
-          <tr><td>時間範圍篩選</td><td>與「回覆統計」頁面相同的快捷按鈕（今日/昨日/近7日/近30日/本月/上個月/今年/去年）+ 自訂範圍選擇器，用來控制下方「每日趨勢」與「各機器人用量」圖表的資料範圍。</td></tr>
+          <tr><td>時間範圍篩選</td><td>與「回覆工單統計」頁面相同的快捷按鈕（今日/昨日/近7日/近30日/本月/上個月/今年/去年）+ 自訂範圍選擇器，用來控制下方「每日趨勢」與「各機器人用量」圖表的資料範圍。</td></tr>
           <tr><td>各機器人用量</td><td>用量依機器人分別列示，方便抓出耗用異常高的機器人（例如知識庫文件過多、群組過度活躍）。</td></tr>
           <tr><td>最近查詢紀錄</td><td>最新 10 筆知識庫問答，含輸入/輸出/快取 Token 明細，此清單不受時間範圍篩選影響，固定顯示最新 10 筆。</td></tr>
         </tbody>

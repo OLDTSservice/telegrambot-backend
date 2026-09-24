@@ -1,86 +1,110 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Card, Row, Col, Select, DatePicker, Table, Space,
-  Typography, Statistic, Spin, Empty,
+  Typography, Statistic, Spin, Empty, Button,
 } from 'antd'
-import { TrophyOutlined, MessageOutlined, TeamOutlined } from '@ant-design/icons'
+import { MessageOutlined, TeamOutlined, CheckCircleOutlined, LineChartOutlined } from '@ant-design/icons'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line,
 } from 'recharts'
 import dayjs from 'dayjs'
-import { getTeamsGroupStats, getTeamsTrend, getTeamsBots } from '../api'
+import { getTeamsGroupStats, getTeamsTrend, getTeamsBots, getTeamsTicketCounts } from '../api'
 
 const { Text, Title } = Typography
+const { RangePicker } = DatePicker
 
-const PERIOD_OPTIONS = [
-  { label: '每日', value: 'daily' },
-  { label: '每月', value: 'monthly' },
-  { label: '每年', value: 'yearly' },
+// 快捷時間範圍（與 Telegram 回覆工單統計相同）
+const PRESETS = [
+  { label: '今日',   getRange: () => [dayjs(), dayjs()] },
+  { label: '昨日',   getRange: () => [dayjs().subtract(1,'day'), dayjs().subtract(1,'day')] },
+  { label: '近7日',  getRange: () => [dayjs().subtract(6,'day'), dayjs()] },
+  { label: '近30日', getRange: () => [dayjs().subtract(29,'day'), dayjs()] },
+  { label: '本月',   getRange: () => [dayjs().startOf('month'), dayjs().endOf('month')] },
+  { label: '上個月', getRange: () => [dayjs().subtract(1,'month').startOf('month'), dayjs().subtract(1,'month').endOf('month')] },
+  { label: '今年',   getRange: () => [dayjs().startOf('year'), dayjs().endOf('year')] },
+  { label: '去年',   getRange: () => [dayjs().subtract(1,'year').startOf('year'), dayjs().subtract(1,'year').endOf('year')] },
 ]
 
-function periodValue(period) {
-  const now = dayjs()
-  if (period === 'daily') return now.format('YYYY-MM-DD')
-  if (period === 'monthly') return now.format('YYYY-MM')
-  return now.format('YYYY')
-}
-
 export default function TeamsReplyStatsPage() {
-  const [period, setPeriod] = useState('monthly')
-  const [value, setValue] = useState(periodValue('monthly'))
+  const [dateRange, setDateRange] = useState([dayjs(), dayjs()])
+  const [activePreset, setActivePreset] = useState('今日')
   const [botId, setBotId] = useState(null)
   const [bots, setBots] = useState([])
   const [rankData, setRankData] = useState([])
   const [trendData, setTrendData] = useState([])
+  const [ticketCounts, setTicketCounts] = useState({ whitelist_tickets: 0, netwin_tickets: 0 })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     getTeamsBots().then(r => setBots(r.data)).catch(() => {})
   }, [])
 
-  useEffect(() => { load() }, [period, value, botId])
+  useEffect(() => { load() }, [dateRange, botId])
+
+  const buildParams = useCallback(() => {
+    const [from, to] = dateRange
+    return {
+      date_from: from.format('YYYY-MM-DD'),
+      date_to: to.format('YYYY-MM-DD'),
+      bot_id: botId || undefined,
+    }
+  }, [dateRange, botId])
 
   const load = async () => {
     setLoading(true)
     try {
-      const [rankRes, trendRes] = await Promise.all([
-        getTeamsGroupStats(period, value, botId),
-        getTeamsTrend(period, value, botId),
+      const params = buildParams()
+      const [rankRes, trendRes, tcRes] = await Promise.all([
+        getTeamsGroupStats(params),
+        getTeamsTrend(params),
+        getTeamsTicketCounts(params),
       ])
       setRankData(rankRes.data)
       setTrendData(trendRes.data)
-    } catch { }
+      setTicketCounts(tcRes.data)
+    } catch {}
     finally { setLoading(false) }
   }
 
+  const handlePreset = (preset) => {
+    setActivePreset(preset.label)
+    setDateRange(preset.getRange())
+  }
+
+  const handleRangeChange = (dates) => {
+    if (dates) {
+      setActivePreset(null)
+      setDateRange(dates)
+    }
+  }
+
   const totalReplies = rankData.reduce((s, r) => s + r.reply_count, 0)
-
-  const handlePeriodChange = (p) => {
-    setPeriod(p)
-    setValue(periodValue(p))
-  }
-
-  const handleDateChange = (_, dateStr) => {
-    if (dateStr) setValue(dateStr)
-  }
 
   const rankColumns = [
     {
       title: '排名', width: 60,
       render: (_, __, idx) => (
-        <span style={{ fontWeight: 700, color: idx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] : '#888' }}>
-          {idx < 3 ? ['🥇', '🥈', '🥉'][idx] : `#${idx + 1}`}
+        <span style={{ fontWeight: 700, color: idx < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][idx] : '#888' }}>
+          {idx < 3 ? ['🥇','🥈','🥉'][idx] : `#${idx + 1}`}
         </span>
       ),
     },
     {
-      title: '頻道 / 聊天室', dataIndex: 'conversation_name',
-      render: name => <Text strong>{name}</Text>,
+      title: '群組', dataIndex: 'conversation_name', width: 200, ellipsis: true,
+      render: name => <Text strong ellipsis style={{ maxWidth: 180 }} title={name}>{name}</Text>,
     },
     {
       title: '回覆次數', dataIndex: 'reply_count', width: 120,
-      render: v => <Text strong style={{ color: '#5b21b6', fontSize: 15 }}>{v.toLocaleString()}</Text>,
+      render: v => <Text strong style={{ color: '#1677ff', fontSize: 15 }}>{v.toLocaleString()}</Text>,
+    },
+    {
+      title: '白名單工單', dataIndex: 'whitelist_tickets', width: 110,
+      render: v => <Text style={{ color: '#13c2c2' }}>{(v || 0).toLocaleString()}</Text>,
+    },
+    {
+      title: '查輸贏工單', dataIndex: 'netwin_tickets', width: 110,
+      render: v => <Text style={{ color: '#fa8c16' }}>{(v || 0).toLocaleString()}</Text>,
     },
     {
       title: '佔比', width: 100,
@@ -95,59 +119,82 @@ export default function TeamsReplyStatsPage() {
   return (
     <div>
       <Title level={4} style={{ marginBottom: 20 }}>
-        <MessageOutlined style={{ marginRight: 8, color: '#5b21b6' }} />
-        Teams 機器人回覆統計
+        <MessageOutlined style={{ marginRight: 8, color: '#1677ff' }} />
+        Teams 機器人回覆工單統計
       </Title>
 
       {/* 篩選列 */}
       <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <span>統計週期：</span>
-          <Select value={period} onChange={handlePeriodChange} style={{ width: 100 }}
-            options={PERIOD_OPTIONS} />
-
-          {period === 'daily' && (
-            <DatePicker value={dayjs(value)} onChange={handleDateChange}
-              format="YYYY-MM-DD" allowClear={false} />
-          )}
-          {period === 'monthly' && (
-            <DatePicker.MonthPicker value={dayjs(value)} onChange={handleDateChange}
-              format="YYYY-MM" allowClear={false} />
-          )}
-          {period === 'yearly' && (
-            <DatePicker.YearPicker value={dayjs(value)} onChange={handleDateChange}
-              format="YYYY" allowClear={false} />
-          )}
-
-          <span style={{ marginLeft: 8 }}>機器人：</span>
-          <Select value={botId} onChange={setBotId} style={{ width: 160 }}
-            placeholder="全部機器人" allowClear>
-            {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
-          </Select>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {/* 快捷按鈕 */}
+          <Space wrap>
+            <span style={{ fontWeight: 600, color: '#333' }}>快捷選擇：</span>
+            {PRESETS.map(p => (
+              <Button
+                key={p.label}
+                size="small"
+                type={activePreset === p.label ? 'primary' : 'default'}
+                onClick={() => handlePreset(p)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </Space>
+          {/* 自訂時間範圍 + 機器人篩選 */}
+          <Space wrap>
+            <span style={{ fontWeight: 600, color: '#333' }}>自訂範圍：</span>
+            <RangePicker
+              value={dateRange}
+              onChange={handleRangeChange}
+              allowClear={false}
+              format="YYYY/MM/DD"
+            />
+            <span style={{ marginLeft: 8, fontWeight: 600, color: '#333' }}>機器人：</span>
+            <Select
+              value={botId}
+              onChange={setBotId}
+              style={{ width: 180 }}
+              allowClear
+              placeholder="全部機器人"
+            >
+              <Select.Option value={null}>全部機器人</Select.Option>
+              {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
+            </Select>
+          </Space>
         </Space>
       </Card>
 
       {/* 摘要卡片 */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={8}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic title="總回覆次數" value={totalReplies}
-              prefix={<MessageOutlined />} valueStyle={{ color: '#5b21b6' }} />
+              prefix={<MessageOutlined />} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="活躍頻道數" value={rankData.length}
-              prefix={<TeamOutlined />} valueStyle={{ color: '#0ea5e9' }} />
+            <Statistic title="活躍群組數" value={rankData.length}
+              prefix={<TeamOutlined />} valueStyle={{ color: '#52c41a' }} />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="最活躍頻道"
-              value={rankData[0]?.conversation_name || '—'}
-              prefix={<TrophyOutlined style={{ color: '#FFD700' }} />}
-              valueStyle={{ fontSize: 16 }}
+              title="白名單建立工單數"
+              value={ticketCounts.whitelist_tickets}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: '#13c2c2' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="查輸贏回覆工單數"
+              value={ticketCounts.netwin_tickets}
+              prefix={<LineChartOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
             />
           </Card>
         </Col>
@@ -167,7 +214,7 @@ export default function TeamsReplyStatsPage() {
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                       <Tooltip formatter={v => [`${v} 次`, '回覆次數']} />
-                      <Line type="monotone" dataKey="reply_count" stroke="#5b21b6"
+                      <Line type="monotone" dataKey="reply_count" stroke="#1677ff"
                         strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -177,7 +224,7 @@ export default function TeamsReplyStatsPage() {
 
           {/* 排行 Bar Chart */}
           <Col xs={24} lg={12} style={{ marginBottom: 16 }}>
-            <Card title="頻道回覆排行（圖表）">
+            <Card title="群組回覆排行（圖表）">
               {rankData.length === 0
                 ? <Empty description="此期間無資料" />
                 : (
@@ -186,10 +233,18 @@ export default function TeamsReplyStatsPage() {
                       margin={{ left: 20, right: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <YAxis type="category" dataKey="conversation_name" width={110}
-                        tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={v => [`${v} 次`, '回覆次數']} />
-                      <Bar dataKey="reply_count" fill="#5b21b6" radius={[0, 4, 4, 0]} />
+                      <YAxis
+                        type="category"
+                        dataKey="conversation_name"
+                        width={180}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={name => (name && name.length > 16 ? `${name.slice(0, 16)}…` : name)}
+                      />
+                      <Tooltip
+                        formatter={v => [`${v} 次`, '回覆次數']}
+                        labelFormatter={label => label}
+                      />
+                      <Bar dataKey="reply_count" fill="#1677ff" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -198,13 +253,14 @@ export default function TeamsReplyStatsPage() {
 
           {/* 排行表格 */}
           <Col xs={24} lg={12} style={{ marginBottom: 16 }}>
-            <Card title={`頻道回覆排行（共 ${rankData.length} 個）`}>
+            <Card title={`群組回覆排行（共 ${rankData.length} 個）`}>
               <Table
                 rowKey="conversation_id"
                 dataSource={rankData}
                 columns={rankColumns}
                 pagination={{ pageSize: 8, size: 'small' }}
                 size="small"
+                scroll={{ x: 700, y: 320 }}
                 locale={{ emptyText: '此期間無回覆記錄' }}
               />
             </Card>

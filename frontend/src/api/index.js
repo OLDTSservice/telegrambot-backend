@@ -110,10 +110,12 @@ export const getTelegramTrend = (params) =>
   api.get('/group-stats/telegram/trend', { params })
 export const getTicketCounts = (params) =>
   api.get('/group-stats/ticket-counts', { params })
-export const getTeamsGroupStats = (period, value, botId) =>
-  api.get('/group-stats/teams', { params: { period, value, bot_id: botId || undefined } })
-export const getTeamsTrend = (period, value, botId) =>
-  api.get('/group-stats/teams/trend', { params: { period, value, bot_id: botId || undefined } })
+export const getTeamsGroupStats = (params) =>
+  api.get('/group-stats/teams', { params })
+export const getTeamsTrend = (params) =>
+  api.get('/group-stats/teams/trend', { params })
+export const getTeamsTicketCounts = (params) =>
+  api.get('/group-stats/teams/ticket-counts', { params })
 
 // ── Whitelist 後台白名單處理 ───────────────────
 export const getWhitelistLogs = (botId, limit = 10) =>

@@ -30,6 +30,29 @@ def _taipei_range_to_utc(date_from: str, date_to: str):
     return start_utc, end_utc
 
 
+def _teams_ticket_queries(db, cols, bot_id, start_utc, end_utc):
+    """Teams 工單數查詢（回傳 (白名單 query, 查輸贏 query)，cols 決定是依群組分組還是只算總數）。
+    Teams 機器人只有白名單與查輸贏兩種會回覆／建單的來源（沒有知識庫／AI 回覆），
+    且只有「全自動」模式、實際已回覆才會建立 Freshdesk 工單，所以兩者都要求 reply_sent；
+    「只記錄」「加白/查詢但不回覆」模式的紀錄不算工單。"""
+    wl_q = db.query(*cols(models.TeamsWhitelistLog)).filter(
+        models.TeamsWhitelistLog.status == "success",
+        models.TeamsWhitelistLog.reply_sent == True,  # noqa: E712
+    )
+    nw_q = db.query(*cols(models.TeamsNetwinLog)).filter(
+        models.TeamsNetwinLog.outcome == "auto_replied",
+        models.TeamsNetwinLog.reply_sent == True,  # noqa: E712
+    )
+    out = []
+    for q, m in ((wl_q, models.TeamsWhitelistLog), (nw_q, models.TeamsNetwinLog)):
+        if bot_id:
+            q = q.filter(m.bot_id == bot_id)
+        if start_utc:
+            q = q.filter(m.created_at >= start_utc, m.created_at < end_utc)
+        out.append(q)
+    return out
+
+
 @router.get("/telegram")
 def telegram_group_stats(
     period: str = Query("monthly"),
@@ -130,9 +153,18 @@ def teams_group_stats(
         models.TeamsGroupStat.conversation_id,
         models.TeamsGroupStat.conversation_name,
     ).order_by(func.sum(models.TeamsGroupStat.reply_count).desc()).all()
+
+    # 依群組分別統計各類工單數（僅在有指定日期範圍時套用，與整體 teams/ticket-counts 邏輯一致）
+    start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)
+    wl_q, nw_q = _teams_ticket_queries(db, lambda m: (m.chat_id, func.count(m.id)), bot_id, start_utc, end_utc)
+    wl_by_chat = dict(wl_q.group_by(models.TeamsWhitelistLog.chat_id).all())
+    nw_by_chat = dict(nw_q.group_by(models.TeamsNetwinLog.chat_id).all())
+
     return [
         {"conversation_id": r.conversation_id, "conversation_name": r.conversation_name,
-         "reply_count": r.total}
+         "reply_count": r.total,
+         "whitelist_tickets": wl_by_chat.get(r.conversation_id, 0),
+         "netwin_tickets": nw_by_chat.get(r.conversation_id, 0)}
         for r in rows
     ]
 
@@ -264,3 +296,17 @@ def ticket_counts(
 
     return {"kb_tickets": kb_count, "other_tickets": other_count,
             "whitelist_tickets": wl_count, "netwin_tickets": nw_count}
+
+
+@router.get("/teams/ticket-counts")
+def teams_ticket_counts(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    bot_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(require_viewer),
+):
+    """Teams 白名單工單數 + 查輸贏回覆工單數（created_at 為 UTC，日期範圍先換算，同 Telegram）"""
+    start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)
+    wl_q, nw_q = _teams_ticket_queries(db, lambda m: (func.count(m.id),), bot_id, start_utc, end_utc)
+    return {"whitelist_tickets": wl_q.scalar() or 0, "netwin_tickets": nw_q.scalar() or 0}

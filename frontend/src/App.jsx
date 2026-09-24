@@ -94,7 +94,7 @@ export default function App() {
         { key: '/teams/rules', icon: <KeyOutlined />, label: '關鍵字規則' },
         { key: '/teams/knowledge', icon: <BookOutlined />, label: '知識庫管理' },
         { key: '/teams/ignores', icon: <StopOutlined />, label: '忽略名單' },
-        { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆統計' },
+        { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆工單統計' },
         { key: '/teams/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
         { key: '/teams/netwin', icon: <LineChartOutlined />, label: '查輸贏回覆' },
       ],
