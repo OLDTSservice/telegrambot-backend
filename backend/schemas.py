@@ -256,6 +256,9 @@ class TeamsBotUpdate(BaseModel):
     whitelist_enabled: Optional[bool] = None
     whitelist_mode: Optional[str] = None       # log_only / no_reply / full
     poll_interval_sec: Optional[int] = None
+    netwin_query_enabled: Optional[bool] = None
+    netwin_mode: Optional[str] = None          # log_only / no_reply / full
+    netwin_source_bot_id: Optional[int] = None  # 共用哪個 Telegram 機器人的查輸贏設定
 
 
 class TeamsBotOut(BaseModel):
@@ -268,6 +271,9 @@ class TeamsBotOut(BaseModel):
     whitelist_enabled: bool = False
     whitelist_mode: str = "full"
     poll_interval_sec: int = 20
+    netwin_query_enabled: bool = False
+    netwin_mode: str = "full"
+    netwin_source_bot_id: Optional[int] = None
     logged_in: bool = False       # 有 refresh token
     running: bool = False         # watcher thread 存活中
     last_poll_at: Optional[datetime] = None
@@ -295,6 +301,7 @@ class TeamsGroupOut(BaseModel):
     single_vendor_name: Optional[str] = None
     relaxed_bo_detect: bool = False
     ticket_creation_enabled: bool = True
+    netwin_enabled: bool = False
 
 
 class TeamsGroupUpdateIn(BaseModel):
@@ -306,6 +313,7 @@ class TeamsGroupUpdateIn(BaseModel):
     single_vendor_name: Optional[str] = None
     relaxed_bo_detect: Optional[bool] = None
     ticket_creation_enabled: Optional[bool] = None
+    netwin_enabled: Optional[bool] = None
 
 
 class TeamsWhitelistLogOut(BaseModel):
@@ -318,6 +326,24 @@ class TeamsWhitelistLogOut(BaseModel):
     full_username: Optional[str] = None
     ip_list: str
     status: str
+    reply_sent: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeamsNetwinLogOut(BaseModel):
+    id: int
+    chat_id: str
+    chat_name: str
+    msg_id: Optional[str] = None
+    sender: Optional[str] = None
+    extracted_account: Optional[str] = None
+    match_count: Optional[int] = None
+    netwin_2d_thb: Optional[float] = None
+    rtp: Optional[float] = None
+    outcome: str
     reply_sent: bool = False
     created_at: datetime
 

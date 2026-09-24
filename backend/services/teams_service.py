@@ -1,4 +1,4 @@
-"""Teams 個人帳號機器人：輪詢群組訊息 → 後台白名單自動處理 → 引用回覆。
+"""Teams 個人帳號機器人：輪詢群組訊息 → 後台白名單自動處理／查輸贏回覆 → 引用回覆。
 
 原理（與 Teams 消費者版網頁用戶端同一條路，純 HTTP、無官方 API）：
   裝置代碼登入（一次）→ refresh token（存 DB，每次用都換新）
@@ -91,7 +91,10 @@ def clean_text(content: Optional[str]) -> str:
     """去掉「引用回覆」區塊與 HTML 標籤 → 純文字。
     引用區塊一定要去掉，否則原文的關鍵字會在每次被引用時重複命中。"""
     c = re.sub(r"<blockquote\b.*?</blockquote>", "", content or "", flags=re.S | re.I)
-    c = re.sub(r"<br\s*/?>|</p>|</div>", "\n", c, flags=re.I)
+    # 表格／清單（廠商從 Excel、Word 貼上）的列與項目也要換行，否則整份申請會壓成一行，
+    # 依行掃描的白名單帳號解析與查輸贏帳號擷取都會失準
+    c = re.sub(r"<br\s*/?>|</p>|</div>|</li>|</tr>|</h[1-6]>", "\n", c, flags=re.I)
+    c = re.sub(r"</t[dh]>", " ", c, flags=re.I)     # 同一列的儲存格之間留空白，避免黏成一個字
     c = re.sub(r"<[^>]+>", "", c)
     c = html.unescape(c).replace("\r", "")
     c = re.sub("[ \\t\\u00a0]+", " ", c)   # 含 &nbsp;
@@ -507,9 +510,12 @@ class TeamsWatcher(threading.Thread):
             return
         logger.info(f"[Teams {bot.id}] [{chat_name}] {sender_name}: {text[:80]!r}")
 
-        if not bot.whitelist_enabled:
+        # 順序同 Telegram：白名單優先，沒被白名單處理掉的訊息才判斷查輸贏
+        if bot.whitelist_enabled and self._try_whitelist(db, bot, setting, chat_id, chat_name, m,
+                                                         sender_mri, sender_name, text):
             return
-        self._try_whitelist(db, bot, setting, chat_id, chat_name, m, sender_mri, sender_name, text)
+        if bot.netwin_query_enabled and setting and setting.netwin_enabled:
+            self._try_netwin(db, bot, setting, chat_id, chat_name, m, sender_name, text)
 
     @staticmethod
     def _is_ignored(db, bot_id: int, sender_mri: str, sender_name: str) -> bool:
@@ -523,20 +529,20 @@ class TeamsWatcher(threading.Thread):
         return False
 
     # ---- 白名單 ----
-    def _try_whitelist(self, db, bot, setting, chat_id, chat_name, m, sender_mri, sender_name, text):
+    def _try_whitelist(self, db, bot, setting, chat_id, chat_name, m, sender_mri, sender_name, text) -> bool:
+        """回傳 True＝這則已被白名單流程處理掉（不再往下判斷查輸贏）。"""
         from services.telegram_service import _is_application_form, _is_staging_environment_request
         from services.whitelist_service import (_IP_RE, _WHITELIST_WORDS, _has_backend_indicator,
                                                 detect_whitelist_request)
 
         if _is_application_form(text) or _is_staging_environment_request(text):
-            return
+            return False
         relaxed = bool(setting.relaxed_bo_detect if setting else False)
         key = (chat_id, sender_mri)
 
         if detect_whitelist_request(text, relaxed=relaxed):
             self._pending.pop(key, None)
-            self._handle_whitelist(db, bot, setting, chat_id, chat_name, m, sender_name, text)
-            return
+            return self._handle_whitelist(db, bot, setting, chat_id, chat_name, m, sender_name, text)
 
         # 申請先來、IP 後補：有白名單＋後台字樣但沒 IP → 掛 pending；同人同群時窗內補 IP → 合併再判斷
         lower = text.lower()
@@ -545,21 +551,23 @@ class TeamsWatcher(threading.Thread):
         if looks_like_request and not has_ip:
             self._pending[key] = {"msg": m, "text": text, "ts": time.time()}
             logger.info(f"[Teams {bot.id}] 掛 pending（缺 IP）[{chat_name}] {sender_name}")
-            return
+            return False
         p = self._pending.get(key)
         if p and has_ip and time.time() - p["ts"] <= PENDING_WINDOW_SEC:
             merged = p["text"] + "\n" + text
             if detect_whitelist_request(merged, relaxed=relaxed):
                 self._pending.pop(key, None)
                 logger.info(f"[Teams {bot.id}] pending 合併成功 [{chat_name}] {sender_name}")
-                self._handle_whitelist(db, bot, setting, chat_id, chat_name, m, sender_name, merged)
+                return self._handle_whitelist(db, bot, setting, chat_id, chat_name, m, sender_name, merged)
+        return False
 
     def _expire_pending(self):
         now = time.time()
         for k in [k for k, p in self._pending.items() if now - p["ts"] > PENDING_WINDOW_SEC]:
             self._pending.pop(k, None)
 
-    def _handle_whitelist(self, db, bot, setting, chat_id, chat_name, m, sender_name, text):
+    def _handle_whitelist(self, db, bot, setting, chat_id, chat_name, m, sender_name, text) -> bool:
+        """回傳 False＝解析不出帳號/IP（同 Telegram，繼續往下判斷查輸贏）；其餘皆 True。"""
         import models
         from services.whitelist_service import parse_whitelist_request, run_whitelist_sync
         from services.telegram_service import _create_freshdesk_ticket_bg
@@ -569,7 +577,7 @@ class TeamsWatcher(threading.Thread):
                 models.TeamsWhitelistLog.bot_id == bot.id,
                 models.TeamsWhitelistLog.msg_id == str(m["id"])).first():
             logger.info(f"[Teams {bot.id}] 訊息 {m['id']} 已處理過，略過")
-            return
+            return True
 
         mode = bot.whitelist_mode or "full"
         vendor_code, all_parts, ips = parse_whitelist_request(text)
@@ -587,7 +595,7 @@ class TeamsWatcher(threading.Thread):
             jobs = [([], setting.single_vendor_name)]
         else:
             logger.warning(f"[Teams {bot.id}] 白名單請求解析失敗（無法取得帳號或 IP）")
-            return
+            return False
         logger.info(f"[Teams {bot.id}] 偵測到白名單請求：帳號數={len(jobs)}, IPs={ips}, mode={mode}")
 
         if mode == "log_only":
@@ -595,7 +603,7 @@ class TeamsWatcher(threading.Thread):
                 _save_whitelist_log(db, bot.id, chat_id, chat_name, m["id"], sender_name,
                                     (parts[0] if parts else forced) or "unknown", ips, "log_only",
                                     full_username="_".join(parts) if parts else f"(單一總代理：{forced})")
-            return
+            return True
 
         any_success = any_rejected = False
         for parts, forced in jobs:
@@ -613,7 +621,7 @@ class TeamsWatcher(threading.Thread):
             any_rejected |= rejected
 
         if mode != "full":
-            return
+            return True
         reply = None
         if any_success:
             reply = "Done"
@@ -630,6 +638,64 @@ class TeamsWatcher(threading.Thread):
         if any_success and ticket_enabled:
             threading.Thread(target=_create_freshdesk_ticket_bg,
                              args=(text, "Done", chat_name), daemon=True).start()
+        return True
+
+
+    # ---- 查輸贏回覆 ----
+    def _try_netwin(self, db, bot, setting, chat_id, chat_name, m, sender_name, text):
+        """觸發判斷與帳號擷取直接共用 Telegram 的 tjadmin_service（規則完全相同）；API 憑證、門檻、
+        延遲秒數、回覆內容讀 netwin_source_bot_id 指定的 Telegram 機器人設定。
+        與 Telegram 唯一的差別：只有查到結果、淨值與 RTP 都在門檻內才回覆，其餘情況一律靜默
+        （這個帳號是同仁本人，不自動在廠商群發轉人工訊息），結果只寫紀錄供後台查看。"""
+        import models
+        from services.tjadmin_service import detect_netwin_query_request, extract_account
+
+        if not detect_netwin_query_request(text):
+            return
+        msg_id = str(m["id"])
+        if db.query(models.TeamsNetwinLog).filter(
+                models.TeamsNetwinLog.bot_id == bot.id,
+                models.TeamsNetwinLog.msg_id == msg_id).first():
+            logger.info(f"[Teams {bot.id}] 查輸贏：訊息 {msg_id} 已處理過，略過")
+            return
+
+        mode = bot.netwin_mode or "full"
+        account = extract_account(text)
+        src = None
+        if bot.netwin_source_bot_id:
+            src = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot.netwin_source_bot_id).first()
+
+        log = models.TeamsNetwinLog(bot_id=bot.id, chat_id=chat_id, chat_name=chat_name, msg_id=msg_id,
+                                    sender=sender_name, extracted_account=account, outcome="querying")
+        if mode == "log_only":
+            log.outcome = "log_only"
+        elif not account:
+            log.outcome = "no_account"
+        elif not (src and src.netwin_key_id and src.netwin_api_key and src.netwin_api_base_url
+                  and src.netwin_rtp_threshold is not None):
+            # 同 Telegram：RTP 門檻或憑證沒設定齊全時兩個 API 都不呼叫，不自己猜門檻
+            logger.warning(f"[Teams {bot.id}] 查輸贏已開啟但共用的 Telegram 機器人尚未設定 API 憑證或 RTP 門檻")
+            log.outcome = "api_error"
+        db.add(log)
+        try:
+            db.commit()
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[Teams {bot.id}] 儲存查輸贏 log 失敗：{e}")
+            db.rollback()
+            return
+        logger.info(f"[Teams {bot.id}] 查輸贏 [{chat_name}] 帳號={account} 模式={mode} → {log.outcome}")
+        if log.outcome != "querying":
+            return
+
+        cfg = {
+            "base_url": src.netwin_api_base_url, "key_id": src.netwin_key_id, "api_key": src.netwin_api_key,
+            "threshold": src.netwin_threshold if src.netwin_threshold is not None else 5000,
+            "rtp_threshold": src.netwin_rtp_threshold,
+            "delay": src.netwin_reply_delay_seconds if src.netwin_reply_delay_seconds is not None else 30,
+            "reply_zh": src.netwin_reply_zh, "reply_en": src.netwin_reply_en,
+        }
+        threading.Thread(target=_netwin_worker, name=f"teams-netwin-{bot.id}-{msg_id}", daemon=True,
+                         args=(bot.id, log.id, cfg, account, chat_id, chat_name, m, text)).start()
 
 
 # ================================================================ Watcher 管理
@@ -662,6 +728,124 @@ def restart_watcher(bot_id: int, refresh_token: str):
 def is_watcher_running(bot_id: int) -> bool:
     w = _watchers.get(bot_id)
     return bool(w and w.is_alive())
+
+
+# ================================================================ 查輸贏回覆（背景 worker）
+def _evaluate_netwin(cfg: dict, account: str) -> tuple[str, dict]:
+    """判斷樹與 Telegram 完全相同（outcome 值也相同，兩邊統計口徑一致）。回傳 (outcome, 要寫進 log 的欄位)。"""
+    from services.tjadmin_service import query_player_by_name, query_player_rtp
+
+    rows, err = query_player_by_name(cfg["base_url"], cfg["key_id"], cfg["api_key"], account)
+    if err is not None:
+        logger.error(f"[Teams] 查輸贏 API 呼叫失敗（帳號={account}）：{err}")
+        return "api_error", {}
+    if len(rows) == 0:
+        return "zero_match", {"match_count": 0}
+    if len(rows) > 1:
+        return "multi_match", {"match_count": len(rows)}
+    netwin = rows[0].get("netwin_2d_thb")
+    fields = {"match_count": 1, "netwin_2d_thb": netwin}
+    if netwin is None:
+        return "null_netwin", fields
+    if netwin == 0:                     # 近2日沒有遊玩紀錄，不代表輸贏正常
+        return "zero_netwin", fields
+    if netwin >= cfg["threshold"]:
+        return "over_threshold", fields
+    aid = rows[0].get("aid")
+    if aid is None:
+        logger.error(f"[Teams] 查輸贏：API 1 回應缺少 aid 欄位（帳號={account}）")
+        return "rtp_error", fields
+    summary, err = query_player_rtp(cfg["base_url"], cfg["key_id"], cfg["api_key"], aid)
+    if err is not None:
+        logger.error(f"[Teams] 查輸贏 RTP API 呼叫失敗（aid={aid}）：{err}")
+        return "rtp_error", fields
+    rtp = (summary or {}).get("rtp")
+    fields["rtp"] = rtp
+    if rtp is None:                     # 近7日無下注紀錄
+        return "rtp_null", fields
+    if rtp < cfg["rtp_threshold"]:
+        return "auto_replied", fields
+    return "over_rtp_threshold", fields
+
+
+def _netwin_worker(bot_id: int, log_id: int, cfg: dict, account: str,
+                   chat_id: str, chat_name: str, m: dict, text: str):
+    """查 API（兩支各最多 30 秒）→ 判斷門檻 → 延遲回覆。獨立 thread 執行，不能放在輪詢 thread 裡，
+    否則這個帳號所有群組的輪詢都會被卡住；多筆查輸贏各自倒數、互不影響。"""
+    import models
+    from database import SessionLocal
+    from services.telegram_service import _create_freshdesk_ticket_bg
+
+    try:
+        outcome, fields = _evaluate_netwin(cfg, account)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[Teams {bot_id}] 查輸贏例外（帳號={account}）：{e}", exc_info=True)
+        outcome, fields = "api_error", {}
+
+    db = SessionLocal()
+    try:
+        log = db.query(models.TeamsNetwinLog).filter(models.TeamsNetwinLog.id == log_id).first()
+        if not log:
+            return
+        log.outcome = outcome
+        for k, v in fields.items():
+            setattr(log, k, v)
+        db.commit()
+        logger.info(f"[Teams {bot_id}] 查輸贏 [{chat_name}] 帳號={account} → {outcome} {fields}")
+        if outcome != "auto_replied":
+            return                                  # 沒有結果或超過門檻：靜默，只留紀錄
+
+        is_zh = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", text))
+        reply = cfg["reply_zh"] if is_zh else cfg["reply_en"]
+        if not reply:
+            logger.warning(f"[Teams {bot_id}] 查輸贏符合門檻，但共用的 Telegram 機器人未設定"
+                           f"{'中文' if is_zh else '英文'}回覆內容，不回覆")
+            return
+        bot = db.query(models.TeamsBot).filter(models.TeamsBot.id == bot_id).first()
+        if not bot or (bot.netwin_mode or "full") != "full":
+            return
+    finally:
+        db.close()
+
+    # 刻意延遲再回覆，避免速度過快讓廠商懷疑沒有真的去查（秒數沿用 Telegram 機器人設定）
+    if cfg["delay"] and cfg["delay"] > 0:
+        time.sleep(cfg["delay"])
+
+    db = SessionLocal()
+    try:
+        # 倒數期間設定可能被改：重新確認帳號、功能、模式、該群開關都還開著才送出
+        bot = db.query(models.TeamsBot).filter(models.TeamsBot.id == bot_id).first()
+        setting = db.query(models.TeamsGroupSetting).filter(
+            models.TeamsGroupSetting.bot_id == bot_id, models.TeamsGroupSetting.chat_id == chat_id).first()
+        if not (bot and bot.is_enabled and bot.netwin_query_enabled and (bot.netwin_mode or "full") == "full"
+                and setting and setting.netwin_enabled):
+            logger.info(f"[Teams {bot_id}] 查輸贏：倒數期間功能已關閉，取消回覆（帳號={account}）")
+            return
+        # 用「目前正在跑的 watcher」的 client 發送：共用同一個速率桶，也避免 watcher 重啟後
+        # 拿舊 client 的 refresh token 去續期（滾動更新會互踢）
+        w = _watchers.get(bot_id)
+        if not (w and w.is_alive()):
+            logger.warning(f"[Teams {bot_id}] 查輸贏：watcher 未運行，取消回覆（帳號={account}）")
+            return
+        try:
+            w.client.send_reply(chat_id, m, reply)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[Teams {bot_id}] 查輸贏回覆失敗：{e}", exc_info=True)
+            return
+        logger.info(f"[Teams {bot_id}] 查輸贏已回覆 [{chat_name}] 帳號={account}")
+        log = db.query(models.TeamsNetwinLog).filter(models.TeamsNetwinLog.id == log_id).first()
+        if log:
+            log.reply_sent = True
+            db.commit()
+        _record_teams_group_stat(bot_id, chat_id, chat_name, db)
+        if setting.ticket_creation_enabled is not False:
+            threading.Thread(target=_create_freshdesk_ticket_bg,
+                             args=(text, reply, chat_name), daemon=True).start()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[Teams {bot_id}] 查輸贏回覆後續處理失敗：{e}", exc_info=True)
+        db.rollback()
+    finally:
+        db.close()
 
 
 def start_all_enabled_watchers():

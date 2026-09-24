@@ -338,7 +338,7 @@ function GroupsTab({ user }) {
         : loading ? <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
         : groups.length === 0 ? <Empty description="此帳號尚未加入任何群組" style={{ padding: 48 }} />
         : (
-          <Table rowKey="chat_id" dataSource={shown} pagination={false} scroll={{ x: 1200, y: 520 }}
+          <Table rowKey="chat_id" dataSource={shown} pagination={false} scroll={{ x: 1310, y: 520 }}
             columns={[
               {
                 title: '監看', dataIndex: 'watch_enabled', width: 80,
@@ -411,6 +411,16 @@ function GroupsTab({ user }) {
                   <Switch checked={v !== false} size="small" disabled={!canEdit(user)}
                     checkedChildren="開啟" unCheckedChildren="關閉"
                     onChange={c => patch(r.chat_id, { ticket_creation_enabled: c }, c ? '自動建立工單已啟用' : '自動建立工單已關閉')} />
+                ),
+              },
+              {
+                title: '查輸贏回覆', dataIndex: 'netwin_enabled', width: 110,
+                render: (v, r) => (
+                  <Tooltip title="逐群開關（預設關閉）：開啟後此群的查輸贏詢問才會處理；還需在「查輸贏回覆」頁面開啟機器人層級總開關">
+                    <Switch checked={!!v} size="small" disabled={!canEdit(user)}
+                      checkedChildren="開啟" unCheckedChildren="關閉"
+                      onChange={c => patch(r.chat_id, { netwin_enabled: c, chat_name: r.chat_name }, c ? '此群查輸贏回覆已開啟' : '此群查輸贏回覆已關閉')} />
+                  </Tooltip>
                 ),
               },
             ]}

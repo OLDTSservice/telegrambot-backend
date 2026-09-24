@@ -70,6 +70,10 @@ def _migrate_columns():
         "ALTER TABLE teams_bots ADD COLUMN whitelist_mode VARCHAR(16) DEFAULT 'full'",
         "ALTER TABLE teams_bots ADD COLUMN last_poll_at DATETIME",
         "ALTER TABLE teams_bots ADD COLUMN last_error TEXT",
+        "ALTER TABLE teams_bots ADD COLUMN netwin_query_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE teams_bots ADD COLUMN netwin_mode VARCHAR(16) DEFAULT 'full'",
+        "ALTER TABLE teams_bots ADD COLUMN netwin_source_bot_id INTEGER",
+        "ALTER TABLE teams_group_settings ADD COLUMN netwin_enabled BOOLEAN DEFAULT 0",
     ]
     with engine.connect() as conn:
         for sql in migrations:

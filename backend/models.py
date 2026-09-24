@@ -347,6 +347,14 @@ class TeamsBot(Base):
     whitelist_mode = Column(String(16), default="full")
     last_poll_at = Column(DateTime, nullable=True)         # watcher 最後一次成功輪詢時間
     last_error = Column(Text, nullable=True)               # watcher 最近一次錯誤（登入失效等），成功後清空
+    # 查輸贏回覆：API 憑證、門檻、延遲秒數、回覆內容一律共用 netwin_source_bot_id 指定的 Telegram 機器人設定
+    # （同一個專案的廠商，API 與門檻相同），這裡只存 Teams 自己的開關與模式
+    netwin_query_enabled = Column(Boolean, default=False)
+    # log_only：只偵測、擷取帳號並寫紀錄，不查 API、不回覆
+    # no_reply：查 API、寫完整結果，但不在群組回覆
+    # full：查 API，淨值與 RTP 都在門檻內才延遲回覆；其餘結果一律靜默（與 Telegram 不同，不回轉人工訊息）
+    netwin_mode = Column(String(16), default="full")
+    netwin_source_bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=True)
 
     keyword_rules = relationship("TeamsKeywordRule", back_populates="bot", cascade="all, delete-orphan")
     knowledge_docs = relationship("TeamsKnowledgeDoc", back_populates="bot", cascade="all, delete-orphan")
@@ -356,6 +364,7 @@ class TeamsBot(Base):
     group_settings = relationship("TeamsGroupSetting", back_populates="bot", cascade="all, delete-orphan")
     watch_states = relationship("TeamsWatchState", back_populates="bot", cascade="all, delete-orphan")
     whitelist_logs = relationship("TeamsWhitelistLog", back_populates="bot", cascade="all, delete-orphan")
+    netwin_logs = relationship("TeamsNetwinLog", back_populates="bot", cascade="all, delete-orphan")
 
 
 class TeamsGroupSetting(Base):
@@ -373,6 +382,8 @@ class TeamsGroupSetting(Base):
     single_vendor_name = Column(String(128), nullable=True)
     relaxed_bo_detect = Column(Boolean, default=False)
     ticket_creation_enabled = Column(Boolean, default=True)
+    # 查輸贏回覆逐群開關（預設關閉）：一個 Teams 帳號會監看所有群，逐群開啟才能先只在測試群驗證
+    netwin_enabled = Column(Boolean, default=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="group_settings")
@@ -410,6 +421,28 @@ class TeamsWhitelistLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="whitelist_logs")
+
+
+class TeamsNetwinLog(Base):
+    """Teams 查輸贏回覆處理紀錄。outcome 沿用 NetwinQueryLog 的值，另外多兩種：
+    log_only（只記錄模式）／querying（已送出查詢、背景處理中；程式中途重啟會停在這個狀態）。"""
+    __tablename__ = "teams_netwin_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, ForeignKey("teams_bots.id"), nullable=False)
+    chat_id = Column(String(128), nullable=False)
+    chat_name = Column(String(255), nullable=False)
+    msg_id = Column(String(32), nullable=True)
+    sender = Column(String(255), nullable=True)
+    extracted_account = Column(String(255), nullable=True)
+    match_count = Column(Integer, nullable=True)
+    netwin_2d_thb = Column(Float, nullable=True)
+    rtp = Column(Float, nullable=True)
+    outcome = Column(String(32), nullable=False)
+    reply_sent = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bot = relationship("TeamsBot", back_populates="netwin_logs")
 
 
 class TeamsKeywordRule(Base):

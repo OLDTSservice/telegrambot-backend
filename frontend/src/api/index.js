@@ -71,6 +71,8 @@ export const updateTeamsGroup = (botId, chatId, d) =>
   api.put(`/teams-bots/${botId}/groups/${encodeURIComponent(chatId)}`, d)
 export const getTeamsWhitelistLogs = (botId, limit = 50) =>
   api.get(`/teams-bots/${botId}/whitelist-logs`, { params: { limit } })
+export const getTeamsNetwinLogs = (botId, limit = 50) =>
+  api.get(`/teams-bots/${botId}/netwin-logs`, { params: { limit } })
 
 // ── Teams Rules ────────────────────────────────
 export const getTeamsRules = () => api.get('/teams-rules')

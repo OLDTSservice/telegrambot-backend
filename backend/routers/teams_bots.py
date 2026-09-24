@@ -29,6 +29,9 @@ def _to_out(bot: models.TeamsBot) -> dict:
         "whitelist_enabled": bool(bot.whitelist_enabled),
         "whitelist_mode": bot.whitelist_mode or "full",
         "poll_interval_sec": bot.poll_interval_sec or 20,
+        "netwin_query_enabled": bool(bot.netwin_query_enabled),
+        "netwin_mode": bot.netwin_mode or "full",
+        "netwin_source_bot_id": bot.netwin_source_bot_id,
         "logged_in": bool(bot.refresh_token),
         "running": teams_service.is_watcher_running(bot.id),
         "last_poll_at": bot.last_poll_at, "last_error": bot.last_error,
@@ -56,6 +59,11 @@ def update_teams_bot(bot_id: int, payload: schemas.TeamsBotUpdate,
     data = payload.model_dump(exclude_none=True)
     if "whitelist_mode" in data and data["whitelist_mode"] not in ("log_only", "no_reply", "full"):
         raise HTTPException(status_code=400, detail="whitelist_mode 只能是 log_only / no_reply / full")
+    if "netwin_mode" in data and data["netwin_mode"] not in ("log_only", "no_reply", "full"):
+        raise HTTPException(status_code=400, detail="netwin_mode 只能是 log_only / no_reply / full")
+    if "netwin_source_bot_id" in data and not db.query(models.TelegramBot).filter(
+            models.TelegramBot.id == data["netwin_source_bot_id"]).first():
+        raise HTTPException(status_code=400, detail="指定的 Telegram 機器人不存在")
     if "poll_interval_sec" in data:
         data["poll_interval_sec"] = max(teams_service.MIN_POLL_INTERVAL, int(data["poll_interval_sec"]))
     for field, value in data.items():
@@ -193,6 +201,7 @@ def _setting_fields(s: Optional[models.TeamsGroupSetting]) -> dict:
         "single_vendor_name": s.single_vendor_name if s else None,
         "relaxed_bo_detect": s.relaxed_bo_detect if s else False,
         "ticket_creation_enabled": s.ticket_creation_enabled if s else True,
+        "netwin_enabled": bool(s.netwin_enabled) if s else False,
     }
 
 
@@ -220,6 +229,18 @@ def whitelist_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db), 
         db.query(models.TeamsWhitelistLog)
         .filter(models.TeamsWhitelistLog.bot_id == bot_id)
         .order_by(models.TeamsWhitelistLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+# ── 查輸贏回覆紀錄 ──────────────────────────────────────────────────────────
+@router.get("/{bot_id}/netwin-logs", response_model=List[schemas.TeamsNetwinLogOut])
+def netwin_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db), _=Depends(require_viewer)):
+    return (
+        db.query(models.TeamsNetwinLog)
+        .filter(models.TeamsNetwinLog.bot_id == bot_id)
+        .order_by(models.TeamsNetwinLog.created_at.desc())
         .limit(limit)
         .all()
     )

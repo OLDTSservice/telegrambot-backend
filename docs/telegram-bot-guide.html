@@ -342,6 +342,7 @@
       <a class="toc-link" href="#live-page">即時對話管控</a>
       <a class="toc-link" href="#whitelist-page">後台白名單處理</a>
       <a class="toc-link" href="#netwin-page">查輸贏回覆</a>
+      <a class="toc-link toc-sub" href="#netwin-teams">— Teams 查輸贏回覆（共用設定）</a>
       <a class="toc-link" href="#rescue-detail">AI機器人救援（運作細節）</a>
       <a class="toc-link" href="#stats-page">回覆統計</a>
       <a class="toc-link" href="#usage-page">使用量統計</a>
@@ -1356,10 +1357,10 @@
         <thead><tr><th style="width:70px">順序</th><th>規則</th></tr></thead>
         <tbody>
           <tr><td>1</td><td>具體欄位標籤（依此優先順序）：<span class="code">Player ID:</span>／<span class="code">玩家ID:</span>／<span class="code">Member username:</span>／<span class="code">Game Account:</span>／<span class="code">User ID:</span>／<span class="code">Player:</span>（大小寫不拘，取冒號後的英數字/底線字串）。<span class="code">Player:</span> 刻意排最後——有些廠商會同時列「<span class="code">Player: 暱稱</span>」與「<span class="code">User ID: 帳號</span>」兩行，前者是玩家顯示名稱、查詢不到（會 <span class="code">zero_match</span>），後者才是實際帳號，具體的 XxxID 類標籤要優先於籠統的 <span class="code">Player:</span>。<span class="code">玩家ID:</span> 這種中文字直接接英文 ID（無空格）的寫法獨立列一條規則，不能靠下方規則 3 的泛用 <span class="code">ID:</span> 標籤比對到——Python 把中文字也視為「單字字元」，中文與英文 ID 直接相鄰時沒有字界可判斷。每個標籤的兩個英文字之間允許空白、底線或連字號、也可以完全沒有分隔（<span class="code">Player ID</span>／<span class="code">Player_ID</span>／<span class="code">Player-ID</span>／<span class="code">PlayerID</span> 皆可比對到），因為底線同樣是「單字字元」，會讓下方規則 3 泛用 <span class="code">ID:</span> 標籤一樣找不到字界。</td></tr>
-          <tr><td>2</td><td>全形【】包住的純英數字帳號，例如 <span class="code">【 3027agent578315539 】</span>；帳號可能出現在句子<strong>中間</strong>、不需獨立成行（特定廠商固定查詢格式）。同句若還有【】包住的其他欄位（例如遊戲名稱 <span class="code">【JILI - 棋牌】</span>）因含中文/空格/連字號不符合純英數字規則，不會誤命中；括號內若是<strong>純數字</strong>（如注單編號）也會排除，理由同下方規則 4。</td></tr>
+          <tr><td>2</td><td>全形【】包住的純英數字帳號，例如 <span class="code">【 3027agent578315539 】</span>；帳號可能出現在句子<strong>中間</strong>、不需獨立成行（特定廠商固定查詢格式）。同句若還有【】包住的其他欄位（例如遊戲名稱 <span class="code">【JILI - 棋牌】</span>）因含中文/空格/連字號不符合純英數字規則，不會誤命中；括號內若是<strong>純數字</strong>（如注單編號）也會排除，理由同下方規則 4。括號內若是<strong>客服工單編號</strong>（格式 <span class="code">Z[NW] + 數字 + 可選一個英文字</span>，例如 ZF 範本訊息結尾的 <span class="code">/ZF195/JILI/CS Lee【ZN83671T】</span>）也會跳過、繼續找下一組【】——工單編號同樣是 6～20 碼英數字，不排除的話會被當成玩家帳號拿去查詢（結果只會是查無此人，但會讓該格式的訊息永遠走不到自動回覆）。</td></tr>
           <tr><td>3</td><td>泛用 <span class="code">ID:</span> 標籤，或中文「帳號：」／「會員：」類標籤（例如 <span class="code">玩家賬號 : 2n3401167716</span>、<span class="code">查詢會員：0zm102922342</span>，含簡繁「帳/賬/帐」與「號/戶/户」各種寫法，「玩家」／「查詢」前綴可省略——比對時不要求從行首開始，「詢會員：」「查詢會員：」這種標籤前面還有其他字的寫法一樣找得到），但排除含 <span class="code">kiosk</span>／<span class="code">理帳號</span>／<span class="code">理賬號</span>／<span class="code">理會員</span> 等「理＋帳號類字」字樣的那一行（屬代理帳號欄位，非玩家帳號）</td></tr>
-          <tr><td>4</td><td>訊息中獨立一行、6～20 碼英數字代碼，且<strong>非純數字</strong>（純數字通常是注單編號/Ticket，不是帳號）。比對前會先去掉行首尾的括號（<span class="code">()</span>／<span class="code">[]</span>／<span class="code">{}</span>／全形括號等，即使只殘留單邊，例如複製訊息漏帶開頭「(」只剩結尾「)」的 <span class="code">0mi512052838)</span>）與常見標點，因為帳號本身不會含這些符號</td></tr>
-          <tr><td>5</td><td>規則 4 整行比對不到時，改取該行以空白分隔後的<strong>第一段</strong>是否符合同樣格式，例如 <span class="code">2wf247934084 - mgmpt53</span>（帳號後面用空白加註代理/暱稱等備註）取第一段 <span class="code">2wf247934084</span>。這條規則比規則 4 更寬鬆，額外要求候選字串要<strong>同時含英文字母與數字</strong>（純英文單字不算），避免訊息裡剛好有一行是以一般英文單字開頭（例如訊息用 <span class="code">please help check...</span> 開頭）時被誤判成帳號。</td></tr>
+          <tr><td>4</td><td>訊息中獨立一行、6～20 碼英數字代碼，且<strong>非純數字</strong>（純數字通常是注單編號/Ticket，不是帳號）。比對前會先去掉行首尾的括號（<span class="code">()</span>／<span class="code">[]</span>／<span class="code">{}</span>／全形括號等，即使只殘留單邊，例如複製訊息漏帶開頭「(」只剩結尾「)」的 <span class="code">0mi512052838)</span>）與常見標點，因為帳號本身不會含這些符號。同規則 2，客服工單編號（如 <span class="code">ZN83671T</span>）不會被當成帳號</td></tr>
+          <tr><td>5</td><td>規則 4 整行比對不到時，改取該行以空白分隔後的<strong>第一段</strong>是否符合同樣格式，例如 <span class="code">2wf247934084 - mgmpt53</span>（帳號後面用空白加註代理/暱稱等備註）取第一段 <span class="code">2wf247934084</span>。這條規則比規則 4 更寬鬆，額外要求候選字串要<strong>同時含英文字母與數字</strong>（純英文單字不算），避免訊息裡剛好有一行是以一般英文單字開頭（例如訊息用 <span class="code">please help check...</span> 開頭）時被誤判成帳號。同規則 2，客服工單編號也會排除。</td></tr>
         </tbody>
       </table>
 
@@ -1407,6 +1408,7 @@
           <tr><td>自動回覆固定內容（中／英文）</td><td><span class="code">netwin_reply_zh</span> / <span class="code">netwin_reply_en</span>，依訊息是否含中文字元自動切換；若對應語言版本未填，退回一般 Fallback 轉人工訊息。</td></tr>
         </tbody>
       </table>
+      <p style="font-size:13.5px;color:#666">以上欄位（API 憑證、兩項門檻、延遲秒數、回覆內容）同時也是 <a href="#netwin-teams">Teams 查輸贏回覆</a>的設定來源——Teams 端指定共用哪一個 Telegram 機器人後，直接讀取這裡的值，<strong>修改這裡會同時影響 Teams</strong>。「查輸贏回覆」開關本身則是兩邊各自獨立。</p>
 
       <h3>處理記錄 outcome 對照表</h3>
       <table>
@@ -1432,6 +1434,37 @@
         知識庫等其他機制找不到答案時，若群組已開啟<a href="#kb-skip">「找不到答案時靜默」</a>就會完全不回覆；但查輸贏回覆<strong>刻意排除在這個靜默規則之外</strong>——不論該群組有沒有開靜默，只要偵測到查輸贏請求，一律會回覆（查詢成功且達標時延遲回覆固定內容，其餘情況立即回覆制式轉人工訊息）。
         這是因為自動回覆本身已有 <span class="code">netwin_reply_delay_seconds</span> 延遲，如果查無結果時又疊加靜默不回覆，兩種「暫時看起來沒反應」的情況混在一起，容易讓人員誤以為訊息還在延遲回覆中，因而錯過真正需要人工確認的查輸贏請求。程式碼位置：<span class="code">backend/services/telegram_service.py</span>「0.9 查輸贏回覆」區塊。
       </div>
+
+      <h3 id="netwin-teams">Teams 查輸贏回覆（共用本頁設定）</h3>
+      <p class="path-crumb">側邊選單：<span class="code">Teams 機器人 → 查輸贏回覆</span>；逐群開關在 <span class="code">Teams 機器人 → 機器人管理 → 群組設定</span></p>
+      <p>Teams 個人帳號機器人（輪詢廠商群組訊息的那一套）也支援查輸贏回覆，<strong>觸發關鍵字、帳號擷取規則、兩段 API 判斷流程與 outcome 值和 Telegram 完全相同</strong>（直接共用 <span class="code">tjadmin_service.py</span> 同一份程式），之後在程式裡新增觸發關鍵字或擷取規則，Telegram 與 Teams 會同時生效。</p>
+      <table>
+        <thead><tr><th style="width:200px">項目</th><th>Teams 的做法</th></tr></thead>
+        <tbody>
+          <tr><td>API 憑證／門檻／延遲／回覆內容</td><td><strong>不另外設定</strong>，在 Teams「查輸贏回覆」頁面選擇「共用來源」Telegram 機器人，直接讀取該機器人在本頁的設定（同一個專案的廠商，API 網域與門檻相同）。頁面上會唯讀顯示目前共用的設定值，要修改請回本頁。</td></tr>
+          <tr><td>總開關</td><td>Teams 機器人層級的「查輸贏回覆」開關，與 Telegram 端開關互相獨立。</td></tr>
+          <tr><td>逐群開關</td><td>群組設定表的「查輸贏回覆」欄，<strong>預設全部關閉</strong>。一個 Teams 帳號會監看所在的所有群組，逐群開啟才能先只在測試群驗證，確認後再逐一開啟廠商群。總開關與該群開關<strong>都開啟</strong>才會處理。</td></tr>
+          <tr><td>模式</td><td><span class="code">只記錄</span>：只偵測、擷取帳號並寫紀錄，不查 API、不回覆（觀察誤觸發用）／<span class="code">查詢但不回覆</span>：查 API、寫完整結果，不回覆／<span class="code">全自動</span>：查 API，符合門檻才回覆。預設為全自動（因逐群開關預設關閉，不會一開就影響廠商群）。</td></tr>
+          <tr><td>回覆方式</td><td>以<strong>引用回覆＋@原發送者</strong>的方式回覆原訊息，延遲秒數與 Telegram 相同；倒數期間若總開關、模式或該群開關被關閉，會取消回覆。回覆成功後計入 Teams 回覆統計，並依該群「自動建立工單」開關建立 Freshdesk 工單。</td></tr>
+          <tr><td>處理順序</td><td>同 Telegram：<strong>白名單優先</strong>，已被白名單流程處理的訊息不會再判斷查輸贏；白名單解析不出帳號/IP 的訊息才會繼續判斷查輸贏。</td></tr>
+          <tr><td>重複處理</td><td>同一則 Teams 訊息只處理一次（依訊息 id 查重）。</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>與 Telegram 最大的差異：沒有結果就靜默</strong>
+        Telegram 端查無結果或超過門檻時會立即回覆轉人工訊息；Teams 端<strong>只有淨值與 RTP 都在門檻內（<span class="code">auto_replied</span>）才會回覆</strong>，其餘所有 outcome（擷取不到帳號、查無此人、多筆、超過門檻、API 失敗、設定未完成等）一律靜默、只寫入處理紀錄。原因是 Teams 端是以<strong>同仁本人的個人帳號</strong>發言，而觸發判斷是單純的關鍵字比對，若照 Telegram 一律回覆，誤觸發時會變成同仁帳號在廠商群自動發出轉人工訊息。需要人工處理的查詢請從 Teams「查輸贏回覆」頁面的處理紀錄確認。另外若共用來源未設定對應語言的回覆內容，符合門檻時也不會回覆（不會退回轉人工訊息）。
+      </div>
+
+      <table>
+        <thead><tr><th style="width:190px">Teams 專有 outcome</th><th>意義</th></tr></thead>
+        <tbody>
+          <tr><td><span class="code">log_only</span></td><td>「只記錄」模式下偵測到的查輸贏訊息（有記錄擷取到的帳號，未查 API）</td></tr>
+          <tr><td><span class="code">querying</span></td><td>已送出 API 查詢、背景處理中；若程式在查詢途中重啟，紀錄會停留在這個狀態</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13.5px;color:#666">處理紀錄的「結果」欄中，<span class="code">auto_replied</span> 在 Teams 頁面顯示為「符合門檻」，是否真的已送出請看「已回覆」欄（「查詢但不回覆」模式下會是符合門檻但未回覆）。<br>
+      另外，Teams 訊息內容是 HTML，轉成純文字時會把表格的每一列、清單的每一項都換行（同一列的儲存格以空白分隔），廠商從 Excel/Word 貼上的查詢資料才能被依行擷取帳號（白名單的帳號解析也同樣受益）。程式碼位置：<span class="code">backend/services/teams_service.py</span> 的 <span class="code">_try_netwin()</span>／<span class="code">_netwin_worker()</span>。</p>
 
       <div class="callout danger">
         <strong>帳密與金鑰資訊</strong>

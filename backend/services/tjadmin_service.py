@@ -139,6 +139,10 @@ _GENERIC_ACCOUNT_PATTERNS = (_GENERIC_ID_RE, _CHINESE_ACCOUNT_LABEL_RE)
 # 只比對【】內「純英數字（含底線）」的內容——「JILI - 棋牌」這種含中文/空格/連字號的
 # 內容不會命中，天然排除掉同句其他用【】標示的欄位（如遊戲名稱）。
 _BRACKETED_ACCOUNT_RE = re.compile(r'【\s*([A-Za-z0-9_]{6,20})\s*】')
+# 客服工單編號（例如 ZF 範本訊息結尾「/ZF195/JILI/CS Lee【ZN83671T】」），格式跟帳號一樣是
+# 6-20 碼英數字，會被上面的【】規則或下方整行／第一段保底規則誤當成玩家帳號（拿去查 API 只會
+# zero_match，不會回錯答案，但會讓該格式的訊息永遠走不到自動回覆），所以候選字串一律先排除。
+_TICKET_CODE_RE = re.compile(r'^Z[NW]\d+[A-Z]?$')
 # 整行就是一個獨立代碼：6-20 碼英數字（含底線少見但保留彈性），且訊息本身沒有明確欄位標籤時的保底規則。
 # 帳號本身不會含括號，比對前先把兩端可能的括號（含只殘留一邊的情況，例如複製訊息時漏帶
 # 開頭的「(」只剩結尾「)」）與常見標點一併去掉，避免「0mi512052838)」這種殘留括號的帳號
@@ -155,7 +159,7 @@ _KIOSK_LINE_MARKERS = (
 def extract_account(text: str):
     """從訊息裡擷取玩家帳號候選字串（給 API 的 name 參數用）。
     依序嘗試：1. 具體欄位標籤（Player ID / Member username / Player）
-             2. 全形【】包住的純英數字帳號（特定廠商固定格式，帳號可能在句子中間）
+             2. 全形【】包住的純英數字帳號（特定廠商固定格式，帳號可能在句子中間；排除客服工單編號）
              3. 泛用 ID 標籤／中文「帳號：」「會員：」標籤（排除 Kiosk/理帳號/理會員那一行）
              4. 整行只有一個 6-20 碼英數字代碼（先去除頭尾括號/標點）、且不是純數字（純數字通常是注單編號/Ticket，不是帳號）
              5. 上一步整行比對不到時，改取該行以空白分隔後的「第一段」是否符合同樣格式
@@ -165,9 +169,9 @@ def extract_account(text: str):
         m = pat.search(text)
         if m:
             return m.group(1)
-    m = _BRACKETED_ACCOUNT_RE.search(text)
-    if m and not m.group(1).isdigit():
-        return m.group(1)
+    for m in _BRACKETED_ACCOUNT_RE.finditer(text):
+        if not m.group(1).isdigit() and not _TICKET_CODE_RE.match(m.group(1)):
+            return m.group(1)
     for line in text.splitlines():
         low = line.lower()
         if any(marker in low or marker in line for marker in _KIOSK_LINE_MARKERS):
@@ -178,7 +182,8 @@ def extract_account(text: str):
                 return m.group(1)
     for line in text.splitlines():
         candidate = line.strip().strip(_BARE_LINE_STRIP_CHARS)
-        if _BARE_LINE_RE.match(candidate) and not candidate.isdigit():
+        if (_BARE_LINE_RE.match(candidate) and not candidate.isdigit()
+                and not _TICKET_CODE_RE.match(candidate)):
             return candidate
     # 帳號本身不會有空白：若整行不是純帳號代碼（上一步比對失敗），但用空白分隔後的
     # 「第一段」本身符合帳號格式，視為候選帳號——常見於廠商在帳號後面用空白加註代理/
@@ -194,6 +199,6 @@ def extract_account(text: str):
             continue
         candidate = tokens[0].strip(_BARE_LINE_STRIP_CHARS)
         if (_BARE_LINE_RE.match(candidate) and not candidate.isdigit()
-                and not candidate.isalpha()):
+                and not candidate.isalpha() and not _TICKET_CODE_RE.match(candidate)):
             return candidate
     return None
