@@ -105,10 +105,14 @@ def detect_netwin_query_request(text: str) -> bool:
     return any(kw.lower() in lower for kw in _NETWIN_TRIGGER_WORDS)
 
 
-# 具體欄位標籤（依優先順序）：Player ID / 玩家ID / Member username / Game Account / User ID / Player。
-# 「Player:」刻意放在最後——有些廠商會同時列「Player: 暱稱」與「User ID: 帳號」兩行，
-# 前者是玩家顯示名稱、不是可查詢的帳號（查了會 zero_match），後者才是實際帳號，
-# 所以具體的 XxxID 類標籤要排在籠統的「Player:」之前，才能優先擷取到正確帳號。
+# 具體欄位標籤（依優先順序）：Player ID / 玩家ID / Member username / Game Account / User ID /
+# 用戶ID / Player。「Player:」刻意放在最後——有些廠商會同時列「Player: 暱稱」與
+# 「User ID: 帳號」兩行，前者是玩家顯示名稱、不是可查詢的帳號（查了會 zero_match），
+# 後者才是實際帳號，所以具體的 XxxID 類標籤要排在籠統的「Player:」之前，才能優先擷取
+# 到正確帳號。同理，「用戶ID：」也必須是 _LABELED_PATTERNS 裡的明確規則（優先於下方
+# 規則 3 泛用的「會員：」標籤）——「查詢會員 : 暱稱」+「用戶ID : 帳號」同時出現時，
+# 「會員」是顯示暱稱、「用戶ID」才是實際帳號，若靠規則 3 依行掃描（找到「會員：」就
+# 直接回傳）會在還沒掃到「用戶ID：」那一行前就先錯誤地回傳暱稱。
 # 「玩家ID：」這種中文字直接接英文 ID（無空格）的寫法，不能用泛用 _GENERIC_ID_RE 的
 # \bid 比對到——Python 的 \w／\b 把中文字也視為單字字元，「家」和「I」之間沒有字界，
 # 所以需要獨立列一條明確比對「玩家」+ID 的規則。
@@ -123,6 +127,7 @@ _LABELED_PATTERNS = (
     re.compile(r'member[\s_-]*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'game[\s_-]*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'user[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'用[户戶][\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」／中文「帳號：」「會員：」標籤（比對到單獨的帳號欄位，例如「ID : QOGABAE011O2」
@@ -150,6 +155,12 @@ _TICKET_CODE_RE = re.compile(r'^Z[NW]\d+[A-Z]?$')
 # 被括號擋住比對不到。
 _BARE_LINE_RE = re.compile(r'^[A-Za-z0-9]{6,20}$')
 _BARE_LINE_STRIP_CHARS = ",.;:()[]{}（）「」【】"
+# 純數字候選字串原則上排除（通常是注單編號/局號/Ticket，不是帳號），但廠商偶爾也會用
+# 純數字當帳號（例如「075413691352」）。實際看到的純數字帳號長度都跟英數混合帳號一樣
+# 落在 11-13 碼，而局號/注單號這類編號明顯長很多（例如「2419159666000100547」有19碼），
+# 兩者長度區間目前沒有重疊，用長度上限做區分：≤14 碼的純數字視為可能帳號、放行；
+# 超過則視為局號/注單號類編號、繼續排除。
+_MAX_NUMERIC_ACCOUNT_LEN = 14
 
 _KIOSK_LINE_MARKERS = (
     "kiosk", "理账号", "理帳號", "理賬號", "理帐号", "理帳戶", "理賬戶", "理账户", "理帐户",
@@ -162,7 +173,8 @@ def extract_account(text: str):
     依序嘗試：1. 具體欄位標籤（Player ID / Member username / Player）
              2. 全形【】包住的純英數字帳號（特定廠商固定格式，帳號可能在句子中間；排除客服工單編號）
              3. 泛用 ID 標籤／中文「帳號：」「會員：」標籤（排除 Kiosk/理帳號/理會員那一行）
-             4. 整行只有一個 6-20 碼英數字代碼（先去除頭尾括號/標點）、且不是純數字（純數字通常是注單編號/Ticket，不是帳號）
+             4. 整行只有一個 6-20 碼英數字代碼（先去除頭尾括號/標點）；純數字時僅接受 14 碼以內
+                （超過視為注單編號/局號/Ticket，不是帳號）
              5. 上一步整行比對不到時，改取該行以空白分隔後的「第一段」是否符合同樣格式
                 （帳號本身不會有空白，常見於帳號後面用空白加註代理/暱稱等備註）
     找不到時回傳 None，呼叫端應視為「偵測到查詢意圖但擷取不到帳號」，直接轉人工。"""
@@ -183,7 +195,8 @@ def extract_account(text: str):
                 return m.group(1)
     for line in text.splitlines():
         candidate = line.strip().strip(_BARE_LINE_STRIP_CHARS)
-        if (_BARE_LINE_RE.match(candidate) and not candidate.isdigit()
+        if (_BARE_LINE_RE.match(candidate)
+                and not (candidate.isdigit() and len(candidate) > _MAX_NUMERIC_ACCOUNT_LEN)
                 and not _TICKET_CODE_RE.match(candidate)):
             return candidate
     # 帳號本身不會有空白：若整行不是純帳號代碼（上一步比對失敗），但用空白分隔後的
