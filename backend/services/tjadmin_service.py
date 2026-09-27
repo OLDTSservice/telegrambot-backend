@@ -96,6 +96,7 @@ _NETWIN_TRIGGER_WORDS = (
     "投注是否有问题", "投注是否有問題", "投注是否有对赌", "投注是否有對賭",
     "any irregularities", "any cross betting", "bets are normal",
     "bets are unusual", "bet is unusual", "是否有对赌", "是否有對賭",
+    "存在异常", "存在異常", "异常刷水", "異常刷水", "投注行为", "投注行為",
 )
 
 
