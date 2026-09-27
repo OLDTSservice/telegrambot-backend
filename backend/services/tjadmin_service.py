@@ -121,11 +121,14 @@ def detect_netwin_query_request(text: str) -> bool:
 # 涵蓋「Player ID」「Player_ID」「Player-ID」「PlayerID」這幾種常見寫法——底線同樣
 # 是\w字元，跟中文字一樣會讓 _GENERIC_ID_RE 的 \bid 找不到字界，所以直接在這裡的
 # 具體標籤放寬分隔詞，而不是去動泛用規則（避免放寬泛用規則後誤抓到「遊戲ID」這類
-# 不是玩家帳號的欄位）。
+# 不是玩家帳號的欄位）。「member's username」這種所有格寫法額外加一段可省略的
+# 「's」/「’s」（直引號/彎引號皆可）；捕獲群組 [A-Za-z0-9_]+ 本身在遇到「@」就會
+# 停止比對，所以「K2817843157298307@api-2882.game」這種帳號後面帶 @網域 的完整
+# account 格式，會自然只擷取到「@」前面的 name 部分，不需要額外處理。
 _LABELED_PATTERNS = (
     re.compile(r'player[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'玩家[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'member[\s_-]*username\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r"member(?:'s|’s)?[\s_-]*username\s*[:：]\s*([A-Za-z0-9_]+)", re.IGNORECASE),
     re.compile(r'game[\s_-]*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'user[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'用[户戶][\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
