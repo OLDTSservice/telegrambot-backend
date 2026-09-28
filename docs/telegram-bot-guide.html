@@ -1382,7 +1382,7 @@
       </table>
 
       <h4>④ API 4：查詢近7日RTP（淨值符合門檻後才會呼叫）</h4>
-      <p style="margin-bottom:8px">用 API 1 回應中附帶的 <span class="code">aid</span> 呼叫 API 4（<span class="code">GET /api/external/v1/player-rtp?aid=...</span>），取回應的 <span class="code">summary.rtp</span>：</p>
+      <p style="margin-bottom:8px">用 API 1 回應中附帶的 <span class="code">aid</span> 呼叫 API 4（<span class="code">GET /api/external/v1/player-rtp?aid=...</span>），取回應的 <span class="code">summary.rtp</span>。此 API 對下注量大的玩家回應較慢，timeout 設為 <strong>50 秒</strong>（與 API 1 的 30 秒分開設定，不共用同一個值——曾實際發生下注量大的玩家在 30 秒內 <span class="code">Read timed out</span> 而轉人工，因此拉長）：</p>
       <table>
         <thead><tr><th style="width:230px">情況</th><th>處理結果</th></tr></thead>
         <tbody>

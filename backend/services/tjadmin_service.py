@@ -56,12 +56,14 @@ def query_player_by_name(base_url: str, key_id: str, api_key: str, name: str, ti
         return None, str(e)
 
 
-def query_player_rtp(base_url: str, key_id: str, api_key: str, aid, timeout: int = 30):
+def query_player_rtp(base_url: str, key_id: str, api_key: str, aid, timeout: int = 50):
     """呼叫 API 4（玩家近 7 日每日遊戲 RTP），依 aid（來自 API 1 回應）查詢。
     回傳 (summary, error)：成功時 error 為 None，summary 是回應裡最外層的 summary 物件
     （含 rtp 等欄位，7 日內完全無下注時 summary.rtp 會是 None，呼叫端需自行判斷）；
     請求失敗（例外、非 200，含查無此玩家的 404）時 summary 為 None，error 是簡短錯誤說明。
-    文件建議此 API 對下注量大的玩家回應較慢，timeout 沿用 API 1 的 30 秒。"""
+    文件建議此 API 對下注量大的玩家回應較慢；實際發生過下注量大的玩家在 30 秒內
+    read timeout（HTTPSConnectionPool ... Read timed out）導致轉人工，因此拉長到 50 秒，
+    與 API 1（查詢近2日淨值，見 query_player_by_name）的 30 秒分開，不共用同一個值。"""
     raw_query = f"aid={aid}"
     hash_hex, _ = _sign("GET", _PLAYER_RTP_PATH, raw_query, api_key)
     url = f"{base_url.rstrip('/')}{_PLAYER_RTP_PATH}?{raw_query}"
