@@ -380,18 +380,18 @@
       </div>
 
       <h3 id="roles">帳號與權限</h3>
-      <p>後台登入採帳號密碼＋JWT Token，Token 有效期 <strong>24 小時</strong>。共分三種角色：</p>
+      <p>後台登入採帳號密碼＋JWT Token，Token 有效期 <strong>24 小時</strong>。共分三種角色，編輯員與檢視者可再依<a href="#users-page">「頁面權限」</a>逐頁限制：</p>
       <table>
         <thead><tr><th>角色</th><th>可檢視</th><th>可新增／編輯／切換開關</th><th>可刪除</th><th>可管理帳號（人員）</th></tr></thead>
         <tbody>
-          <tr><td><span class="tag tag-red">superadmin 超級管理員</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-          <tr><td><span class="tag tag-blue">editor 編輯員</span></td><td>✅</td><td>✅</td><td>✅</td><td>❌</td></tr>
-          <tr><td><span class="tag tag-gray">viewer 檢視者</span></td><td>✅</td><td>❌（按鈕會反灰）</td><td>❌</td><td>❌</td></tr>
+          <tr><td><span class="tag tag-red">superadmin 超級管理員</span></td><td>✅ 全部頁面</td><td>✅ 全部頁面</td><td>✅</td><td>✅</td></tr>
+          <tr><td><span class="tag tag-blue">editor 編輯員</span></td><td>勾選「可查看」的頁面</td><td>勾選「可編輯」的頁面</td><td>同可編輯</td><td>❌</td></tr>
+          <tr><td><span class="tag tag-gray">viewer 檢視者</span></td><td>勾選「可查看」的頁面</td><td>❌（按鈕會反灰）</td><td>❌</td><td>❌</td></tr>
         </tbody>
       </table>
       <div class="callout">
         <strong>預設帳號</strong>
-        系統初次啟動會自動建立一組 superadmin 帳號 <span class="code">admin / admin123</span>，建議上線後盡快至「帳號管理」頁面更改密碼或新增正式帳號。
+        系統初次啟動會自動建立一組 superadmin 帳號 <span class="code">admin / admin123</span>，建議上線後盡快至「帳號管理」頁面更改密碼或新增正式帳號。登入畫面已不再顯示這組預設帳密。
       </div>
     </section>
 
@@ -1623,11 +1623,36 @@
       <table>
         <thead><tr><th>按鍵 / 欄位</th><th>功能說明</th></tr></thead>
         <tbody>
-          <tr><td><span class="btn-chip">新增帳號</span></td><td>設定帳號、Email、密碼與角色（superadmin / editor / viewer）；帳號與 Email 皆不可重複。</td></tr>
-          <tr><td><span class="btn-chip">編輯</span></td><td>可修改 Email、角色、密碼，或切換帳號啟用狀態（停用後該帳號無法登入）。</td></tr>
+          <tr><td><span class="btn-chip">新增帳號</span></td><td>設定帳號、Email、密碼、角色（superadmin / editor / viewer）與頁面權限；帳號與 Email 皆不可重複。新增時頁面權限預設全部勾選，可再取消。</td></tr>
+          <tr><td><span class="btn-chip">編輯</span></td><td>可修改 Email、角色、密碼、頁面權限，或切換帳號啟用狀態（停用後該帳號無法登入）。</td></tr>
           <tr><td><span class="btn-chip">刪除</span></td><td>無法刪除「自己」目前登入的帳號，避免誤刪導致無人可管理。</td></tr>
+          <tr><td>頁面權限欄</td><td>列表顯示每個帳號「可查看 N/17」「可編輯 N」頁；尚未設定過的既有帳號會標示「未設定，預設全部」。</td></tr>
         </tbody>
       </table>
+
+      <h3 id="users-perms">頁面權限設定</h3>
+      <p>編輯或新增帳號時，選擇角色後下方會出現頁面勾選表，頁面依側邊選單分成「Telegram 機器人」「Teams 機器人」「其他（使用量統計）」三組，共 17 頁：</p>
+      <table>
+        <thead><tr><th style="width:150px">角色</th><th>勾選方式</th></tr></thead>
+        <tbody>
+          <tr><td>檢視者</td><td>只有「可查看」一欄：勾選的頁面才會出現在選單，所有頁面都只能看、不能修改。</td></tr>
+          <tr><td>編輯員</td><td>「可查看」＋「可編輯」兩欄：只勾可查看＝該頁唯讀；同時勾可編輯＝該頁可新增／修改／刪除。勾選可編輯會自動勾選可查看，取消可查看也會一併取消可編輯。</td></tr>
+          <tr><td>超級管理員</td><td>不需勾選，固定擁有全部頁面權限，並可使用「帳號管理」。</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>每組標題列與欄位標題都有全選勾選框，可一次勾選／取消整組或全部。</li>
+        <li><strong>沒有查看權限的頁面</strong>會從側邊選單隱藏；直接輸入網址進入會顯示「沒有權限」。登入後會自動進入第一個可查看的頁面。</li>
+        <li><strong>後端 API 同樣會檢查</strong>（不只是隱藏選單）：沒有權限的帳號直接呼叫 API 也會被拒絕（403）。</li>
+        <li><strong>共用設定逐欄位判斷</strong>：機器人設定同時被多個頁面使用，例如只有「查輸贏回覆」可編輯的帳號，只能修改查輸贏相關設定，不能改機器人名稱或 Token；白名單開關、管控模式也分別屬於「後台白名單處理」「即時對話管控」頁。Teams 機器人的白名單、查輸贏設定同理。</li>
+        <li><strong>機密欄位遮罩</strong>：機器人清單在各頁的下拉選單都會用到，但 Telegram Token 只有能編輯「機器人管理」的帳號看得到完整值；tjadmin 完整金鑰只有能編輯「機器人管理」或「查輸贏回覆」的帳號看得到，其他帳號看到的是遮罩值。</li>
+        <li>處理紀錄上的「加入忽略名單」按鈕，需要「Teams 忽略名單」頁的編輯權限才會顯示。</li>
+        <li>角色從編輯員改為檢視者時，原本的「可編輯」會自動降為「可查看」。</li>
+      </ul>
+      <div class="callout">
+        <strong>既有帳號不受影響</strong>
+        這個功能上線前就存在的帳號都是「未設定」狀態，沿用原本的角色權限（編輯員全部頁面可編輯、檢視者全部頁面可查看），部署後行為完全不變；在帳號管理儲存一次頁面權限後，才會改用勾選的設定。
+      </div>
     </section>
 
     <!-- ═══════════ 速查表 ═══════════ -->

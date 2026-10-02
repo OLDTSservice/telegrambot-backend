@@ -47,9 +47,6 @@ export default function LoginPage({ onLogin }) {
           </Button>
         </Form>
 
-        <Text type="secondary" style={{ fontSize: 12, display: 'block', textAlign: 'center', marginTop: 16 }}>
-          預設帳號：admin / admin123
-        </Text>
       </Card>
     </div>
   )

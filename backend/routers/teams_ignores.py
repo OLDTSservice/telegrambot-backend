@@ -3,18 +3,20 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/teams-ignores", tags=["Teams忽略名單"])
+_VIEW = require_page_view("teams_ignores")
+_EDIT = require_page_edit("teams_ignores")
 
 
 @router.get("", response_model=List[schemas.TeamsIgnoreOut])
-def list_teams_ignores(db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_teams_ignores(db: Session = Depends(get_db), _=Depends(_VIEW)):
     return db.query(models.TeamsIgnore).all()
 
 
 @router.post("", response_model=schemas.TeamsIgnoreOut)
-def create_teams_ignore(payload: schemas.TeamsIgnoreCreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_teams_ignore(payload: schemas.TeamsIgnoreCreate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     bot = db.query(models.TeamsBot).filter(models.TeamsBot.id == payload.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -35,7 +37,7 @@ def create_teams_ignore(payload: schemas.TeamsIgnoreCreate, db: Session = Depend
 
 
 @router.put("/{item_id}", response_model=schemas.TeamsIgnoreOut)
-def update_teams_ignore(item_id: int, payload: schemas.TeamsIgnoreUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_teams_ignore(item_id: int, payload: schemas.TeamsIgnoreUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     item = db.query(models.TeamsIgnore).filter(models.TeamsIgnore.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")
@@ -47,7 +49,7 @@ def update_teams_ignore(item_id: int, payload: schemas.TeamsIgnoreUpdate, db: Se
 
 
 @router.delete("/{item_id}")
-def delete_teams_ignore(item_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_teams_ignore(item_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     item = db.query(models.TeamsIgnore).filter(models.TeamsIgnore.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 
 
@@ -22,6 +22,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    permissions: Optional[Dict[str, str]] = None    # {page_key: "view"|"edit"}；超級管理員忽略
 
 
 class UserUpdate(BaseModel):
@@ -29,12 +30,15 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
+    permissions: Optional[Dict[str, str]] = None
 
 
 class UserOut(UserBase):
     id: int
     is_active: bool
     created_at: datetime
+    page_permissions: Dict[str, str] = {}   # 實際生效的頁面權限（已套用角色與預設）
+    permissions_customized: bool = False    # False＝尚未設定過，沿用角色原本的全部權限
 
     class Config:
         from_attributes = True

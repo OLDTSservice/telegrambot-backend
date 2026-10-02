@@ -5,9 +5,11 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 from database import get_db
 import models
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/conversation-logs", tags=["對話日誌"])
+_VIEW = require_page_view("telegram_knowledge")
+_EDIT = require_page_edit("telegram_knowledge")
 
 
 class LogOut(BaseModel):
@@ -35,7 +37,7 @@ def list_logs(
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW),
 ):
     since = datetime.utcnow() - timedelta(days=7)
     q = db.query(models.ConversationLog).filter(
@@ -50,7 +52,7 @@ def list_logs(
 
 
 @router.get("/count")
-def count_logs(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def count_logs(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
     since = datetime.utcnow() - timedelta(days=7)
     q = db.query(models.ConversationLog).filter(models.ConversationLog.created_at >= since)
     if bot_id:
@@ -63,7 +65,7 @@ def add_log_to_knowledge(
     log_id: int,
     payload: AddToKnowledge,
     db: Session = Depends(get_db),
-    _=Depends(require_editor),
+    _=Depends(_EDIT),
 ):
     log = db.query(models.ConversationLog).filter(models.ConversationLog.id == log_id).first()
     if not log:

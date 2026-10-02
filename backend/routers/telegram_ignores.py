@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/telegram-ignores", tags=["Telegram忽略名單"])
+_VIEW = require_page_view("telegram_ignores")
+_EDIT = require_page_edit("telegram_ignores")
 
 
 @router.get("", response_model=List[schemas.TelegramIgnoreOut])
-def list_ignores(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_ignores(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
     q = db.query(models.TelegramIgnore)
     if bot_id is not None:
         q = q.filter(models.TelegramIgnore.bot_id == bot_id)
@@ -17,7 +19,7 @@ def list_ignores(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=
 
 
 @router.post("", response_model=schemas.TelegramIgnoreOut)
-def create_ignore(payload: schemas.TelegramIgnoreCreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_ignore(payload: schemas.TelegramIgnoreCreate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == payload.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -35,7 +37,7 @@ def create_ignore(payload: schemas.TelegramIgnoreCreate, db: Session = Depends(g
 
 
 @router.put("/{item_id}", response_model=schemas.TelegramIgnoreOut)
-def update_ignore(item_id: int, payload: schemas.TelegramIgnoreUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_ignore(item_id: int, payload: schemas.TelegramIgnoreUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     item = db.query(models.TelegramIgnore).filter(models.TelegramIgnore.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")
@@ -47,7 +49,7 @@ def update_ignore(item_id: int, payload: schemas.TelegramIgnoreUpdate, db: Sessi
 
 
 @router.delete("/{item_id}")
-def delete_ignore(item_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_ignore(item_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     item = db.query(models.TelegramIgnore).filter(models.TelegramIgnore.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")

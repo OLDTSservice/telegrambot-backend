@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, Avatar, Dropdown, Typography, theme } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Typography, theme, Result, Button, Spin } from 'antd'
 import {
   RobotOutlined, KeyOutlined, BookOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
@@ -8,6 +8,7 @@ import {
   SafetyOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { getMe } from './api'
+import { pageByPath, canViewPage, firstAllowedPath, pageUser } from './permissions'
 import LoginPage from './pages/LoginPage'
 import BotsPage from './pages/BotsPage'
 import RulesPage from './pages/RulesPage'
@@ -51,7 +52,7 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData)
-    navigate('/telegram/bots')
+    navigate(firstAllowedPath(userData) || '/no-access')
   }
 
   const handleLogout = () => {
@@ -104,6 +105,21 @@ export default function App() {
       ? [{ key: '/users', icon: <UserOutlined />, label: '帳號管理' }]
       : []),
   ]
+    // 依頁面權限只顯示能查看的頁面；整組都沒有可看頁面時連群組一起隱藏
+    .map(item => {
+      if (!item.children) return item
+      const children = item.children.filter(c => canViewPage(user, pageByPath(c.key)?.key))
+      return children.length ? { ...item, children } : null
+    })
+    .filter(item => item && (item.children || item.key === '/users' || canViewPage(user, pageByPath(item.key)?.key)))
+
+  // 路由守門：沒有該頁查看權限就顯示無權限頁；傳給頁面的 user 已依該頁權限換算角色（見 permissions.js）
+  const guard = (path, render) => {
+    if (!user) return <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
+    const key = pageByPath(path)?.key
+    if (!canViewPage(user, key)) return <NoAccess user={user} />
+    return render(pageUser(user, key))
+  }
 
   const selectedKey = location.pathname
 
@@ -165,28 +181,48 @@ export default function App() {
 
         <Content style={{ padding: 24 }}>
           <Routes>
-            <Route path="/telegram/bots" element={<BotsPage user={user} />} />
-            <Route path="/telegram/rules" element={<RulesPage user={user} />} />
-            <Route path="/telegram/knowledge" element={<KnowledgePage user={user} />} />
-            <Route path="/telegram/ignores" element={<TelegramIgnorePage user={user} />} />
-            <Route path="/telegram/bot-admins" element={<TelegramBotAdminPage user={user} />} />
-            <Route path="/telegram/reply-stats" element={<TelegramReplyStatsPage />} />
-            <Route path="/telegram/live" element={<TelegramLivePage user={user} />} />
-            <Route path="/telegram/whitelist" element={<WhitelistPage user={user} />} />
-            <Route path="/telegram/netwin" element={<NetwinPage user={user} />} />
-            <Route path="/teams/bots" element={<TeamsBotsPage user={user} />} />
-            <Route path="/teams/rules" element={<TeamsRulesPage user={user} />} />
-            <Route path="/teams/knowledge" element={<TeamsKnowledgePage user={user} />} />
-            <Route path="/teams/ignores" element={<TeamsIgnorePage user={user} />} />
-            <Route path="/teams/reply-stats" element={<TeamsReplyStatsPage />} />
-            <Route path="/teams/whitelist" element={<TeamsWhitelistPage user={user} />} />
-            <Route path="/teams/netwin" element={<TeamsNetwinPage user={user} />} />
-            <Route path="/stats" element={<StatsPage />} />
-            <Route path="/users" element={<UsersPage user={user} />} />
-            <Route path="*" element={<Navigate to="/telegram/bots" replace />} />
+            <Route path="/telegram/bots" element={guard('/telegram/bots', u => <BotsPage user={u} />)} />
+            <Route path="/telegram/rules" element={guard('/telegram/rules', u => <RulesPage user={u} />)} />
+            <Route path="/telegram/knowledge" element={guard('/telegram/knowledge', u => <KnowledgePage user={u} />)} />
+            <Route path="/telegram/ignores" element={guard('/telegram/ignores', u => <TelegramIgnorePage user={u} />)} />
+            <Route path="/telegram/bot-admins" element={guard('/telegram/bot-admins', u => <TelegramBotAdminPage user={u} />)} />
+            <Route path="/telegram/reply-stats" element={guard('/telegram/reply-stats', () => <TelegramReplyStatsPage />)} />
+            <Route path="/telegram/live" element={guard('/telegram/live', u => <TelegramLivePage user={u} />)} />
+            <Route path="/telegram/whitelist" element={guard('/telegram/whitelist', u => <WhitelistPage user={u} />)} />
+            <Route path="/telegram/netwin" element={guard('/telegram/netwin', u => <NetwinPage user={u} />)} />
+            <Route path="/teams/bots" element={guard('/teams/bots', u => <TeamsBotsPage user={u} />)} />
+            <Route path="/teams/rules" element={guard('/teams/rules', u => <TeamsRulesPage user={u} />)} />
+            <Route path="/teams/knowledge" element={guard('/teams/knowledge', u => <TeamsKnowledgePage user={u} />)} />
+            <Route path="/teams/ignores" element={guard('/teams/ignores', u => <TeamsIgnorePage user={u} />)} />
+            <Route path="/teams/reply-stats" element={guard('/teams/reply-stats', () => <TeamsReplyStatsPage />)} />
+            <Route path="/teams/whitelist" element={guard('/teams/whitelist', u => <TeamsWhitelistPage user={u} />)} />
+            <Route path="/teams/netwin" element={guard('/teams/netwin', u => <TeamsNetwinPage user={u} />)} />
+            <Route path="/stats" element={guard('/stats', () => <StatsPage />)} />
+            <Route path="/users" element={
+              !user ? <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
+                : user.role === 'superadmin' ? <UsersPage user={user} /> : <NoAccess user={user} />
+            } />
+            <Route path="*" element={
+              !user ? <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
+                : firstAllowedPath(user) ? <Navigate to={firstAllowedPath(user)} replace /> : <NoAccess user={user} />
+            } />
           </Routes>
         </Content>
       </Layout>
     </Layout>
+  )
+}
+
+
+function NoAccess({ user }) {
+  const navigate = useNavigate()
+  const target = firstAllowedPath(user)
+  return (
+    <Result
+      status="403"
+      title="沒有權限"
+      subTitle={target ? '您的帳號沒有此頁面的查看權限。' : '您的帳號目前沒有任何頁面的查看權限，請聯絡超級管理員設定。'}
+      extra={target && <Button type="primary" onClick={() => navigate(target)}>前往可使用的頁面</Button>}
+    />
   )
 }

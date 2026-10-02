@@ -13,12 +13,20 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from auth import require_editor, require_viewer
+from auth import require_viewer, require_page_view, require_page_edit, ensure_field_permissions
 from database import get_db
 from services import teams_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/teams-bots", tags=["Teams機器人"])
+_VIEW_BOTS = require_page_view("teams_bots")
+_EDIT_BOTS = require_page_edit("teams_bots")
+_WL_PAGES = ("teams_bots", "teams_whitelist")
+_NW_PAGES = ("teams_bots", "teams_netwin")
+_TEAMS_BOT_FIELD_PAGES = {
+    "whitelist_enabled": _WL_PAGES, "whitelist_mode": _WL_PAGES,
+    "netwin_query_enabled": _NW_PAGES, "netwin_mode": _NW_PAGES, "netwin_source_bot_id": _NW_PAGES,
+}
 
 
 def _to_out(bot: models.TeamsBot) -> dict:
@@ -54,9 +62,11 @@ def list_teams_bots(db: Session = Depends(get_db), _=Depends(require_viewer)):
 
 @router.put("/{bot_id}", response_model=schemas.TeamsBotOut)
 def update_teams_bot(bot_id: int, payload: schemas.TeamsBotUpdate,
-                     db: Session = Depends(get_db), _=Depends(require_editor)):
+                     db: Session = Depends(get_db),
+                     current_user=Depends(require_page_edit("teams_bots", "teams_whitelist", "teams_netwin"))):
     bot = _get_bot(db, bot_id)
     data = payload.model_dump(exclude_none=True)
+    ensure_field_permissions(current_user, data.keys(), _TEAMS_BOT_FIELD_PAGES, ("teams_bots",))
     if "whitelist_mode" in data and data["whitelist_mode"] not in ("log_only", "no_reply", "full"):
         raise HTTPException(status_code=400, detail="whitelist_mode 只能是 log_only / no_reply / full")
     if "netwin_mode" in data and data["netwin_mode"] not in ("log_only", "no_reply", "full"):
@@ -82,7 +92,7 @@ def update_teams_bot(bot_id: int, payload: schemas.TeamsBotUpdate,
 
 
 @router.delete("/{bot_id}")
-def delete_teams_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_teams_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     bot = _get_bot(db, bot_id)
     teams_service.stop_watcher(bot.id)
     db.delete(bot)
@@ -91,7 +101,7 @@ def delete_teams_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(requi
 
 
 @router.post("/{bot_id}/restart", response_model=schemas.TeamsBotOut)
-def restart_teams_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def restart_teams_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     """watcher 因例外停掉時手動重啟（登入失效的話要走重新登入）"""
     bot = _get_bot(db, bot_id)
     if not bot.refresh_token:
@@ -107,7 +117,7 @@ def restart_teams_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(requ
 # ── 裝置代碼登入 ────────────────────────────────────────────────────────────
 @router.post("/login/start")
 def login_start(payload: schemas.TeamsLoginStartIn, bot_id: Optional[int] = None,
-                db: Session = Depends(get_db), _=Depends(require_editor)):
+                db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     if bot_id is not None:
         _get_bot(db, bot_id)
         name = None
@@ -122,7 +132,7 @@ def login_start(payload: schemas.TeamsLoginStartIn, bot_id: Optional[int] = None
 
 
 @router.get("/login/status/{session_id}")
-def login_status(session_id: str, db: Session = Depends(get_db), _=Depends(require_editor)):
+def login_status(session_id: str, db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     r = teams_service.poll_device_login(session_id)
     if r["status"] != "success":
         return {"status": r["status"], "error": r.get("error")}
@@ -165,7 +175,7 @@ def login_status(session_id: str, db: Session = Depends(get_db), _=Depends(requi
 
 # ── 群組設定 ────────────────────────────────────────────────────────────────
 @router.get("/{bot_id}/groups", response_model=List[schemas.TeamsGroupOut])
-def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(_VIEW_BOTS)):
     """即時從 Teams 列出帳號所在群組，合併 DB 裡的群組設定（吃 1 次 API 額度）"""
     bot = _get_bot(db, bot_id)
     if not bot.refresh_token:
@@ -207,7 +217,7 @@ def _setting_fields(s: Optional[models.TeamsGroupSetting]) -> dict:
 
 @router.put("/{bot_id}/groups/{chat_id:path}")
 def update_group(bot_id: int, chat_id: str, payload: schemas.TeamsGroupUpdateIn,
-                 db: Session = Depends(get_db), _=Depends(require_editor)):
+                 db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     _get_bot(db, bot_id)
     setting = db.query(models.TeamsGroupSetting).filter(
         models.TeamsGroupSetting.bot_id == bot_id,
@@ -224,7 +234,8 @@ def update_group(bot_id: int, chat_id: str, payload: schemas.TeamsGroupUpdateIn,
 
 # ── 白名單處理紀錄 ──────────────────────────────────────────────────────────
 @router.get("/{bot_id}/whitelist-logs", response_model=List[schemas.TeamsWhitelistLogOut])
-def whitelist_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def whitelist_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db),
+                   _=Depends(require_page_view("teams_whitelist"))):
     return (
         db.query(models.TeamsWhitelistLog)
         .filter(models.TeamsWhitelistLog.bot_id == bot_id)
@@ -236,7 +247,8 @@ def whitelist_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db), 
 
 # ── 查輸贏回覆紀錄 ──────────────────────────────────────────────────────────
 @router.get("/{bot_id}/netwin-logs", response_model=List[schemas.TeamsNetwinLogOut])
-def netwin_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def netwin_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db),
+                _=Depends(require_page_view("teams_netwin"))):
     return (
         db.query(models.TeamsNetwinLog)
         .filter(models.TeamsNetwinLog.bot_id == bot_id)

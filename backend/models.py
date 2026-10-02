@@ -13,6 +13,9 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), default="viewer")  # superadmin, editor, viewer
+    # 頁面權限 JSON：{"telegram_bots": "edit", "telegram_netwin": "view", ...}，沒列出的頁面不能查看。
+    # NULL＝尚未設定（沿用角色原本的權限：編輯員全部可編輯、檢視者全部可查看）；超級管理員不使用此欄位。
+    permissions = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

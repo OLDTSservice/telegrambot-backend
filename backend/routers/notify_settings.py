@@ -4,9 +4,11 @@ from pydantic import BaseModel
 from typing import Optional
 from database import get_db
 import models
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/notify-settings", tags=["通知設定"])
+_VIEW = require_page_view("telegram_bots")
+_EDIT = require_page_edit("telegram_bots")
 
 
 class NotifySettingOut(BaseModel):
@@ -27,7 +29,7 @@ class NotifySettingIn(BaseModel):
 
 
 @router.get("", response_model=NotifySettingOut)
-def get_setting(db: Session = Depends(get_db), _=Depends(require_viewer)):
+def get_setting(db: Session = Depends(get_db), _=Depends(_VIEW)):
     setting = db.query(models.NotifySetting).first()
     if not setting:
         return NotifySettingOut()
@@ -35,7 +37,7 @@ def get_setting(db: Session = Depends(get_db), _=Depends(require_viewer)):
 
 
 @router.put("")
-def upsert_setting(payload: NotifySettingIn, db: Session = Depends(get_db), _=Depends(require_editor)):
+def upsert_setting(payload: NotifySettingIn, db: Session = Depends(get_db), _=Depends(_EDIT)):
     setting = db.query(models.NotifySetting).first()
     if setting:
         setting.bot_id = payload.bot_id

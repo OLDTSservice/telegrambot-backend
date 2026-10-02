@@ -3,18 +3,20 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/teams-rules", tags=["Teams關鍵字規則"])
+_VIEW = require_page_view("teams_rules")
+_EDIT = require_page_edit("teams_rules")
 
 
 @router.get("", response_model=List[schemas.TeamsRuleOut])
-def list_teams_rules(db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_teams_rules(db: Session = Depends(get_db), _=Depends(_VIEW)):
     return db.query(models.TeamsKeywordRule).all()
 
 
 @router.post("", response_model=schemas.TeamsRuleOut)
-def create_teams_rule(payload: schemas.TeamsRuleCreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_teams_rule(payload: schemas.TeamsRuleCreate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     bot = db.query(models.TeamsBot).filter(models.TeamsBot.id == payload.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -26,7 +28,7 @@ def create_teams_rule(payload: schemas.TeamsRuleCreate, db: Session = Depends(ge
 
 
 @router.put("/{rule_id}", response_model=schemas.TeamsRuleOut)
-def update_teams_rule(rule_id: int, payload: schemas.TeamsRuleUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_teams_rule(rule_id: int, payload: schemas.TeamsRuleUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     rule = db.query(models.TeamsKeywordRule).filter(models.TeamsKeywordRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="規則不存在")
@@ -38,7 +40,7 @@ def update_teams_rule(rule_id: int, payload: schemas.TeamsRuleUpdate, db: Sessio
 
 
 @router.delete("/{rule_id}")
-def delete_teams_rule(rule_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_teams_rule(rule_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     rule = db.query(models.TeamsKeywordRule).filter(models.TeamsKeywordRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="規則不存在")

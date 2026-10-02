@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/telegram-bot-admins", tags=["Telegram機器人管理員名單"])
+_VIEW = require_page_view("telegram_bot_admins")
+_EDIT = require_page_edit("telegram_bot_admins")
 
 
 @router.get("", response_model=List[schemas.TelegramBotAdminOut])
-def list_bot_admins(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_bot_admins(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
     q = db.query(models.TelegramBotAdmin)
     if bot_id is not None:
         q = q.filter(models.TelegramBotAdmin.bot_id == bot_id)
@@ -17,7 +19,7 @@ def list_bot_admins(bot_id: Optional[int] = None, db: Session = Depends(get_db),
 
 
 @router.post("", response_model=schemas.TelegramBotAdminOut)
-def create_bot_admin(payload: schemas.TelegramBotAdminCreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_bot_admin(payload: schemas.TelegramBotAdminCreate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == payload.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -35,7 +37,7 @@ def create_bot_admin(payload: schemas.TelegramBotAdminCreate, db: Session = Depe
 
 
 @router.put("/{item_id}", response_model=schemas.TelegramBotAdminOut)
-def update_bot_admin(item_id: int, payload: schemas.TelegramBotAdminUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_bot_admin(item_id: int, payload: schemas.TelegramBotAdminUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     item = db.query(models.TelegramBotAdmin).filter(models.TelegramBotAdmin.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")
@@ -47,7 +49,7 @@ def update_bot_admin(item_id: int, payload: schemas.TelegramBotAdminUpdate, db: 
 
 
 @router.delete("/{item_id}")
-def delete_bot_admin(item_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_bot_admin(item_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     item = db.query(models.TelegramBotAdmin).filter(models.TelegramBotAdmin.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="記錄不存在")

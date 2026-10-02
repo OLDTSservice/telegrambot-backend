@@ -4,6 +4,7 @@ import { ReloadOutlined } from '@ant-design/icons'
 import { getTeamsBots, updateTeamsBot, getTeamsWhitelistLogs } from '../api'
 import { formatDateTime } from '../utils/datetime'
 import TeamsSenderCell from '../components/TeamsSenderCell'
+import { canEditPage } from '../permissions'
 
 const { Text } = Typography
 
@@ -65,7 +66,7 @@ export default function TeamsWhitelistPage({ user }) {
   }
 
   const logColumns = columns.map(c => c.key !== 'sender' ? c : {
-    ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEdit} />,
+    ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEditPage(user, 'teams_ignores')} />,
   })
 
   const fetchLogs = async () => {

@@ -3,19 +3,47 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_viewer, require_page_edit, ensure_field_permissions, can_edit_page
 from services.telegram_service import bot_manager
 
 router = APIRouter(prefix="/api/bots", tags=["機器人管理"])
+_EDIT_BOTS = require_page_edit("telegram_bots")
+# 機器人設定被多個頁面共用：這些欄位除了「機器人管理」，也可由對應頁面的編輯權限修改
+_NETWIN_PAGES = ("telegram_bots", "telegram_netwin")
+_BOT_FIELD_PAGES = {
+    "is_managed": ("telegram_bots", "telegram_live"),
+    "whitelist_enabled": ("telegram_bots", "telegram_whitelist"),
+    "netwin_query_enabled": _NETWIN_PAGES, "netwin_key_id": _NETWIN_PAGES, "netwin_api_key": _NETWIN_PAGES,
+    "netwin_api_base_url": _NETWIN_PAGES, "netwin_threshold": _NETWIN_PAGES, "netwin_reply_zh": _NETWIN_PAGES,
+    "netwin_reply_en": _NETWIN_PAGES, "netwin_reply_delay_seconds": _NETWIN_PAGES,
+    "netwin_rtp_threshold": _NETWIN_PAGES,
+}
+
+
+def _mask(secret):
+    return f"••••••{secret[-4:]}" if secret else secret
 
 
 @router.get("", response_model=List[schemas.BotOut])
-def list_bots(db: Session = Depends(get_db), _=Depends(require_viewer)):
-    return db.query(models.TelegramBot).all()
+def list_bots(db: Session = Depends(get_db), current_user=Depends(require_viewer)):
+    """各頁面共用的機器人下拉清單，登入即可讀取；但 Telegram Token 只給能編輯「機器人管理」的人、
+    tjadmin 完整金鑰只給能編輯「機器人管理」或「查輸贏回覆」的人，其他人看到的是遮罩值
+    （仍保留是否已設定的判斷，例如 Teams 查輸贏頁的「已設定」標示）。"""
+    show_token = can_edit_page(current_user, "telegram_bots")
+    show_netwin_key = can_edit_page(current_user, "telegram_bots", "telegram_netwin")
+    out = []
+    for bot in db.query(models.TelegramBot).all():
+        item = schemas.BotOut.model_validate(bot).model_dump()
+        if not show_token:
+            item["token"] = _mask(item["token"])
+        if not show_netwin_key:
+            item["netwin_api_key"] = _mask(item.get("netwin_api_key"))
+        out.append(item)
+    return out
 
 
 @router.post("", response_model=schemas.BotOut)
-def create_bot(payload: schemas.BotCreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_bot(payload: schemas.BotCreate, db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     if db.query(models.TelegramBot).filter(models.TelegramBot.token == payload.token).first():
         raise HTTPException(status_code=400, detail="Token 已存在")
     bot = models.TelegramBot(name=payload.name, token=payload.token, is_enabled=True)
@@ -32,7 +60,11 @@ def create_bot(payload: schemas.BotCreate, db: Session = Depends(get_db), _=Depe
 
 
 @router.put("/{bot_id}", response_model=schemas.BotOut)
-def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(get_db),
+               current_user=Depends(require_page_edit("telegram_bots", "telegram_live",
+                                                      "telegram_whitelist", "telegram_netwin"))):
+    ensure_field_permissions(current_user, payload.model_dump(exclude_unset=True).keys(),
+                             _BOT_FIELD_PAGES, ("telegram_bots",))
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -104,7 +136,7 @@ def bot_status(bot_id: int, db: Session = Depends(get_db), _=Depends(require_vie
 
 
 @router.post("/{bot_id}/restart")
-def restart_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def restart_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -115,7 +147,7 @@ def restart_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(require_ed
 
 
 @router.delete("/{bot_id}")
-def delete_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_bot(bot_id: int, db: Session = Depends(get_db), _=Depends(_EDIT_BOTS)):
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")

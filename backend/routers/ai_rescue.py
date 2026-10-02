@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from database import get_db
 import models
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/ai-rescue", tags=["AI救援"])
+_VIEW = require_page_view("telegram_bots")
+_EDIT = require_page_edit("telegram_bots")
 
 
 class RescueSettingOut(BaseModel):
@@ -23,7 +25,7 @@ class RescueSettingUpdate(BaseModel):
 
 
 @router.get("/{bot_id}", response_model=RescueSettingOut)
-def get_setting(bot_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def get_setting(bot_id: int, db: Session = Depends(get_db), _=Depends(_VIEW)):
     s = db.query(models.AIRescueSetting).filter(
         models.AIRescueSetting.bot_id == bot_id
     ).first()
@@ -37,7 +39,7 @@ def update_setting(
     bot_id: int,
     payload: RescueSettingUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_editor),
+    _=Depends(_EDIT),
 ):
     s = db.query(models.AIRescueSetting).filter(
         models.AIRescueSetting.bot_id == bot_id

@@ -5,14 +5,16 @@ from typing import List
 from datetime import datetime, date
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 from services.telegram_service import bot_manager
 
 router = APIRouter(prefix="/api/telegram-live", tags=["即時對話管控"])
+_VIEW = require_page_view("telegram_live")
+_EDIT = require_page_edit("telegram_live")
 
 
 @router.get("/groups", response_model=List[schemas.ChatGroupOut])
-def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(_VIEW)):
     """取得該機器人所有有訊息的群組，按最新訊息排序"""
     # 子查詢：每個 chat_id 最新一則訊息的時間戳（含 admin，用於取最新群組名稱）
     latest_sub = (
@@ -85,7 +87,7 @@ def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(require_vi
 
 
 @router.get("/messages", response_model=List[schemas.TelegramMessageOut])
-def get_messages(bot_id: int, chat_id: str, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def get_messages(bot_id: int, chat_id: str, db: Session = Depends(get_db), _=Depends(_VIEW)):
     """取得指定群組的最新 100 則訊息（含待發送回覆）"""
     msgs = (
         db.query(models.TelegramMessage)
@@ -101,7 +103,7 @@ def get_messages(bot_id: int, chat_id: str, db: Session = Depends(get_db), _=Dep
 
 
 @router.put("/read")
-def mark_read(bot_id: int, chat_id: str, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def mark_read(bot_id: int, chat_id: str, db: Session = Depends(get_db), _=Depends(_VIEW)):
     """將指定群組的訊息全部標為已讀"""
     db.query(models.TelegramMessage).filter(
         models.TelegramMessage.bot_id == bot_id,
@@ -113,7 +115,7 @@ def mark_read(bot_id: int, chat_id: str, db: Session = Depends(get_db), _=Depend
 
 
 @router.post("/send")
-def send_message(payload: schemas.LiveSendRequest, db: Session = Depends(get_db), _=Depends(require_editor)):
+def send_message(payload: schemas.LiveSendRequest, db: Session = Depends(get_db), _=Depends(_EDIT)):
     """後台手動發送訊息到指定群組"""
     try:
         bot_manager.send_message(payload.bot_id, payload.chat_id, payload.text)
@@ -179,7 +181,7 @@ def send_message(payload: schemas.LiveSendRequest, db: Session = Depends(get_db)
 
 @router.put("/pending/{pending_id}")
 def update_pending(pending_id: int, payload: schemas.PendingReplyUpdate,
-                   db: Session = Depends(get_db), _=Depends(require_editor)):
+                   db: Session = Depends(get_db), _=Depends(_EDIT)):
     """編輯待發送回覆的內容"""
     pending = db.query(models.TelegramPendingReply).filter(
         models.TelegramPendingReply.id == pending_id,
@@ -193,7 +195,7 @@ def update_pending(pending_id: int, payload: schemas.PendingReplyUpdate,
 
 
 @router.post("/pending/{pending_id}/send")
-def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     """發送待審回覆"""
     pending = db.query(models.TelegramPendingReply).filter(
         models.TelegramPendingReply.id == pending_id,
@@ -276,7 +278,7 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(requi
 
 
 @router.delete("/pending/{pending_id}")
-def discard_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def discard_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     """捨棄待發送回覆"""
     pending = db.query(models.TelegramPendingReply).filter(
         models.TelegramPendingReply.id == pending_id,

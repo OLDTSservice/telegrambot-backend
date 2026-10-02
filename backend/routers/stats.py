@@ -5,11 +5,13 @@ from typing import List, Optional
 from datetime import timedelta, datetime
 from database import get_db
 import models, schemas
-from auth import require_viewer
+from auth import require_page_view, require_page_edit
 from pydantic import BaseModel
 from timezone_utils import taipei_today
 
 router = APIRouter(prefix="/api/stats", tags=["使用量統計"])
+_VIEW = require_page_view("usage_stats")
+_EDIT = require_page_edit("usage_stats")
 
 # claude-haiku-4-5 定價（USD / 1M tokens），僅供費用預估參考，與前端 StatsPage.jsx 的 PRICE 常數一致
 _PRICE = {"input": 0.80, "output": 4.00, "cache_write": 1.00, "cache_read": 0.08}
@@ -40,7 +42,7 @@ def get_stats(
     date_from: str = Query(None),
     date_to: str = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW),
 ):
     _today_date = taipei_today()
     today = _today_date.isoformat()
@@ -135,7 +137,7 @@ def get_cost_by_group(
     date_to: str = Query(None),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW),
 ):
     """群組花費排行（AI Token 費用），依 chat_id 彙總 ConversationLog（有解答）與
     NoAnswerLog（無解答，同樣會呼叫 Claude 消耗 Token）兩張表，取花費前 N 名的群組。
@@ -205,7 +207,7 @@ class RecentQueryOut(BaseModel):
 def get_recent_queries(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW),
 ):
     """合併「有解答」與「無解答」兩種知識庫呼叫紀錄，依時間排序取最新 N 筆。
     無解答的呼叫同樣會消耗 Token（Claude 判斷找不到答案也要付費），

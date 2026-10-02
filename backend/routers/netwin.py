@@ -4,14 +4,16 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 import models, schemas
-from auth import require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/netwin", tags=["查輸贏回覆"])
+_VIEW = require_page_view("telegram_netwin")
+_EDIT = require_page_edit("telegram_netwin")
 
 
 @router.get("/logs", response_model=List[schemas.NetwinQueryLogOut])
 def get_netwin_logs(bot_id: int, limit: int = 50,
-                    db: Session = Depends(get_db), _=Depends(require_viewer)):
+                    db: Session = Depends(get_db), _=Depends(_VIEW)):
     """取得最近 N 筆查輸贏回覆處理記錄"""
     return (
         db.query(models.NetwinQueryLog)
@@ -23,7 +25,7 @@ def get_netwin_logs(bot_id: int, limit: int = 50,
 
 
 @router.get("/stats")
-def get_netwin_stats(bot_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def get_netwin_stats(bot_id: int, db: Session = Depends(get_db), _=Depends(_VIEW)):
     """依群組名稱統計「查詢後回覆次數」（outcome=auto_replied）與「未查詢的次數」（其餘 outcome）。"""
     rows = (
         db.query(

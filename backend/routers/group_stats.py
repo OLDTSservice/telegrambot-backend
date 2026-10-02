@@ -4,9 +4,13 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 import models
-from auth import require_viewer
+from auth import require_page_view
 
 router = APIRouter(prefix="/api/group-stats", tags=["群組回覆統計"])
+# /telegram 排行同時被「機器人管理」頁使用，所以兩頁任一可查看即可
+_VIEW_TG_RANK = require_page_view("telegram_reply_stats", "telegram_bots")
+_VIEW_TG = require_page_view("telegram_reply_stats")
+_VIEW_TEAMS = require_page_view("teams_reply_stats")
 
 
 def _apply_date_filter(query, date_col, period: str, value: str,
@@ -61,7 +65,7 @@ def telegram_group_stats(
     date_to: str = Query(None),
     bot_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW_TG_RANK),
 ):
     q = db.query(
         models.TelegramGroupStat.chat_id,
@@ -139,7 +143,7 @@ def teams_group_stats(
     date_to: str = Query(None),
     bot_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW_TEAMS),
 ):
     q = db.query(
         models.TeamsGroupStat.conversation_id,
@@ -177,7 +181,7 @@ def telegram_trend(
     date_to: str = Query(None),
     bot_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW_TG),
 ):
     if date_from and date_to:
         q = db.query(
@@ -215,7 +219,7 @@ def teams_trend(
     date_to: str = Query(None),
     bot_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW_TEAMS),
 ):
     if date_from and date_to:
         q = db.query(
@@ -246,7 +250,7 @@ def ticket_counts(
     date_to: str = Query(None),
     bot_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW_TG),
 ):
     """知識庫建立工單數 + 其他建立工單數 + 白名單工單數 + 查輸贏回覆工單數"""
     # created_at 以 UTC 儲存，但 date_from/date_to 是前端送來的台灣日曆日期，
@@ -304,7 +308,7 @@ def teams_ticket_counts(
     date_to: str = Query(None),
     bot_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW_TEAMS),
 ):
     """Teams 白名單工單數 + 查輸贏回覆工單數（created_at 為 UTC，日期範圍先換算，同 Telegram）"""
     start_utc, end_utc = _taipei_range_to_utc(date_from, date_to)

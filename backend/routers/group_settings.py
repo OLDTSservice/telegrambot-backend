@@ -6,9 +6,11 @@ from pydantic import BaseModel
 from datetime import datetime
 from database import get_db
 import models
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/group-settings", tags=["群組管理"])
+_VIEW = require_page_view("telegram_bots")
+_EDIT = require_page_edit("telegram_bots")
 
 
 class GroupOut(BaseModel):
@@ -50,7 +52,7 @@ def list_groups(
     page: int = 1,
     page_size: int = 50,
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW),
 ):
     # 取得每個 chat_id 最新日期的記錄（含最新群組名稱）
     latest_date_sq = db.query(
@@ -124,7 +126,7 @@ def update_group_setting(
     chat_id: str,
     payload: GroupUpdateIn,
     db: Session = Depends(get_db),
-    _=Depends(require_editor),
+    _=Depends(_EDIT),
 ):
     setting = db.query(models.TelegramGroupSetting).filter(
         models.TelegramGroupSetting.bot_id == payload.bot_id,

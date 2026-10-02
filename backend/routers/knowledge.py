@@ -9,7 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 from services.ai_service import process_document, delete_document_vectors
 
 _base_dir = "/data" if os.path.isdir("/data") else "."
@@ -19,12 +19,14 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv", ".md"}
 
 router = APIRouter(prefix="/api/knowledge", tags=["知識庫"])
+_VIEW = require_page_view("telegram_knowledge")
+_EDIT = require_page_edit("telegram_knowledge")
 
 
 # ── 文件 CRUD ──────────────────────────────────────────────────────────────
 
 @router.get("", response_model=List[schemas.DocOut])
-def list_docs(db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_docs(db: Session = Depends(get_db), _=Depends(_VIEW)):
     docs = db.query(models.KnowledgeDoc).all()
     for doc in docs:
         doc.qa_count = db.query(models.KnowledgeQA).filter(
@@ -38,7 +40,7 @@ async def upload_doc(
     bot_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _=Depends(require_editor),
+    _=Depends(_EDIT),
 ):
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot_id).first()
     if not bot:
@@ -79,7 +81,7 @@ async def upload_doc(
 
 
 @router.get("/{doc_id}/download")
-def download_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def download_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(_VIEW)):
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -90,7 +92,7 @@ def download_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(require_v
 
 
 @router.get("/{doc_id}/export_qa")
-def export_qa(doc_id: int, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def export_qa(doc_id: int, db: Session = Depends(get_db), _=Depends(_VIEW)):
     """匯出此文件目前完整的 Q&A 內容（含原始上傳解析出的 + 後續手動新增/編輯的），
     與「下載」原始檔案不同——原始檔案下載的是當初上傳的那份檔案本身，不會反映後續調整；
     這裡是直接從資料庫 KnowledgeQA 表匯出目前最新狀態，成一份 xlsx。"""
@@ -129,7 +131,7 @@ def export_qa(doc_id: int, db: Session = Depends(get_db), _=Depends(require_view
 
 
 @router.put("/{doc_id}", response_model=schemas.DocOut)
-def update_doc(doc_id: int, payload: schemas.DocUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_doc(doc_id: int, payload: schemas.DocUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -141,7 +143,7 @@ def update_doc(doc_id: int, payload: schemas.DocUpdate, db: Session = Depends(ge
 
 
 @router.delete("/{doc_id}")
-def delete_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_doc(doc_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -205,7 +207,7 @@ def list_qas(
     page_size: int = 50,
     q: Optional[str] = None,
     db: Session = Depends(get_db),
-    _=Depends(require_viewer),
+    _=Depends(_VIEW),
 ):
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == doc_id).first()
     if not doc:
@@ -221,13 +223,13 @@ def list_qas(
 
 
 @router.get("/{doc_id}/qas/count")
-def count_qas(doc_id: int, q: Optional[str] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def count_qas(doc_id: int, q: Optional[str] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
     total = _qas_query(doc_id, q, db).count()
     return {"total": total}
 
 
 @router.post("/qas", response_model=QAOut)
-def create_qa(payload: QACreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_qa(payload: QACreate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == payload.doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -274,7 +276,7 @@ def _get_or_adopt_chunk(qa: "models.KnowledgeQA", db: Session):
 
 
 @router.put("/qas/{qa_id}", response_model=QAOut)
-def update_qa(qa_id: int, payload: QAUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_qa(qa_id: int, payload: QAUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     qa = db.query(models.KnowledgeQA).filter(models.KnowledgeQA.id == qa_id).first()
     if not qa:
         raise HTTPException(status_code=404, detail="Q&A 不存在")
@@ -301,7 +303,7 @@ def update_qa(qa_id: int, payload: QAUpdate, db: Session = Depends(get_db), _=De
 
 
 @router.delete("/qas/{qa_id}")
-def delete_qa(qa_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_qa(qa_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     qa = db.query(models.KnowledgeQA).filter(models.KnowledgeQA.id == qa_id).first()
     if not qa:
         raise HTTPException(status_code=404, detail="Q&A 不存在")

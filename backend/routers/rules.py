@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 import models, schemas
-from auth import require_editor, require_viewer
+from auth import require_page_view, require_page_edit
 
 router = APIRouter(prefix="/api/rules", tags=["關鍵字規則"])
+_VIEW = require_page_view("telegram_rules")
+_EDIT = require_page_edit("telegram_rules")
 
 
 @router.get("", response_model=List[schemas.RuleOut])
-def list_rules(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(require_viewer)):
+def list_rules(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
     q = db.query(models.KeywordRule)
     if bot_id is not None:
         q = q.filter(models.KeywordRule.bot_id == bot_id)
@@ -17,7 +19,7 @@ def list_rules(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=De
 
 
 @router.post("", response_model=schemas.RuleOut)
-def create_rule(payload: schemas.RuleCreate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def create_rule(payload: schemas.RuleCreate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == payload.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -29,7 +31,7 @@ def create_rule(payload: schemas.RuleCreate, db: Session = Depends(get_db), _=De
 
 
 @router.put("/{rule_id}", response_model=schemas.RuleOut)
-def update_rule(rule_id: int, payload: schemas.RuleUpdate, db: Session = Depends(get_db), _=Depends(require_editor)):
+def update_rule(rule_id: int, payload: schemas.RuleUpdate, db: Session = Depends(get_db), _=Depends(_EDIT)):
     rule = db.query(models.KeywordRule).filter(models.KeywordRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="規則不存在")
@@ -41,7 +43,7 @@ def update_rule(rule_id: int, payload: schemas.RuleUpdate, db: Session = Depends
 
 
 @router.delete("/{rule_id}")
-def delete_rule(rule_id: int, db: Session = Depends(get_db), _=Depends(require_editor)):
+def delete_rule(rule_id: int, db: Session = Depends(get_db), _=Depends(_EDIT)):
     rule = db.query(models.KeywordRule).filter(models.KeywordRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="規則不存在")
