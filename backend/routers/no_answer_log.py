@@ -30,13 +30,15 @@ class AddToKnowledge(BaseModel):
     answer: Optional[str] = None
 
 
-def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str]):
-    """近 7 日紀錄；q 有值時只保留「問題內容」包含該關鍵字的紀錄（不分大小寫）。
+def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str], chat_id: Optional[str] = None):
+    """近 7 日紀錄；chat_id 有值時只看該群組；q 有值時只保留「問題內容」包含該關鍵字的紀錄（不分大小寫）。
     關鍵字裡的 % 與 _ 視為一般字元（帳號常含底線，不能當成 LIKE 萬用字元）。"""
     since = datetime.utcnow() - timedelta(days=7)
     query = db.query(models.NoAnswerLog).filter(models.NoAnswerLog.created_at >= since)
     if bot_id:
         query = query.filter(models.NoAnswerLog.bot_id == bot_id)
+    if chat_id:
+        query = query.filter(models.NoAnswerLog.chat_id == chat_id)
     kw = (q or "").strip()
     if kw:
         escaped = kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -47,6 +49,7 @@ def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str]):
 @router.get("", response_model=List[NoAnswerLogOut])
 def list_logs(
     bot_id: Optional[int] = None,
+    chat_id: Optional[str] = None,
     q: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
@@ -54,14 +57,28 @@ def list_logs(
     _=Depends(_VIEW),
 ):
     offset = (page - 1) * page_size
-    return (_recent_query(db, bot_id, q)
+    return (_recent_query(db, bot_id, q, chat_id)
             .order_by(models.NoAnswerLog.created_at.desc()).offset(offset).limit(page_size).all())
 
 
 @router.get("/count")
-def count_logs(bot_id: Optional[int] = None, q: Optional[str] = None,
+def count_logs(bot_id: Optional[int] = None, chat_id: Optional[str] = None, q: Optional[str] = None,
                db: Session = Depends(get_db), _=Depends(_VIEW)):
-    return {"total": _recent_query(db, bot_id, q).count()}
+    return {"total": _recent_query(db, bot_id, q, chat_id).count()}
+
+
+@router.get("/groups")
+def list_groups(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
+    """近 7 日有紀錄的群組（給群組下拉選單用），依紀錄筆數多到少排序。
+    以 chat_id 區分群組；群組改過名稱時顯示最新一筆紀錄的名稱。"""
+    rows = (_recent_query(db, bot_id, None)
+            .with_entities(models.NoAnswerLog.chat_id, models.NoAnswerLog.chat_name)
+            .order_by(models.NoAnswerLog.created_at.desc()).all())
+    groups = {}
+    for chat_id, chat_name in rows:
+        g = groups.setdefault(chat_id, {"chat_id": chat_id, "chat_name": chat_name, "count": 0})
+        g["count"] += 1
+    return sorted(groups.values(), key=lambda g: (-g["count"], g["chat_name"]))
 
 
 @router.post("/{log_id}/to-knowledge")

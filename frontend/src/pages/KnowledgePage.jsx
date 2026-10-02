@@ -554,11 +554,19 @@ function LogsTab({ user }) {
   const [bots, setBots] = useState([])
 
   const searchRef = useRef('')
-  const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current) => {
+  const [groups, setGroups] = useState([])
+  const [groupFilter, setGroupFilter] = useState(undefined)
+  const groupRef = useRef(undefined)
+  const loadGroups = async (botId) => {
+    try { setGroups((await api.get('/conversation-logs/groups', { params: botId ? { bot_id: botId } : {} })).data) }
+    catch { setGroups([]) }
+  }
+  const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current, chatId = groupRef.current) => {
     setLoading(true)
     try {
       const filter = {}
       if (botId) filter.bot_id = botId
+      if (chatId) filter.chat_id = chatId
       if (kw.trim()) filter.q = kw.trim()
       const [logsRes, countRes] = await Promise.all([
         api.get('/conversation-logs', { params: { ...filter, page: p, page_size: 20 } }),
@@ -582,6 +590,7 @@ function LogsTab({ user }) {
       setBots(bRes.data)
     })
     loadLogs(1, undefined)
+    loadGroups(undefined)
   }, [])
 
   const [addToKbForm] = Form.useForm()
@@ -611,11 +620,19 @@ function LogsTab({ user }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <Select allowClear placeholder="篩選機器人" style={{ width: 180 }}
-          value={botFilter} onChange={v => { setBotFilter(v); loadLogs(1, v) }}>
+          value={botFilter} onChange={v => {
+            setBotFilter(v); setGroupFilter(undefined); groupRef.current = undefined
+            loadGroups(v); loadLogs(1, v, searchRef.current, undefined)
+          }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
+        <Select allowClear showSearch placeholder="篩選群組名稱" style={{ width: 260 }}
+          value={groupFilter} optionFilterProp="name"
+          notFoundContent="近 7 日沒有紀錄的群組"
+          onChange={v => { setGroupFilter(v); groupRef.current = v; loadLogs(1, botFilter, searchRef.current, v) }}
+          options={groups.map(g => ({ value: g.chat_id, name: g.chat_name, label: `${g.chat_name}（${g.count}）` }))} />
         <Input
           placeholder="搜尋問題內容…"
           prefix={<SearchOutlined style={{ color: '#555' }} />}
@@ -624,7 +641,7 @@ function LogsTab({ user }) {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        {search.trim()
+        {search.trim() || groupFilter
           ? <Tag color="blue">近 7 日找到 {total} 筆符合</Tag>
           : <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日紀錄，最多 20 筆/頁</span>}
       </div>
@@ -632,7 +649,7 @@ function LogsTab({ user }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
       ) : logs.length === 0 ? (
-        <Empty description={search.trim() ? `近 7 日沒有問題內容包含「${search.trim()}」的對話紀錄` : '近 7 日無對話紀錄'} style={{ padding: 40 }} />
+        <Empty description={search.trim() ? `${groupFilter ? '此群組' : ''}近 7 日沒有問題內容包含「${search.trim()}」的對話紀錄` : groupFilter ? '此群組近 7 日無對話紀錄' : '近 7 日無對話紀錄'} style={{ padding: 40 }} />
       ) : (
         <>
           <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
@@ -700,11 +717,19 @@ function NoAnswerTab({ user }) {
   const [addForm] = Form.useForm()
 
   const searchRef = useRef('')
-  const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current) => {
+  const [groups, setGroups] = useState([])
+  const [groupFilter, setGroupFilter] = useState(undefined)
+  const groupRef = useRef(undefined)
+  const loadGroups = async (botId) => {
+    try { setGroups((await api.get('/no-answer-logs/groups', { params: botId ? { bot_id: botId } : {} })).data) }
+    catch { setGroups([]) }
+  }
+  const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current, chatId = groupRef.current) => {
     setLoading(true)
     try {
       const filter = {}
       if (botId) filter.bot_id = botId
+      if (chatId) filter.chat_id = chatId
       if (kw.trim()) filter.q = kw.trim()
       const [logsRes, countRes] = await Promise.all([
         api.get('/no-answer-logs', { params: { ...filter, page: p, page_size: 20 } }),
@@ -728,6 +753,7 @@ function NoAnswerTab({ user }) {
       setBots(bRes.data)
     })
     loadLogs(1, undefined)
+    loadGroups(undefined)
   }, [])
 
   const openAdd = (log) => {
@@ -755,11 +781,19 @@ function NoAnswerTab({ user }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <Select allowClear placeholder="篩選機器人" style={{ width: 180 }}
-          value={botFilter} onChange={v => { setBotFilter(v); loadLogs(1, v) }}>
+          value={botFilter} onChange={v => {
+            setBotFilter(v); setGroupFilter(undefined); groupRef.current = undefined
+            loadGroups(v); loadLogs(1, v, searchRef.current, undefined)
+          }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
+        <Select allowClear showSearch placeholder="篩選群組名稱" style={{ width: 260 }}
+          value={groupFilter} optionFilterProp="name"
+          notFoundContent="近 7 日沒有紀錄的群組"
+          onChange={v => { setGroupFilter(v); groupRef.current = v; loadLogs(1, botFilter, searchRef.current, v) }}
+          options={groups.map(g => ({ value: g.chat_id, name: g.chat_name, label: `${g.chat_name}（${g.count}）` }))} />
         <Input
           placeholder="搜尋問題內容…"
           prefix={<SearchOutlined style={{ color: '#555' }} />}
@@ -768,7 +802,7 @@ function NoAnswerTab({ user }) {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        {search.trim()
+        {search.trim() || groupFilter
           ? <Tag color="blue">近 7 日找到 {total} 筆符合</Tag>
           : <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日無解答紀錄，最多 20 筆/頁</span>}
       </div>
@@ -776,7 +810,7 @@ function NoAnswerTab({ user }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
       ) : logs.length === 0 ? (
-        <Empty description={search.trim() ? `近 7 日沒有問題內容包含「${search.trim()}」的無解答紀錄` : '近 7 日無無解答對話紀錄'} style={{ padding: 40 }} />
+        <Empty description={search.trim() ? `${groupFilter ? '此群組' : ''}近 7 日沒有問題內容包含「${search.trim()}」的無解答紀錄` : groupFilter ? '此群組近 7 日無無解答紀錄' : '近 7 日無無解答對話紀錄'} style={{ padding: 40 }} />
       ) : (
         <>
           <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
