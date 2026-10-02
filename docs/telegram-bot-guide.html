@@ -393,6 +393,15 @@
         <strong>預設帳號</strong>
         系統初次啟動會自動建立一組 superadmin 帳號 <span class="code">admin / admin123</span>，建議上線後盡快至「帳號管理」頁面更改密碼或新增正式帳號。登入畫面已不再顯示這組預設帳密。
       </div>
+      <div class="callout warn">
+        <strong>忘記密碼怎麼辦</strong>
+        建議至少保留<strong>兩個超級管理員帳號</strong>，其中一個忘記密碼時，可由另一個在「帳號管理」直接設定新密碼。
+        若所有超級管理員都無法登入，請到 Render 後台開啟該服務的 <strong>Shell</strong>，在 backend 目錄執行
+        <span class="code">python reset_admin.py</span>（重設 admin）或 <span class="code">python reset_admin.py 帳號名稱</span>，
+        依提示輸入新密碼（至少 8 碼，輸入時不會顯示），會重設密碼並重新啟用該帳號，角色與頁面權限不變。
+        原本不需登入、可直接把 admin 密碼改回 admin123 的 <span class="code">/api/debug/reset-admin</span> 已刪除（任何人都能呼叫，會被用來接管後台）；
+        其餘 <span class="code">/api/debug/*</span> 診斷 API 保留，但改為需要超級管理員登入。
+      </div>
     </section>
 
     <!-- ═══════════ 機器人管理頁面 ═══════════ -->

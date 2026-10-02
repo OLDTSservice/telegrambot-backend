@@ -4,12 +4,12 @@ import logging
 from dotenv import load_dotenv
 load_dotenv()
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import engine, SessionLocal
 import models
-from auth import hash_password
+from auth import hash_password, require_superadmin
 from routers import auth, users, bots, rules, knowledge, stats, teams_bots, teams_rules, teams_knowledge, telegram_ignores, teams_ignores, group_stats, telegram_live, whitelist, conversation_log, no_answer_log, group_settings, ai_rescue, notify_settings, telegram_bot_admins, netwin
 
 logging.basicConfig(level=logging.INFO)
@@ -237,8 +237,8 @@ def health():
 
 
 @app.get("/api/debug/ai")
-def debug_ai():
-    """診斷 AI 知識庫功能是否正常（無需登入）"""
+def debug_ai(_=Depends(require_superadmin)):
+    """診斷 AI 知識庫功能是否正常（僅超級管理員）"""
     result = {}
     try:
         import chromadb
@@ -262,25 +262,9 @@ def debug_ai():
     return result
 
 
-@app.post("/api/debug/reset-admin")
-def reset_admin():
-    """緊急重設 admin 密碼"""
-    from auth import hash_password
-    db = SessionLocal()
-    try:
-        user = db.query(models.User).filter(models.User.username == "admin").first()
-        if user:
-            user.hashed_password = hash_password("admin123")
-            db.commit()
-            return {"message": "admin 密碼已重設為 admin123"}
-        return {"message": "admin 帳號不存在"}
-    finally:
-        db.close()
-
-
 @app.get("/api/debug/knowledge")
-def debug_knowledge():
-    """診斷知識庫狀態（SQLite 段落數量）"""
+def debug_knowledge(_=Depends(require_superadmin)):
+    """診斷知識庫狀態（SQLite 段落數量，僅超級管理員）"""
     db = SessionLocal()
     try:
         docs = db.query(models.KnowledgeDoc).all()
@@ -304,8 +288,8 @@ def debug_knowledge():
 
 
 @app.get("/api/debug/managed-status")
-def debug_managed_status():
-    """確認各 Telegram 機器人的 is_managed 設定值"""
+def debug_managed_status(_=Depends(require_superadmin)):
+    """確認各 Telegram 機器人的 is_managed 設定值（僅超級管理員）"""
     db = SessionLocal()
     try:
         bots = db.query(models.TelegramBot).all()
@@ -327,8 +311,8 @@ def debug_managed_status():
 
 
 @app.post("/api/debug/test-knowledge")
-async def test_knowledge(bot_id: int, question: str):
-    """直接測試知識庫 AI 查詢"""
+async def test_knowledge(bot_id: int, question: str, _=Depends(require_superadmin)):
+    """直接測試知識庫 AI 查詢（僅超級管理員；每次呼叫都會產生 AI 費用）"""
     from services.ai_service import query_knowledge
     db = SessionLocal()
     try:
