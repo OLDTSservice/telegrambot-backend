@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Button, Switch, Upload, Select, Modal, Form, Input,
   Popconfirm, message, Space, Tag, Spin, Pagination, Tabs, Empty,
@@ -30,6 +30,30 @@ const formatSize = bytes => {
 }
 
 // ── Q&A 編輯 Modal ─────────────────────────────────────────────────────────
+// 把文字中符合搜尋關鍵字的部分標黃（不分大小寫）
+function highlight(text, keyword) {
+  const kw = (keyword || '').trim()
+  if (!kw || !text) return text
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return text.split(new RegExp(`(${escaped})`, 'gi')).map((part, i) => (
+    part.toLowerCase() === kw.toLowerCase()
+      ? <mark key={i} style={{ background: '#ffe58f', padding: 0 }}>{part}</mark>
+      : part
+  ))
+}
+
+// 搜尋框：輸入停止 300ms 後才查詢，避免每個按鍵都打 API（與 Q&A 搜尋相同）
+function useDebouncedSearch(onSearch) {
+  const [search, setSearch] = useState('')
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current) { first.current = false; return }
+    const timer = setTimeout(() => onSearch(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+  return [search, setSearch]
+}
+
 function QAModal({ open, onClose, onSave, initial, docs }) {
   const [form] = Form.useForm()
   useEffect(() => {
@@ -529,14 +553,16 @@ function LogsTab({ user }) {
   const [botFilter, setBotFilter] = useState(undefined)
   const [bots, setBots] = useState([])
 
-  const loadLogs = useCallback(async (p = 1, botId = botFilter) => {
+  const searchRef = useRef('')
+  const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current) => {
     setLoading(true)
     try {
-      const params = { page: p, page_size: 20 }
-      if (botId) params.bot_id = botId
+      const filter = {}
+      if (botId) filter.bot_id = botId
+      if (kw.trim()) filter.q = kw.trim()
       const [logsRes, countRes] = await Promise.all([
-        api.get('/conversation-logs', { params }),
-        api.get('/conversation-logs/count', { params: botId ? { bot_id: botId } : {} }),
+        api.get('/conversation-logs', { params: { ...filter, page: p, page_size: 20 } }),
+        api.get('/conversation-logs/count', { params: filter }),
       ])
       setLogs(logsRes.data)
       setTotal(countRes.data.total)
@@ -547,6 +573,8 @@ function LogsTab({ user }) {
       setLoading(false)
     }
   }, [botFilter])
+
+  const [search, setSearch] = useDebouncedSearch(kw => { searchRef.current = kw; loadLogs(1, botFilter, kw) })
 
   useEffect(() => {
     Promise.all([api.get('/knowledge'), api.get('/bots')]).then(([dRes, bRes]) => {
@@ -588,13 +616,23 @@ function LogsTab({ user }) {
           value={botFilter} onChange={v => { setBotFilter(v); loadLogs(1, v) }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
-        <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日紀錄，最多 20 筆/頁</span>
+        <Input
+          placeholder="搜尋問題內容…"
+          prefix={<SearchOutlined style={{ color: '#555' }} />}
+          allowClear
+          style={{ width: 240 }}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        {search.trim()
+          ? <Tag color="blue">近 7 日找到 {total} 筆符合</Tag>
+          : <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日紀錄，最多 20 筆/頁</span>}
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
       ) : logs.length === 0 ? (
-        <Empty description="近 7 日無對話紀錄" style={{ padding: 40 }} />
+        <Empty description={search.trim() ? `近 7 日沒有問題內容包含「${search.trim()}」的對話紀錄` : '近 7 日無對話紀錄'} style={{ padding: 40 }} />
       ) : (
         <>
           <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
@@ -604,7 +642,7 @@ function LogsTab({ user }) {
                   <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
                 </div>
-                <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>Q：{log.question}</div>
+                <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>Q：{highlight(log.question, searchRef.current)}</div>
                 <div style={{ fontSize: 15, color: '#333', lineHeight: 1.65 }}>A：{log.answer}</div>
                 {canEdit(user) && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
@@ -661,14 +699,16 @@ function NoAnswerTab({ user }) {
   const [selectedDocId, setSelectedDocId] = useState(null)
   const [addForm] = Form.useForm()
 
-  const loadLogs = useCallback(async (p = 1, botId = botFilter) => {
+  const searchRef = useRef('')
+  const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current) => {
     setLoading(true)
     try {
-      const params = { page: p, page_size: 20 }
-      if (botId) params.bot_id = botId
+      const filter = {}
+      if (botId) filter.bot_id = botId
+      if (kw.trim()) filter.q = kw.trim()
       const [logsRes, countRes] = await Promise.all([
-        api.get('/no-answer-logs', { params }),
-        api.get('/no-answer-logs/count', { params: botId ? { bot_id: botId } : {} }),
+        api.get('/no-answer-logs', { params: { ...filter, page: p, page_size: 20 } }),
+        api.get('/no-answer-logs/count', { params: filter }),
       ])
       setLogs(logsRes.data)
       setTotal(countRes.data.total)
@@ -679,6 +719,8 @@ function NoAnswerTab({ user }) {
       setLoading(false)
     }
   }, [botFilter])
+
+  const [search, setSearch] = useDebouncedSearch(kw => { searchRef.current = kw; loadLogs(1, botFilter, kw) })
 
   useEffect(() => {
     Promise.all([api.get('/knowledge'), api.get('/bots')]).then(([dRes, bRes]) => {
@@ -718,13 +760,23 @@ function NoAnswerTab({ user }) {
           value={botFilter} onChange={v => { setBotFilter(v); loadLogs(1, v) }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
-        <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日無解答紀錄，最多 20 筆/頁</span>
+        <Input
+          placeholder="搜尋問題內容…"
+          prefix={<SearchOutlined style={{ color: '#555' }} />}
+          allowClear
+          style={{ width: 240 }}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        {search.trim()
+          ? <Tag color="blue">近 7 日找到 {total} 筆符合</Tag>
+          : <span style={{ fontSize: 14, color: '#444' }}>顯示近 7 日無解答紀錄，最多 20 筆/頁</span>}
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
       ) : logs.length === 0 ? (
-        <Empty description="近 7 日無無解答對話紀錄" style={{ padding: 40 }} />
+        <Empty description={search.trim() ? `近 7 日沒有問題內容包含「${search.trim()}」的無解答紀錄` : '近 7 日無無解答對話紀錄'} style={{ padding: 40 }} />
       ) : (
         <>
           <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
@@ -734,7 +786,7 @@ function NoAnswerTab({ user }) {
                   <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
                 </div>
-                <div style={{ fontSize: 15, color: '#111', fontWeight: 500, whiteSpace: 'pre-wrap' }}>{log.question}</div>
+                <div style={{ fontSize: 15, color: '#111', fontWeight: 500, whiteSpace: 'pre-wrap' }}>{highlight(log.question, searchRef.current)}</div>
                 {canEdit(user) && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                     <Button size="small" icon={<PlusOutlined />} onClick={() => openAdd(log)}>

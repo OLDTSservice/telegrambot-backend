@@ -30,29 +30,38 @@ class AddToKnowledge(BaseModel):
     answer: Optional[str] = None
 
 
+def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str]):
+    """近 7 日紀錄；q 有值時只保留「問題內容」包含該關鍵字的紀錄（不分大小寫）。
+    關鍵字裡的 % 與 _ 視為一般字元（帳號常含底線，不能當成 LIKE 萬用字元）。"""
+    since = datetime.utcnow() - timedelta(days=7)
+    query = db.query(models.NoAnswerLog).filter(models.NoAnswerLog.created_at >= since)
+    if bot_id:
+        query = query.filter(models.NoAnswerLog.bot_id == bot_id)
+    kw = (q or "").strip()
+    if kw:
+        escaped = kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.filter(models.NoAnswerLog.question.ilike(f"%{escaped}%", escape="\\"))
+    return query
+
+
 @router.get("", response_model=List[NoAnswerLogOut])
 def list_logs(
     bot_id: Optional[int] = None,
+    q: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
     _=Depends(_VIEW),
 ):
-    since = datetime.utcnow() - timedelta(days=7)
-    q = db.query(models.NoAnswerLog).filter(models.NoAnswerLog.created_at >= since)
-    if bot_id:
-        q = q.filter(models.NoAnswerLog.bot_id == bot_id)
     offset = (page - 1) * page_size
-    return q.order_by(models.NoAnswerLog.created_at.desc()).offset(offset).limit(page_size).all()
+    return (_recent_query(db, bot_id, q)
+            .order_by(models.NoAnswerLog.created_at.desc()).offset(offset).limit(page_size).all())
 
 
 @router.get("/count")
-def count_logs(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
-    since = datetime.utcnow() - timedelta(days=7)
-    q = db.query(models.NoAnswerLog).filter(models.NoAnswerLog.created_at >= since)
-    if bot_id:
-        q = q.filter(models.NoAnswerLog.bot_id == bot_id)
-    return {"total": q.count()}
+def count_logs(bot_id: Optional[int] = None, q: Optional[str] = None,
+               db: Session = Depends(get_db), _=Depends(_VIEW)):
+    return {"total": _recent_query(db, bot_id, q).count()}
 
 
 @router.post("/{log_id}/to-knowledge")
