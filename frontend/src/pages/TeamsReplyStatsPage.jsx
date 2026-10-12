@@ -6,7 +6,7 @@ import {
 import { MessageOutlined, TeamOutlined, CheckCircleOutlined, LineChartOutlined } from '@ant-design/icons'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, LineChart, Line,
+  ResponsiveContainer, LineChart, Line, LabelList,
 } from 'recharts'
 import dayjs from 'dayjs'
 import { getTeamsGroupStats, getTeamsTrend, getTeamsBots, getTeamsTicketCounts } from '../api'
@@ -228,25 +228,33 @@ export default function TeamsReplyStatsPage() {
               {rankData.length === 0
                 ? <Empty description="此期間無資料" />
                 : (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>
+                  <div style={{ minWidth: 560 }}>
+                  <ResponsiveContainer width="100%" height={Math.max(220, Math.min(rankData.length, 10) * 34 + 60)}>
                     <BarChart data={rankData.slice(0, 10)} layout="vertical"
-                      margin={{ left: 20, right: 30 }}>
+                      margin={{ left: 10, right: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      {/* interval={0} 強制顯示每個群組名稱；預設會在空間不足時跳著隱藏標籤 */}
                       <YAxis
                         type="category"
                         dataKey="conversation_name"
-                        width={180}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={name => (name && name.length > 16 ? `${name.slice(0, 16)}…` : name)}
+                        width={240}
+                        interval={0}
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={name => (name && name.length > 24 ? `${name.slice(0, 24)}…` : name)}
                       />
                       <Tooltip
                         formatter={v => [`${v} 次`, '回覆次數']}
                         labelFormatter={label => label}
                       />
-                      <Bar dataKey="reply_count" fill="#1677ff" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="reply_count" fill="#1677ff" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="reply_count" position="right" style={{ fontSize: 11 }} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
+                  </div>
                 )}
             </Card>
           </Col>
