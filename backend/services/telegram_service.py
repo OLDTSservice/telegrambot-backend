@@ -41,6 +41,13 @@ _TICKET_IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 # （"https:"）會被誤判成「標籤：值」格式（標籤=https），實際上只是單純貼出連結、不是
 # 欄位標籤，需排除才不會把「網址+USER+PW+IP」這種訊息誤判成 4 行結構化表單。
 # 若標籤本身包含網址（如 "Website URL: https://xxx"），標籤不是從 http 開頭，不受影響。
+# 建立代理／新子代的申請單特有欄位：同時出現 2 個以上就視為申請單（不是白名單申請，交由人員處理）。
+# 這類申請單常在後段附「後台加白IP」「API加白IP」，若只靠白名單關鍵字判斷會被誤當成白名單申請，
+# 把整份申請單的 IP（含 API IP）全部加進後台白名單。
+_AGENT_SETUP_MARKERS = (
+    "层级归属", "層級歸屬", "开放币别", "開放幣別", "钱包类型", "錢包類型",
+    "回调域名", "回調域名", "新子代", "子代站点", "子代站點", "配置子代",
+)
 _FORM_FIELD_LINE_RE = re.compile(r'^\s*(?!https?://)[^\s：:].{0,38}?[：:]\s*.*$', re.IGNORECASE)
 # 出現這些字樣即視為白名單相關訊息，排除規則四，避免誤擋真正的白名單請求
 _WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
@@ -306,7 +313,7 @@ def _is_application_form(text: str) -> bool:
     """
     偵測結構化申請表單/客服工單，符合任一即視為表單：
     1. 多行含「數字編號 + 冒號欄位」格式，例：1. 商戶名字：xxx / 2. Domain URL：xxx
-       條件：至少 3 行符合「編號. 內容：值」或「編號.內容：值」格式
+       條件：至少 3 行符合「編號. 內容：值」或「編號.內容：值」格式（編號可為 1. 或 一. 二、 等中文數字）
     2. 固定的客服工單範本開頭（如「Please provide the list below」/「可以提供以下资料以便查询」），
        這類範本欄位（游戏/Game、代理账号/Kiosk ID、玩家账号/Player ID、问题）不一定有數字編號，
        但開頭語句是系統固定產生的文字，比對到即可高信心判定為表單。
@@ -321,9 +328,14 @@ def _is_application_form(text: str) -> bool:
        Callback URL / Prod API IP Address 等欄位）：至少 4 行才視為表單，且訊息中不能含白名單相關
        字樣，避免誤擋真正的白名單請求（白名單請求欄位通常也是「標籤：值」格式，但行數較少，
        且一定會出現白名單關鍵字，用關鍵字排除即可安全區分）。
+    5. 建立代理／新子代申請單：同時出現 2 個以上申請單特有欄位（層級歸屬、開放幣別、錢包類型、
+       回調域名、新子代…，見 _AGENT_SETUP_MARKERS）。這類申請單常附「後台加白IP」「API加白IP」，
+       必須在白名單判斷之前排除，否則整份申請單的 IP 會被當成白名單申請加進後台。
     """
     lower = text.lower()
     if any(marker in lower for marker in _SUPPORT_TICKET_MARKERS):
+        return True
+    if sum(1 for marker in _AGENT_SETUP_MARKERS if marker in text) >= 2:
         return True
     if (
         _TICKET_GAME_FIELD_RE.search(text)
@@ -332,8 +344,8 @@ def _is_application_form(text: str) -> bool:
     ):
         return True
     lines = text.splitlines()
-    # 符合「數字. 任意內容 ：或: 任意內容」的行
-    field_line = re.compile(r'^\s*\d+[\.\、]\s*.+[：:].+')
+    # 符合「數字. 任意內容 ：或: 任意內容」的行；編號可以是阿拉伯數字或中文數字（一. 二、三．）
+    field_line = re.compile(r'^\s*(?:\d+|[一二三四五六七八九十]+)[\.\、．]\s*.+[：:].+')
     matched = sum(1 for line in lines if field_line.match(line))
     if matched >= 3:
         return True

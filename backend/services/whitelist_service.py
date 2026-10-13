@@ -28,7 +28,8 @@ _BO_KEYWORDS = [
     "backoffice ip whitelist", "backoffice ip", "backoffice whitelist",
     "后台過白", "后台过白", "後台白名單",
 ]
-_API_EXCLUDE = ["api ip", "api whitelist", "加白api", "api white", "apiip"]
+_API_EXCLUDE = ["api ip", "api whitelist", "加白api", "api white", "apiip",
+                "api加白", "api 加白", "api白名单", "api白名單", "api 白名单", "api 白名單"]
 _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
 # 寬鬆規則：白名單 + 後台 + IP 三個概念各自出現（不需相鄰／連續字串），繁簡中文＋英文皆適用
