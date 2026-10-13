@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button, Empty, Tooltip, Descriptions, Alert } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
-import { getTeamsBots, updateTeamsBot, getTeamsNetwinLogs, getBots } from '../api'
+import { getTeamsBots, updateTeamsBot, getTeamsNetwinLogs, getBots, recallTeamsNetwinReply } from '../api'
 import { formatDateTime } from '../utils/datetime'
 import TeamsSenderCell from '../components/TeamsSenderCell'
+import TeamsReplyCell from '../components/TeamsReplyCell'
 import { canEditPage } from '../permissions'
 
 const { Text } = Typography
@@ -48,7 +49,7 @@ const columns = [
     title: '結果', dataIndex: 'outcome', key: 'outcome', width: 160,
     render: o => { const c = OUTCOME_TAG[o] || { color: 'default', label: o }; return <Tag color={c.color}>{c.label}</Tag> },
   },
-  { title: '已回覆', dataIndex: 'reply_sent', key: 'reply_sent', width: 70, render: v => (v ? '是' : '-') },
+  { title: '已回覆', dataIndex: 'reply_sent', key: 'reply_sent', width: 90 },
   { title: '時間', dataIndex: 'created_at', key: 'created_at', width: 150, render: v => formatDateTime(v) },
 ]
 
@@ -81,8 +82,15 @@ export default function TeamsNetwinPage({ user }) {
     } catch (e) { message.error(e.response?.data?.detail || '更新失敗') }
   }
 
-  const logColumns = columns.map(c => c.key !== 'sender' ? c : {
-    ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEditPage(user, 'teams_ignores')} />,
+  const logColumns = columns.map(c => {
+    if (c.key === 'sender') return {
+      ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEditPage(user, 'teams_ignores')} />,
+    }
+    if (c.key === 'reply_sent') return {
+      ...c, render: (_, r) => <TeamsReplyCell record={r} canEdit={canEdit}
+        onRecall={async rec => { await recallTeamsNetwinReply(botId, rec.id); fetchLogs() }} />,
+    }
+    return c
   })
 
   const fetchLogs = async () => {

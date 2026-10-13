@@ -183,7 +183,8 @@ def list_groups(bot_id: int, db: Session = Depends(get_db), _=Depends(_VIEW_BOTS
     try:
         live = teams_service.list_groups_live(bot)
     except teams_service.TeamsAuthError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        # 不能回 401：前端收到 401 會當成「後台登入逾時」把使用者登出
+        raise HTTPException(status_code=400, detail=f"Teams 帳號登入已失效，請重新登入：{e}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"讀取群組失敗：{str(e)[:200]}")
 
@@ -256,3 +257,52 @@ def netwin_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db),
         .limit(limit)
         .all()
     )
+
+
+# ── 收回機器人送出的回覆 ────────────────────────────────────────────────────
+def _recall(db: Session, bot_id: int, log, model):
+    """收回某筆紀錄對應的 Teams 回覆。同一則訊息若有多筆紀錄（例如白名單一次多個帳號）共用同一則回覆，
+    一併標示為已收回。只會刪除群組裡的回覆訊息，不會撤銷已完成的加白／查詢動作。"""
+    if not log or log.bot_id != bot_id:
+        raise HTTPException(status_code=404, detail="紀錄不存在")
+    if log.reply_recalled_at:
+        raise HTTPException(status_code=400, detail="這則回覆已經收回過了")
+    if not log.reply_sent or not (log.reply_msg_id or log.reply_client_msg_id):
+        raise HTTPException(status_code=400, detail="這筆紀錄沒有可收回的回覆（未回覆，或是收回功能上線前送出的回覆）")
+    bot = _get_bot(db, bot_id)
+    if not bot.refresh_token:
+        raise HTTPException(status_code=400, detail="此 Teams 帳號尚未登入")
+    try:
+        deleted_id = teams_service.recall_reply(bot, log.chat_id, log.reply_msg_id, log.reply_client_msg_id)
+    except teams_service.RecallError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except teams_service.TeamsAuthError as e:
+        # 不能回 401：前端收到 401 會當成「後台登入逾時」把使用者登出
+        raise HTTPException(status_code=400, detail=f"Teams 帳號登入已失效，請到機器人管理重新登入：{e}")
+    except Exception as e:
+        logger.error(f"[Teams {bot_id}] 收回回覆失敗：{e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"收回失敗：{str(e)[:200]}")
+
+    from datetime import datetime
+    now = datetime.utcnow()
+    same = db.query(model).filter(model.bot_id == bot_id, model.chat_id == log.chat_id, model.msg_id == log.msg_id).all()
+    for row in same:
+        if row.reply_msg_id in (None, log.reply_msg_id) and row.reply_client_msg_id in (None, log.reply_client_msg_id):
+            row.reply_recalled_at = now
+            row.reply_msg_id = row.reply_msg_id or deleted_id
+    db.commit()
+    return {"message": "已收回", "recalled_at": now}
+
+
+@router.post("/{bot_id}/whitelist-logs/{log_id}/recall")
+def recall_whitelist_reply(bot_id: int, log_id: int, db: Session = Depends(get_db),
+                           _=Depends(require_page_edit("teams_whitelist"))):
+    log = db.query(models.TeamsWhitelistLog).filter(models.TeamsWhitelistLog.id == log_id).first()
+    return _recall(db, bot_id, log, models.TeamsWhitelistLog)
+
+
+@router.post("/{bot_id}/netwin-logs/{log_id}/recall")
+def recall_netwin_reply(bot_id: int, log_id: int, db: Session = Depends(get_db),
+                        _=Depends(require_page_edit("teams_netwin"))):
+    log = db.query(models.TeamsNetwinLog).filter(models.TeamsNetwinLog.id == log_id).first()
+    return _recall(db, bot_id, log, models.TeamsNetwinLog)

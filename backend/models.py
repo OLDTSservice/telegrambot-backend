@@ -422,6 +422,10 @@ class TeamsWhitelistLog(Base):
     ip_list = Column(Text, nullable=False)
     status = Column(String(16), default="success")     # success / failed / rejected / log_only
     reply_sent = Column(Boolean, default=False)
+    # 機器人自己送出的回覆（收回用）：Teams 回傳的訊息 id，拿不到時改用送出時自訂的 clientmessageid 反查
+    reply_msg_id = Column(String(32), nullable=True)
+    reply_client_msg_id = Column(String(32), nullable=True)
+    reply_recalled_at = Column(DateTime, nullable=True)    # 已從 Teams 群組收回的時間
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="whitelist_logs")
@@ -445,6 +449,10 @@ class TeamsNetwinLog(Base):
     rtp = Column(Float, nullable=True)
     outcome = Column(String(32), nullable=False)
     reply_sent = Column(Boolean, default=False)
+    # 機器人自己送出的回覆（收回用）：Teams 回傳的訊息 id，拿不到時改用送出時自訂的 clientmessageid 反查
+    reply_msg_id = Column(String(32), nullable=True)
+    reply_client_msg_id = Column(String(32), nullable=True)
+    reply_recalled_at = Column(DateTime, nullable=True)    # 已從 Teams 群組收回的時間
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TeamsBot", back_populates="netwin_logs")

@@ -793,10 +793,11 @@
       <table>
         <thead><tr><th style="width:70px">規則</th><th>判斷方式</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td>訊息中至少 <strong>3 行</strong>符合「數字編號＋句點/頓號＋內容＋冒號＋內容」格式（例：<span class="code">1. 商戶名字：ABC</span>）。</td></tr>
+          <tr><td>1</td><td>訊息中至少 <strong>3 行</strong>符合「數字編號＋句點/頓號＋內容＋冒號＋內容」格式（例：<span class="code">1. 商戶名字：ABC</span>；編號也可以是中文數字，例：<span class="code">一. 环境：正式环境</span>、<span class="code">三、设置开放币别：PKR</span>）。</td></tr>
           <tr><td>2</td><td>訊息開頭含固定的客服工單範本開場白（<span class="code">Please provide the list below</span>／<span class="code">可以提供以下资料以便查询</span>），即使欄位沒有數字編號也判定為表單。</td></tr>
           <tr><td>3</td><td>同時含「遊戲」欄位標籤（<span class="code">游戏名称/Game：</span>）與「帳號」欄位標籤（<span class="code">代理账号/Username：</span>等），且訊息中<strong>沒有</strong> IP 位址——白名單請求也常見這種欄位組合，但一定會附上要加白的 IP，用「有沒有 IP」區分兩者，避免誤擋真正的白名單請求。</td></tr>
           <tr><td>4</td><td>多行「標籤：值」格式但沒有數字編號（例如 API 串接申請單常見的 <span class="code">Brand Name</span>／<span class="code">Website URL</span>／<span class="code">Callback URL</span> 等欄位），至少 <strong>4 行</strong>才視為表單，且訊息中不能含白名單相關字樣（<span class="code">白名单</span>／<span class="code">白名單</span>／<span class="code">whitelist</span>／<span class="code">加白</span>），避免誤擋白名單請求。單獨一行的網址（<span class="code">https://...</span> 開頭）不算欄位標籤——網址本身的協定冒號（<span class="code">https:</span>）曾被誤判成「標籤：值」格式，導致「網址＋USER＋PW＋IP」這種沒有寫明白名單字樣的訊息被誤判成表單、連帶擋住白名單自動處理。</td></tr>
+          <tr><td>5</td><td><strong>建立代理／新子代申請單</strong>：同時出現 2 個以上申請單特有欄位（<span class="code">层级归属</span>、<span class="code">开放币别</span>、<span class="code">钱包类型</span>、<span class="code">回调域名</span>、<span class="code">新子代</span>、<span class="code">子代站点</span>、<span class="code">配置子代</span>，簡繁皆可）。這類申請單後段常附「後台加白IP」「API加白IP」，若沒有這條規則，會因為含「加白」「后台」字樣被當成白名單申請，把整份申請單的 IP（連 API IP 一起）加進後台白名單。</td></tr>
         </tbody>
       </table>
       <div class="callout">
@@ -1097,7 +1098,7 @@
       </table>
       <div class="callout warn">
         <strong>排除規則（優先權高於以上三條規則）</strong>
-        若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span> 等「API IP」相關字樣，一律視為非本功能處理範圍，即使同時滿足規則一、二、三、四也不會觸發。
+        若訊息中出現 <span class="code">api ip</span>、<span class="code">api whitelist</span>、<span class="code">加白api</span>、<span class="code">API加白</span>、<span class="code">API白名单／API白名單</span> 等「API IP」相關字樣（不分大小寫，「加白」在前或在後都算），一律視為非本功能處理範圍，即使同時滿足規則一、二、三、四也不會觸發。
       </div>
 
       <h4>③ 帳號與廠商解析</h4>
@@ -1258,7 +1259,25 @@
         <strong>帳密與內部系統資訊</strong>
         自動化所使用的內部系統網址、登入帳密皆透過環境變數設定（部署時於 Render / 本機 <span class="code">.env</span> 配置），不會寫在程式碼明碼或此文件中，請勿將相關金鑰外流。
       </div>
-    </section>
+    
+      <h3 id="teams-recall">Teams：收回機器人的回覆</h3>
+      <p class="path-crumb">Teams 機器人 → 後台白名單處理／查輸贏回覆 → 處理紀錄的「已回覆」欄</p>
+      <p>Teams 機器人誤判時（例如把非白名單申請的訊息回了「Done」），可在處理紀錄直接收回該則回覆：</p>
+      <table>
+        <thead><tr><th style="width:170px">已回覆欄位顯示</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td>是 ＋ ↩ 按鈕</td><td>可收回。點 ↩ 並確認後，從 Teams 群組刪除這則回覆，完成後顯示「已收回」。需要該頁的<strong>編輯權限</strong>才看得到按鈕。</td></tr>
+          <tr><td>是（無按鈕）</td><td>收回功能上線前送出的回覆：當時沒有記錄機器人回覆的訊息編號，無法從後台收回，請直接到 Teams 刪除。</td></tr>
+          <tr><td>已收回</td><td>已從群組刪除，滑鼠移上去可看收回時間。白名單一次處理多個帳號時共用同一則回覆，收回後這幾筆會一起標示。</td></tr>
+          <tr><td>-</td><td>沒有回覆（只記錄／不回覆模式、失敗靜默，或回覆送出失敗）。</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>收回只刪除群組裡的訊息，不會撤銷已完成的動作</strong>
+        已經加進後台的白名單 IP 不會因為收回而移除，需要的話請另外到後台白名單設定刪除；查輸贏收回也只是刪除回覆內容。
+        收回後系統會重新讀取群組確認訊息確實已刪除，若 Teams 回應異常會顯示錯誤原因（例如訊息已被刪除、Teams 帳號登入失效）。
+      </div>
+</section>
 
     <!-- ═══════════ 查輸贏回覆頁面 ═══════════ -->
     <section id="netwin-page">
@@ -1462,6 +1481,7 @@
           <tr><td>回覆方式</td><td>以<strong>引用回覆＋@原發送者</strong>的方式回覆原訊息，延遲秒數與 Telegram 相同；倒數期間若總開關、模式或該群開關被關閉，會取消回覆。回覆成功後計入 Teams 回覆工單統計，並依該群「自動建立工單」開關建立 Freshdesk 工單。</td></tr>
           <tr><td>處理順序</td><td>同 Telegram：<strong>白名單優先</strong>，已被白名單流程處理的訊息不會再判斷查輸贏；白名單解析不出帳號/IP 的訊息才會繼續判斷查輸贏。</td></tr>
           <tr><td>重複處理</td><td>同一則 Teams 訊息只處理一次（依訊息 id 查重）。</td></tr>
+          <tr><td>收回回覆</td><td>處理紀錄「已回覆」欄位旁的 ↩ 按鈕可把機器人送出的回覆從 Teams 群組刪除（與 Teams「刪除訊息」相同，群組會顯示訊息已刪除），收回後該筆標示「已收回」。後台白名單處理頁也有相同按鈕，詳見下方說明。</td></tr>
           <tr><td>忽略特定帳號</td><td>「Teams 機器人 → 忽略名單」中的帳號，訊息會被完全略過（白名單與查輸贏都不處理）；登入帳號自己發的訊息自動略過，不需加入。識別碼填發送者的 <strong>MRI</strong>（例如 <span class="code">8:live:.cid.xxxxxxxx</span>，建議）或 <strong>Teams 顯示名稱</strong>，不分大小寫、需完全相同；<strong>不支援 Email</strong>（Teams 訊息裡沒有 Email 可比對，填了不會生效）。顯示名稱在對方改名後會失效、同名者也會一起被忽略，MRI 則不受影響。最簡單的方式是在「後台白名單處理」或「查輸贏回覆」處理紀錄的「發送者」欄（會同時顯示顯示名稱與可複製的 MRI）點 ⊘ 按鈕一鍵加入，會自動帶入 MRI；功能上線前的舊紀錄沒有 MRI，會改以顯示名稱加入。</td></tr>
         </tbody>
       </table>

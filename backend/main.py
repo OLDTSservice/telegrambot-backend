@@ -76,6 +76,12 @@ def _migrate_columns():
         "ALTER TABLE teams_group_settings ADD COLUMN netwin_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE teams_whitelist_logs ADD COLUMN sender_mri VARCHAR(128)",
         "ALTER TABLE users ADD COLUMN permissions TEXT",
+        "ALTER TABLE teams_whitelist_logs ADD COLUMN reply_msg_id VARCHAR(32)",
+        "ALTER TABLE teams_whitelist_logs ADD COLUMN reply_client_msg_id VARCHAR(32)",
+        "ALTER TABLE teams_whitelist_logs ADD COLUMN reply_recalled_at DATETIME",
+        "ALTER TABLE teams_netwin_logs ADD COLUMN reply_msg_id VARCHAR(32)",
+        "ALTER TABLE teams_netwin_logs ADD COLUMN reply_client_msg_id VARCHAR(32)",
+        "ALTER TABLE teams_netwin_logs ADD COLUMN reply_recalled_at DATETIME",
         "ALTER TABLE teams_netwin_logs ADD COLUMN sender_mri VARCHAR(128)",
     ]
     with engine.connect() as conn:

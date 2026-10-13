@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Card, Select, Switch, Table, Tag, Typography, message, Space, Button, Empty, Tooltip } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
-import { getTeamsBots, updateTeamsBot, getTeamsWhitelistLogs } from '../api'
+import { getTeamsBots, updateTeamsBot, getTeamsWhitelistLogs, recallTeamsWhitelistReply } from '../api'
 import { formatDateTime } from '../utils/datetime'
 import TeamsSenderCell from '../components/TeamsSenderCell'
+import TeamsReplyCell from '../components/TeamsReplyCell'
 import { canEditPage } from '../permissions'
 
 const { Text } = Typography
@@ -34,7 +35,7 @@ const columns = [
     render: v => <span style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12 }}>{v}</span>,
   },
   { title: '狀態', dataIndex: 'status', key: 'status', width: 90, render: s => STATUS[s] || <Tag>{s}</Tag> },
-  { title: '已回覆', dataIndex: 'reply_sent', key: 'reply_sent', width: 70, render: v => (v ? '是' : '-') },
+  { title: '已回覆', dataIndex: 'reply_sent', key: 'reply_sent', width: 90 },
   { title: '時間', dataIndex: 'created_at', key: 'created_at', width: 150, render: v => formatDateTime(v) },
 ]
 
@@ -65,8 +66,15 @@ export default function TeamsWhitelistPage({ user }) {
     } catch (e) { message.error(e.response?.data?.detail || '更新失敗') }
   }
 
-  const logColumns = columns.map(c => c.key !== 'sender' ? c : {
-    ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEditPage(user, 'teams_ignores')} />,
+  const logColumns = columns.map(c => {
+    if (c.key === 'sender') return {
+      ...c, render: (v, r) => <TeamsSenderCell botId={botId} sender={v} senderMri={r.sender_mri} canEdit={canEditPage(user, 'teams_ignores')} />,
+    }
+    if (c.key === 'reply_sent') return {
+      ...c, render: (_, r) => <TeamsReplyCell record={r} canEdit={canEdit}
+        onRecall={async rec => { await recallTeamsWhitelistReply(botId, rec.id); fetchLogs() }} note="收回只會刪除群組裡的回覆，已加入後台的白名單 IP 不會移除，需要的話請另外到後台處理。" />,
+    }
+    return c
   })
 
   const fetchLogs = async () => {

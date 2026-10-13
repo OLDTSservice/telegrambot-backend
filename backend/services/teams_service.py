@@ -283,9 +283,12 @@ class TeamsAccountClient:
                f"?pageSize={page_size}&view=msnp24Equivalent&startTime=0")
         return self._request(url).get("messages", [])
 
-    def send_reply(self, chat_id: str, orig_msg: dict, reply_text: str) -> bool:
-        """引用回覆某則訊息並 @ 原發送者（格式實測 HTTP 201）。"""
+    def send_reply(self, chat_id: str, orig_msg: dict, reply_text: str) -> dict:
+        """引用回覆某則訊息並 @ 原發送者（格式實測 HTTP 201）。
+        回傳 {"msg_id", "client_msg_id"} 供之後收回：Teams 的訊息 id 就是送達時間（毫秒），
+        回應的 OriginalArrivalTime 即為新訊息 id；萬一回應沒帶，收回時再用 clientmessageid 反查。"""
         msg_id = str(orig_msg["id"])
+        client_msg_id = str(int(time.time() * 1000)) + str(secrets.randbelow(1000)).zfill(3)
         sender_mri, sender_name = _sender_of(orig_msg)
         preview = clean_text(orig_msg.get("content"))[:200]
         esc = html.escape
@@ -301,7 +304,7 @@ class TeamsAccountClient:
             "content": content,
             "messagetype": "RichText/Html",
             "contenttype": "text",
-            "clientmessageid": str(int(time.time() * 1000)),
+            "clientmessageid": client_msg_id,
             "properties": {
                 "qtdMsgs": json.dumps([{"messageId": msg_id, "sender": sender_mri, "time": int(msg_id)}]),
                 "mentions": json.dumps([{"@type": "http://schema.skype.com/Mention", "itemid": 0,
@@ -310,8 +313,20 @@ class TeamsAccountClient:
             },
         }
         url = f"{CHATSVC_BASE}/conversations/{urllib.parse.quote(chat_id)}/messages"
-        self._request(url, method="POST", body=body)
-        return True
+        resp = self._request(url, method="POST", body=body) or {}
+        arrival = resp.get("OriginalArrivalTime") if isinstance(resp, dict) else None
+        return {"msg_id": str(arrival) if arrival else None, "client_msg_id": client_msg_id}
+
+    def delete_message(self, chat_id: str, msg_id: str):
+        """收回（刪除）自己送出的訊息，與 Teams 網頁版「刪除」相同（軟刪除，群組會顯示訊息已刪除）。"""
+        url = (f"{CHATSVC_BASE}/conversations/{urllib.parse.quote(chat_id)}"
+               f"/messages/{urllib.parse.quote(str(msg_id))}")
+        try:
+            self._request(url + "?behavior=softDelete", method="DELETE")
+        except urllib.error.HTTPError as e:
+            if e.code not in (400, 405):
+                raise
+            self._request(url, method="DELETE")          # 不接受 softDelete 參數時改用一般刪除
 
 
 def group_chats(convs: list) -> dict:
@@ -387,18 +402,20 @@ class TeamsWatcher(threading.Thread):
         super().__init__(name=f"teams-watcher-{bot_id}", daemon=True)
         self.bot_id = bot_id
         self.client = TeamsAccountClient(bot_id, refresh_token, persist_refresh_token)
-        self._stop = threading.Event()
+        # 不能叫 self._stop：會蓋掉 threading.Thread 內部的 _stop() 方法，執行緒結束後呼叫 is_alive()
+        # 會丟 TypeError（'Event' object is not callable），導致 Teams 機器人清單 API 500
+        self._stop_event = threading.Event()
         # 申請先來、IP 後補：{(chat_id, sender_mri): {"msg": 原訊息, "text": 純文字, "ts": 時間}}
         self._pending: dict[tuple, dict] = {}
         self._rounds = 0
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
 
     # ---- 主迴圈 ----
     def run(self):
         logger.info(f"[Teams {self.bot_id}] watcher 啟動")
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             interval = 20
             try:
                 interval = self._poll_once()
@@ -409,7 +426,7 @@ class TeamsWatcher(threading.Thread):
             except Exception as e:  # noqa: BLE001
                 logger.error(f"[Teams {self.bot_id}] 這輪失敗：{type(e).__name__}: {str(e)[:200]}，下輪再試")
                 self._set_error(f"{type(e).__name__}: {str(e)[:200]}")
-            self._stop.wait(max(MIN_POLL_INTERVAL, interval))
+            self._stop_event.wait(max(MIN_POLL_INTERVAL, interval))
         logger.info(f"[Teams {self.bot_id}] watcher 已停止")
 
     def _set_error(self, msg: Optional[str]):
@@ -633,12 +650,21 @@ class TeamsWatcher(threading.Thread):
             reply = "您好，人員將會協助確認，請稍後" if is_chinese else "Hello, our team will assist you shortly. Please wait."
         # 其他失敗（廠商無法解析、登入失敗等）靜默，不回覆
         if reply:
+            logs = db.query(models.TeamsWhitelistLog).filter(
+                models.TeamsWhitelistLog.bot_id == bot.id,
+                models.TeamsWhitelistLog.msg_id == str(m["id"])).all()
             try:
-                self.client.send_reply(chat_id, m, reply)
+                sent = self.client.send_reply(chat_id, m, reply)
+                for lg in logs:
+                    lg.reply_msg_id, lg.reply_client_msg_id = sent["msg_id"], sent["client_msg_id"]
+                db.commit()
                 _record_teams_group_stat(bot.id, chat_id, chat_name, db)
                 logger.info(f"[Teams {bot.id}] 已回覆：{reply}")
             except Exception as e:  # noqa: BLE001
                 logger.error(f"[Teams {bot.id}] 回覆失敗：{e}", exc_info=True)
+                for lg in logs:                 # 沒送出去就不算已回覆
+                    lg.reply_sent = False
+                db.commit()
         if any_success and ticket_enabled:
             threading.Thread(target=_create_freshdesk_ticket_bg,
                              args=(text, "Done", chat_name), daemon=True).start()
@@ -833,7 +859,7 @@ def _netwin_worker(bot_id: int, log_id: int, cfg: dict, account: str,
             logger.warning(f"[Teams {bot_id}] 查輸贏：watcher 未運行，取消回覆（帳號={account}）")
             return
         try:
-            w.client.send_reply(chat_id, m, reply)
+            sent = w.client.send_reply(chat_id, m, reply)
         except Exception as e:  # noqa: BLE001
             logger.error(f"[Teams {bot_id}] 查輸贏回覆失敗：{e}", exc_info=True)
             return
@@ -841,6 +867,7 @@ def _netwin_worker(bot_id: int, log_id: int, cfg: dict, account: str,
         log = db.query(models.TeamsNetwinLog).filter(models.TeamsNetwinLog.id == log_id).first()
         if log:
             log.reply_sent = True
+            log.reply_msg_id, log.reply_client_msg_id = sent["msg_id"], sent["client_msg_id"]
             db.commit()
         _record_teams_group_stat(bot_id, chat_id, chat_name, db)
         if setting.ticket_creation_enabled is not False:
@@ -852,6 +879,45 @@ def _netwin_worker(bot_id: int, log_id: int, cfg: dict, account: str,
     finally:
         db.close()
 
+
+# ================================================================ 收回機器人送出的回覆
+class RecallError(Exception):
+    pass
+
+
+def recall_reply(bot, chat_id: str, reply_msg_id: Optional[str], reply_client_msg_id: Optional[str]) -> str:
+    """從 Teams 群組收回機器人送出的回覆，成功回傳實際刪除的訊息 id，失敗丟 RecallError。
+    watcher 在跑就借它的 client（共用速率桶與權杖），否則臨時建一個（同 list_groups_live）。"""
+    w = _watchers.get(bot.id)
+    client = w.client if (w and w.is_alive()) else TeamsAccountClient(bot.id, bot.refresh_token, persist_refresh_token)
+
+    msg_id = reply_msg_id
+    if not msg_id and reply_client_msg_id:
+        msgs = client.fetch_messages(chat_id, page_size=200)
+        msg_id = next((str(m["id"]) for m in msgs if str(m.get("clientmessageid")) == str(reply_client_msg_id)), None)
+    if not msg_id:
+        raise RecallError("在群組最近的訊息中找不到這則回覆（可能太舊，或已被刪除）")
+
+    try:
+        client.delete_message(chat_id, msg_id)
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8", "replace")[:200]
+        except Exception:  # noqa: BLE001
+            pass
+        if e.code == 404:
+            raise RecallError("Teams 找不到這則訊息（可能已被刪除）")
+        if e.code == 403:
+            raise RecallError("Teams 拒絕刪除（只能刪除這個帳號自己送出的訊息）")
+        raise RecallError(f"Teams 刪除失敗（HTTP {e.code}）：{detail}")
+
+    # 重新讀取確認：訊息消失或帶有 deletetime 才算收回成功
+    for m in client.fetch_messages(chat_id, page_size=50):
+        if str(m.get("id")) == str(msg_id) and not (m.get("properties") or {}).get("deletetime"):
+            raise RecallError("Teams 回應刪除成功，但重新讀取時訊息仍在群組中，請到 Teams 確認")
+    logger.info(f"[Teams {bot.id}] 已收回回覆 chat={chat_id} msg={msg_id}")
+    return str(msg_id)
 
 def start_all_enabled_watchers():
     import models

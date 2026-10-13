@@ -332,6 +332,9 @@ class TeamsWhitelistLogOut(BaseModel):
     ip_list: str
     status: str
     reply_sent: bool = False
+    reply_msg_id: Optional[str] = None
+    reply_client_msg_id: Optional[str] = None
+    reply_recalled_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
@@ -351,6 +354,9 @@ class TeamsNetwinLogOut(BaseModel):
     rtp: Optional[float] = None
     outcome: str
     reply_sent: bool = False
+    reply_msg_id: Optional[str] = None
+    reply_client_msg_id: Optional[str] = None
+    reply_recalled_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:

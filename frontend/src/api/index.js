@@ -73,6 +73,10 @@ export const getTeamsWhitelistLogs = (botId, limit = 50) =>
   api.get(`/teams-bots/${botId}/whitelist-logs`, { params: { limit } })
 export const getTeamsNetwinLogs = (botId, limit = 50) =>
   api.get(`/teams-bots/${botId}/netwin-logs`, { params: { limit } })
+export const recallTeamsWhitelistReply = (botId, logId) =>
+  api.post(`/teams-bots/${botId}/whitelist-logs/${logId}/recall`)
+export const recallTeamsNetwinReply = (botId, logId) =>
+  api.post(`/teams-bots/${botId}/netwin-logs/${logId}/recall`)
 
 // ── Teams Rules ────────────────────────────────
 export const getTeamsRules = () => api.get('/teams-rules')
