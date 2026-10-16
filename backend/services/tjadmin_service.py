@@ -135,6 +135,9 @@ _LABELED_PATTERNS = (
     re.compile(r'game[\s_-]*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'user[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'用[户戶][\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    # 「UID:」（User ID 縮寫）。前面用負向 lookbehind 而非 \b：「玩家UID：」這種中文字直接相接
+    # 的寫法 \b 判斷不出字界，但仍要排除 GUID: 之類英數字緊接在前的字。
+    re.compile(r'(?<![A-Za-z0-9_])uid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」／中文「帳號：」「會員：」「用戶：」標籤（比對到單獨的帳號欄位，例如
