@@ -560,9 +560,16 @@ function LogsTab({ user }) {
   const [groups, setGroups] = useState([])
   const [groupFilter, setGroupFilter] = useState(undefined)
   const groupRef = useRef(undefined)
+  // 類型篩選：undefined＝全部；general＝一般知識庫；asset＝素材知識庫（AI素材）
+  const [kbFilter, setKbFilter] = useState(undefined)
+  const kbRef = useRef(undefined)
   const loadGroups = async (botId) => {
-    try { setGroups((await api.get('/conversation-logs/groups', { params: botId ? { bot_id: botId } : {} })).data) }
-    catch { setGroups([]) }
+    try {
+      const params = {}
+      if (botId) params.bot_id = botId
+      if (kbRef.current) params.kb_type = kbRef.current
+      setGroups((await api.get('/conversation-logs/groups', { params })).data)
+    } catch { setGroups([]) }
   }
   const loadLogs = useCallback(async (p = 1, botId = botFilter, kw = searchRef.current, chatId = groupRef.current) => {
     setLoading(true)
@@ -570,6 +577,7 @@ function LogsTab({ user }) {
       const filter = {}
       if (botId) filter.bot_id = botId
       if (chatId) filter.chat_id = chatId
+      if (kbRef.current) filter.kb_type = kbRef.current
       if (kw.trim()) filter.q = kw.trim()
       const [logsRes, countRes] = await Promise.all([
         api.get('/conversation-logs', { params: { ...filter, page: p, page_size: 20 } }),
@@ -588,7 +596,7 @@ function LogsTab({ user }) {
   const [search, setSearch] = useDebouncedSearch(kw => { searchRef.current = kw; loadLogs(1, botFilter, kw) })
 
   useEffect(() => {
-    Promise.all([api.get('/knowledge', { params: { kb_type: 'general' } }), api.get('/bots')]).then(([dRes, bRes]) => {
+    Promise.all([api.get('/knowledge', { params: { kb_type: 'all' } }), api.get('/bots')]).then(([dRes, bRes]) => {
       setDocs(dRes.data)
       setBots(bRes.data)
     })
@@ -631,6 +639,13 @@ function LogsTab({ user }) {
           }}>
           {bots.map(b => <Select.Option key={b.id} value={b.id}>{b.name}</Select.Option>)}
         </Select>
+        <Select allowClear placeholder="篩選類型" style={{ width: 150 }}
+          value={kbFilter} onChange={v => {
+            setKbFilter(v); kbRef.current = v
+            setGroupFilter(undefined); groupRef.current = undefined
+            loadGroups(botFilter); loadLogs(1, botFilter, searchRef.current, undefined)
+          }}
+          options={[{ value: 'general', label: '一般知識庫' }, { value: 'asset', label: '素材知識庫' }]} />
         <Select allowClear showSearch placeholder="篩選群組名稱" style={{ width: 260 }}
           value={groupFilter} optionFilterProp="name"
           notFoundContent="近 7 日沒有紀錄的群組"
@@ -661,6 +676,7 @@ function LogsTab({ user }) {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
                   <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
+                  {log.kb_type === 'asset' && <Tag color="geekblue">素材</Tag>}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>Q：{highlight(log.question, searchRef.current)}</div>
                 <div style={{ fontSize: 15, color: '#333', lineHeight: 1.65 }}>A：{log.answer}</div>
@@ -688,8 +704,11 @@ function LogsTab({ user }) {
           <div>
             <div style={{ fontWeight: 500, marginBottom: 6 }}>歸屬文件</div>
             <Select style={{ width: '100%' }} placeholder="選擇文件"
-              value={selectedDocId} onChange={setSelectedDocId}>
-              {docs.map(d => <Select.Option key={d.id} value={d.id}>{d.original_filename}</Select.Option>)}
+              value={selectedDocId} onChange={setSelectedDocId}
+              notFoundContent={addToKbModal.log?.kb_type === 'asset' ? '尚無素材知識庫文件' : '尚無一般知識庫文件'}>
+              {/* 一般與素材知識庫分開：此紀錄屬於哪一種，就只能補進同一種的文件 */}
+              {docs.filter(d => (d.kb_type || 'general') === (addToKbModal.log?.kb_type || 'general'))
+                .map(d => <Select.Option key={d.id} value={d.id}>{d.original_filename}</Select.Option>)}
             </Select>
           </div>
           <Form form={addToKbForm} layout="vertical">
@@ -822,6 +841,7 @@ function NoAnswerTab({ user }) {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
                   <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
+                  {log.kb_type === 'asset' && <Tag color="geekblue">素材</Tag>}
                 </div>
                 <div style={{ fontSize: 15, color: '#111', fontWeight: 500, whiteSpace: 'pre-wrap' }}>{highlight(log.question, searchRef.current)}</div>
                 {canEdit(user) && (
@@ -848,8 +868,11 @@ function NoAnswerTab({ user }) {
           <div>
             <div style={{ fontWeight: 500, marginBottom: 6 }}>歸屬文件</div>
             <Select style={{ width: '100%' }} placeholder="選擇文件"
-              value={selectedDocId} onChange={setSelectedDocId}>
-              {docs.map(d => <Select.Option key={d.id} value={d.id}>{d.kb_type === 'asset' ? '[素材] ' : ''}{d.original_filename}</Select.Option>)}
+              value={selectedDocId} onChange={setSelectedDocId}
+              notFoundContent={addModal.log?.kb_type === 'asset' ? '尚無素材知識庫文件' : '尚無一般知識庫文件'}>
+              {/* 一般與素材知識庫分開：此紀錄屬於哪一種，就只能補進同一種的文件 */}
+              {docs.filter(d => (d.kb_type || 'general') === (addModal.log?.kb_type || 'general'))
+                .map(d => <Select.Option key={d.id} value={d.id}>{d.original_filename}</Select.Option>)}
             </Select>
           </div>
           <Form form={addForm} layout="vertical">

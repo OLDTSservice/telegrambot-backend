@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from database import get_db
 import models
 from auth import require_page_view, require_page_edit
+from routers.conversation_log import _ensure_same_kb_type
 
 router = APIRouter(prefix="/api/no-answer-logs", tags=["AI無解答對話紀錄"])
 _VIEW = require_page_view("telegram_knowledge")
@@ -18,6 +19,7 @@ class NoAnswerLogOut(BaseModel):
     chat_id: str
     chat_name: str
     question: str
+    kb_type: Optional[str] = "general"
     created_at: datetime
 
     class Config:
@@ -95,6 +97,7 @@ def add_to_knowledge(
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == payload.doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在")
+    _ensure_same_kb_type(log.kb_type, doc.kb_type)
 
     q_text = payload.question or log.question
     a_text = payload.answer or ""

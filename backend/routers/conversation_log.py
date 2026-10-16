@@ -19,6 +19,7 @@ class LogOut(BaseModel):
     chat_name: str
     question: str
     answer: str
+    kb_type: Optional[str] = "general"
     created_at: datetime
 
     class Config:
@@ -31,16 +32,21 @@ class AddToKnowledge(BaseModel):
     answer: Optional[str] = None
 
 
-def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str], chat_id: Optional[str] = None):
+def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str], chat_id: Optional[str] = None,
+                  kb_type: Optional[str] = None):
     """近 7 日紀錄；chat_id 有值時只看該群組；q 有值時只保留「問題內容」包含該關鍵字的紀錄（不分大小寫）。
-    關鍵字裡的 % 與 _ 視為一般字元（帳號常含底線，不能當成 LIKE 萬用字元）。"""
+    關鍵字裡的 % 與 _ 視為一般字元（帳號常含底線，不能當成 LIKE 萬用字元）。
+    kb_type：不帶／all＝一般與素材都列；general＝只列一般知識庫（kb_type 為 NULL 的舊資料視為 general）；
+    asset＝只列素材知識庫（AI素材）的回覆。"""
     since = datetime.utcnow() - timedelta(days=7)
-    # AI對話日誌頁只列一般知識庫的回覆（kb_type 為 NULL 的舊資料視為 general）；
-    # 素材知識庫的回覆為了使用量統計也會寫進同一張表，但不顯示在這頁，也不能被拿去補一般知識庫 QA
-    query = db.query(models.ConversationLog).filter(
-        models.ConversationLog.created_at >= since,
-        (models.ConversationLog.kb_type == "general") | (models.ConversationLog.kb_type.is_(None)),
-    )
+    query = db.query(models.ConversationLog).filter(models.ConversationLog.created_at >= since)
+    if kb_type == "general":
+        query = query.filter(
+            (models.ConversationLog.kb_type == "general") | (models.ConversationLog.kb_type.is_(None)))
+    elif kb_type == "asset":
+        query = query.filter(models.ConversationLog.kb_type == "asset")
+    elif kb_type not in (None, "", "all"):
+        raise HTTPException(status_code=400, detail="kb_type 只能是 general、asset 或 all")
     if bot_id:
         query = query.filter(models.ConversationLog.bot_id == bot_id)
     if chat_id:
@@ -57,27 +63,29 @@ def list_logs(
     bot_id: Optional[int] = None,
     chat_id: Optional[str] = None,
     q: Optional[str] = None,
+    kb_type: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
     _=Depends(_VIEW),
 ):
     offset = (page - 1) * page_size
-    return (_recent_query(db, bot_id, q, chat_id)
+    return (_recent_query(db, bot_id, q, chat_id, kb_type)
             .order_by(models.ConversationLog.created_at.desc()).offset(offset).limit(page_size).all())
 
 
 @router.get("/count")
 def count_logs(bot_id: Optional[int] = None, chat_id: Optional[str] = None, q: Optional[str] = None,
-               db: Session = Depends(get_db), _=Depends(_VIEW)):
-    return {"total": _recent_query(db, bot_id, q, chat_id).count()}
+               kb_type: Optional[str] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
+    return {"total": _recent_query(db, bot_id, q, chat_id, kb_type).count()}
 
 
 @router.get("/groups")
-def list_groups(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=Depends(_VIEW)):
+def list_groups(bot_id: Optional[int] = None, kb_type: Optional[str] = None,
+                db: Session = Depends(get_db), _=Depends(_VIEW)):
     """近 7 日有紀錄的群組（給群組下拉選單用），依紀錄筆數多到少排序。
     以 chat_id 區分群組；群組改過名稱時顯示最新一筆紀錄的名稱。"""
-    rows = (_recent_query(db, bot_id, None)
+    rows = (_recent_query(db, bot_id, None, None, kb_type)
             .with_entities(models.ConversationLog.chat_id, models.ConversationLog.chat_name)
             .order_by(models.ConversationLog.created_at.desc()).all())
     groups = {}
@@ -85,6 +93,18 @@ def list_groups(bot_id: Optional[int] = None, db: Session = Depends(get_db), _=D
         g = groups.setdefault(chat_id, {"chat_id": chat_id, "chat_name": chat_name, "count": 0})
         g["count"] += 1
     return sorted(groups.values(), key=lambda g: (-g["count"], g["chat_name"]))
+
+
+def _ensure_same_kb_type(log_kb: Optional[str], doc_kb: Optional[str]):
+    """一般與素材知識庫分開存放：紀錄屬於哪一種，就只能補進同一種的文件，避免素材內容混進一般知識庫（反之亦然）。"""
+    log_kb, doc_kb = log_kb or "general", doc_kb or "general"
+    if log_kb != doc_kb:
+        names = {"general": "一般知識庫", "asset": "素材知識庫"}
+        raise HTTPException(
+            status_code=400,
+            detail=f"此紀錄屬於{names.get(log_kb, log_kb)}，只能新增到{names.get(log_kb, log_kb)}的文件"
+                   f"（所選文件屬於{names.get(doc_kb, doc_kb)}）",
+        )
 
 
 @router.post("/{log_id}/to-knowledge")
@@ -101,6 +121,7 @@ def add_log_to_knowledge(
     doc = db.query(models.KnowledgeDoc).filter(models.KnowledgeDoc.id == payload.doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在")
+    _ensure_same_kb_type(log.kb_type, doc.kb_type)
 
     max_order = db.query(models.KnowledgeQA).filter(
         models.KnowledgeQA.doc_id == payload.doc_id
