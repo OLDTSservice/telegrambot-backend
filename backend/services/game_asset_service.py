@@ -89,6 +89,10 @@ _ASSET_KB_CJK_KEYWORDS = (
     # 地區／國家限制
     "地區限制", "地区限制", "國家限制", "国家限制",
     "阻擋哪些國家", "阻挡哪些国家", "阻擋地區", "阻挡地区",
+    "限制哪些地區", "限制哪些地区", "限制哪些國家", "限制哪些国家",
+    "阻擋哪些地區", "阻挡哪些地区",
+    # IP 限制（「前台地區限制」已被「地區限制」涵蓋，不重複列）
+    "ip限制", "ip阻擋", "ip阻挡",
     # 語言
     "語言支援", "语言支援", "语言支持", "語言列表", "语言列表",
     "語系支援", "语系支援", "语系支持", "語系列表", "语系列表",
@@ -108,7 +112,8 @@ _ASSET_KB_EN_FRAGMENTS = (
     r'currency[\s_-]*(?:support|lists?)', r'supported[\s_-]*currenc(?:y|ies)',
     r'region(?:al)?[\s_-]*restrictions?', r'country[\s_-]*restrictions?',
     r'(?:restricted|blocked)[\s_-]*(?:countries|regions?)', r'geo[\s_-]*(?:blocking|restrictions?)',
-    r'countr(?:y|ies)[\s_-]*(?:(?:are|is)[\s_-]*)?blocked', r'msg104',
+    r'(?:countr(?:y|ies)|regions?)[\s_-]*(?:(?:are|is)[\s_-]*)?(?:blocked|restricted)', r'msg104',
+    r'ip[\s_-]*(?:restrictions?|block(?:ing|ed)?)',
     r'languages?',
     r'api[\s_-]*time[\s_-]*zones?', r'(?:backend|back[\s_-]*office|bo)[\s_-]*time[\s_-]*zones?',
 )
