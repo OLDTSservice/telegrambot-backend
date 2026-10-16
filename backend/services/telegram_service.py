@@ -48,6 +48,14 @@ _AGENT_SETUP_MARKERS = (
     "层级归属", "層級歸屬", "开放币别", "開放幣別", "钱包类型", "錢包類型",
     "回调域名", "回調域名", "新子代", "子代站点", "子代站點", "配置子代",
 )
+# 同一種建立代理／API 串接申請單的英文版（例如 Brand Name / Domain Name / Currency / Wallet /
+# Callback URL，後面常附 "Whitelist IP"）：只算「行首的欄位標籤」，同一則訊息出現 3 種以上
+# 不同標籤就視為申請單。用標籤行而非單純子字串比對，是因為 currency／wallet 這種字在一般
+# 對話裡也可能出現；要求 3 種以上則是因為真正的後台白名單請求通常只有帳號／類型／環境／IP。
+_AGENT_SETUP_FIELD_LABEL_RE = re.compile(
+    r'^\s*(brand\s*name|domain\s*name|callback\s*url|currency|wallet)\s*[：:]',
+    re.IGNORECASE | re.MULTILINE,
+)
 _FORM_FIELD_LINE_RE = re.compile(r'^\s*(?!https?://)[^\s：:].{0,38}?[：:]\s*.*$', re.IGNORECASE)
 # 出現這些字樣即視為白名單相關訊息，排除規則四，避免誤擋真正的白名單請求
 _WHITELIST_SAFETY_WORDS = ("白名单", "白名單", "whitelist", "加白")
@@ -331,11 +339,15 @@ def _is_application_form(text: str) -> bool:
     5. 建立代理／新子代申請單：同時出現 2 個以上申請單特有欄位（層級歸屬、開放幣別、錢包類型、
        回調域名、新子代…，見 _AGENT_SETUP_MARKERS）。這類申請單常附「後台加白IP」「API加白IP」，
        必須在白名單判斷之前排除，否則整份申請單的 IP 會被當成白名單申請加進後台。
+    6. 同一種申請單的英文版：行首欄位標籤 Brand Name / Domain Name / Callback URL / Currency /
+       Wallet 同時出現 3 種以上（見 _AGENT_SETUP_FIELD_LABEL_RE），即使含 "Whitelist IP" 欄位也視為申請單。
     """
     lower = text.lower()
     if any(marker in lower for marker in _SUPPORT_TICKET_MARKERS):
         return True
     if sum(1 for marker in _AGENT_SETUP_MARKERS if marker in text) >= 2:
+        return True
+    if len({re.sub(r'\s+', '', m.group(1)).lower() for m in _AGENT_SETUP_FIELD_LABEL_RE.finditer(text)}) >= 3:
         return True
     if (
         _TICKET_GAME_FIELD_RE.search(text)
