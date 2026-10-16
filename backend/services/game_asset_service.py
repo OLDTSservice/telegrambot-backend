@@ -60,6 +60,30 @@ def detect_game_asset_request(text: str) -> bool:
     return any(kw.lower() in lower for kw in _GAME_ASSET_KEYWORDS)
 
 
+# 「AI素材」（素材知識庫）的需求關鍵字閘門：訊息沒命中就完全不呼叫 AI、也不回覆，避免 AI 問答
+# 關閉的群組裡每一則一般聊天都去打一次 AI，或被誤回「轉人工」。命中後才交給素材知識庫 AI 判斷。
+# 中文沒有單字邊界問題，直接子字串比對；英文用單字邊界，避免 logo 命中 logout/logon、
+# icon 命中 iconic 之類的字。
+_ASSET_KB_CJK_KEYWORDS = (
+    "素材", "圖示", "图示", "圖標", "图标", "入口圖", "入口图",
+    "遊戲清單", "游戏清单", "遊戲列表", "游戏列表",
+    "海報", "海报", "橫幅", "横幅",
+)
+_ASSET_KB_EN_RE = re.compile(
+    r'\b(?:icons?|logos?|assets?|materials?|banners?|posters?|artworks?|thumbnails?'
+    r'|game[\s_-]*lists?|gamelists?)\b',
+    re.IGNORECASE,
+)
+
+
+def detect_asset_kb_request(text: str) -> bool:
+    """訊息是否像在索取遊戲素材（遊戲清單、ICON、LOGO、宣傳／大獎素材、海報、橫幅…），
+    用來決定要不要呼叫素材知識庫 AI。"""
+    if any(kw in text for kw in _ASSET_KB_CJK_KEYWORDS):
+        return True
+    return bool(_ASSET_KB_EN_RE.search(text))
+
+
 def find_games_by_id(text: str, game_list: list) -> list[str]:
     """從訊息中擷取獨立的純數字 token，在本地遊戲清單中做『精確』GameID 比對（不經 AI 猜測，避免誤判成其他相似遊戲）。
     回傳比對到的 **Game ID 字串**清單（不是名稱！刻意保留數字，之後直接用 ID 查詢 search API 才是精確比對；

@@ -96,6 +96,8 @@ class KnowledgeDoc(Base):
     file_size = Column(Integer)
     chroma_collection = Column(String(100))
     is_enabled = Column(Boolean, default=True)
+    # general＝一般知識庫（AI 問答用）；asset＝素材知識庫（AI素材用，只回答遊戲素材需求）
+    kb_type = Column(String(16), default="general")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="knowledge_docs")
@@ -250,7 +252,7 @@ class TelegramPendingReply(Base):
     message_id = Column(Integer, ForeignKey("telegram_messages.id"), nullable=False)
     reply_text = Column(Text, nullable=False)
     status = Column(String(16), default="pending")   # pending / sent / discarded
-    source = Column(String(16), default="knowledge_base")  # knowledge_base / keyword，發送時決定是否寫入 AI 對話日誌
+    source = Column(String(16), default="knowledge_base")  # knowledge_base / keyword / asset_kb（素材知識庫），發送時只有 knowledge_base 才寫入 AI 對話日誌
     created_at = Column(DateTime, default=datetime.utcnow)
     sent_at = Column(DateTime, nullable=True)
 
@@ -624,6 +626,7 @@ class TelegramGroupSetting(Base):
     bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
     chat_id = Column(String(50), nullable=False)
     ai_enabled = Column(Boolean, default=True)
+    ai_material_enabled = Column(Boolean, default=False)      # AI素材開關：只有 AI 問答關閉時才會生效，改查「素材知識庫」
     is_managed = Column(Boolean, default=False)               # 群組層級管控模式開關
     whitelist_vendor_check = Column(Boolean, default=False)   # 白名單廠商驗證開關
     whitelist_allowed_vendors = Column(Text, nullable=True)   # 允許廠商前綴，逗號分隔

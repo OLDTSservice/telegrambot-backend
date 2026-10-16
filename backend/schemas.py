@@ -214,6 +214,7 @@ class DocOut(BaseModel):
     file_type: Optional[str]
     file_size: Optional[int]
     is_enabled: bool
+    kb_type: Optional[str] = "general"
     created_at: datetime
     qa_count: Optional[int] = 0
 

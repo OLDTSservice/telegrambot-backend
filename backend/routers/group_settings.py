@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -18,6 +18,7 @@ class GroupOut(BaseModel):
     chat_name: str
     chat_type: Optional[str]
     ai_enabled: bool
+    ai_material_enabled: bool = False
     is_managed: bool = False
     whitelist_vendor_check: bool = False
     whitelist_allowed_vendors: Optional[str] = None
@@ -35,6 +36,7 @@ class GroupOut(BaseModel):
 class GroupUpdateIn(BaseModel):
     bot_id: int
     ai_enabled: Optional[bool] = None
+    ai_material_enabled: Optional[bool] = None
     is_managed: Optional[bool] = None
     whitelist_vendor_check: Optional[bool] = None
     whitelist_allowed_vendors: Optional[str] = None
@@ -108,6 +110,7 @@ def list_groups(
             "chat_name": g.chat_name,
             "chat_type": g.chat_type,
             "ai_enabled": s.ai_enabled if s else True,
+            "ai_material_enabled": bool(s.ai_material_enabled) if s else False,
             "is_managed": s.is_managed if s else False,
             "whitelist_vendor_check": s.whitelist_vendor_check if s else False,
             "whitelist_allowed_vendors": s.whitelist_allowed_vendors if s else None,
@@ -132,9 +135,21 @@ def update_group_setting(
         models.TelegramGroupSetting.bot_id == payload.bot_id,
         models.TelegramGroupSetting.chat_id == chat_id,
     ).first()
+    # AI素材與 AI 問答互斥：AI 問答開著時不能開 AI素材；把 AI 問答打開時順手把 AI素材關掉。
+    # 先算出「這次更新後」的 AI 問答狀態（欄位各自獨立，要合併已存的值與這次送來的值）。
+    final_ai_enabled = (
+        payload.ai_enabled if payload.ai_enabled is not None
+        else (setting.ai_enabled if setting else True)
+    )
+    if payload.ai_material_enabled and final_ai_enabled:
+        raise HTTPException(status_code=400, detail="AI素材只能在 AI 問答關閉時開啟")
     if setting:
         if payload.ai_enabled is not None:
             setting.ai_enabled = payload.ai_enabled
+            if payload.ai_enabled:
+                setting.ai_material_enabled = False
+        if payload.ai_material_enabled is not None:
+            setting.ai_material_enabled = payload.ai_material_enabled
         if payload.is_managed is not None:
             setting.is_managed = payload.is_managed
         if payload.whitelist_vendor_check is not None:
@@ -156,6 +171,7 @@ def update_group_setting(
             bot_id=payload.bot_id,
             chat_id=chat_id,
             ai_enabled=payload.ai_enabled if payload.ai_enabled is not None else True,
+            ai_material_enabled=payload.ai_material_enabled or False,
             is_managed=payload.is_managed or False,
             whitelist_vendor_check=payload.whitelist_vendor_check or False,
             whitelist_allowed_vendors=payload.whitelist_allowed_vendors,

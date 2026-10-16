@@ -48,6 +48,8 @@ def _migrate_columns():
         "ALTER TABLE knowledge_qas ADD COLUMN chunk_id INTEGER",
         "ALTER TABLE telegram_bots ADD COLUMN tada_asset_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_bots ADD COLUMN tada_gamelist_query_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE knowledge_docs ADD COLUMN kb_type VARCHAR(16) DEFAULT 'general'",
+        "ALTER TABLE telegram_group_settings ADD COLUMN ai_material_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_bots ADD COLUMN tada_certification_query_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE tada_cert_pending ADD COLUMN is_chinese BOOLEAN DEFAULT 1",
         "ALTER TABLE telegram_bots ADD COLUMN netwin_query_enabled BOOLEAN DEFAULT 0",

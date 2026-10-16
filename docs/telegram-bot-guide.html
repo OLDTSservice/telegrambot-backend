@@ -460,7 +460,8 @@
         <tbody>
           <tr><td>選擇機器人（下拉選單）</td><td>先選機器人才會載入其群組清單。</td></tr>
           <tr><td>搜尋群組名稱</td><td>依群組名稱關鍵字篩選。</td></tr>
-          <tr><td><strong>AI 問答</strong> 開關</td><td>此開關直接對應 <span class="code">TelegramGroupSetting.ai_enabled</span>（預設為開啟）。關閉後，該群組的訊息完全不會查詢知識庫，機器人只剩「關鍵字規則」仍會作用；此設定也是觸發「AI 救援」的先決條件之一，詳見 <a href="#flow-group-ai">訊息流程 — 群組 AI 開關</a>。</td></tr>
+          <tr><td><strong>AI 問答</strong> 開關</td><td>此開關直接對應 <span class="code">TelegramGroupSetting.ai_enabled</span>（預設為開啟）。關閉後，該群組的訊息不會查詢一般知識庫，其餘前置功能（關鍵字規則、白名單、遊戲素材查詢、查輸贏回覆等）仍會作用；另外命中「跳過知識庫」關鍵字的訊息，不論 AI 問答開或關，都會照常收到轉人工的固定回覆（或靜默）。此設定也是觸發「AI 救援」與「AI素材」的先決條件，詳見 <a href="#flow-group-ai">訊息流程 — 群組 AI 開關</a>。</td></tr>
+          <tr><td><strong>AI素材</strong> 開關</td><td>對應 <span class="code">TelegramGroupSetting.ai_material_enabled</span>（預設關閉）。<strong>只有「AI 問答」關閉時才能開啟</strong>：AI 問答開著時此開關為鎖住狀態；開啟 AI 問答時會自動把 AI素材關掉（兩者互斥，後端也會擋）。開啟後，該群組的訊息改查「<a href="#asset-kb">素材知識庫</a>」，只回答遊戲素材需求，不會查一般知識庫。詳見 <a href="#asset-kb">素材知識庫（AI素材）</a>。</td></tr>
           <tr><td>群組類型標籤</td><td>私聊 / 群組 / 超級群組 / 頻道，取自 Telegram 原生 <span class="code">chat.type</span>。</td></tr>
           <tr><td><strong>即時對話管控</strong> 開關</td><td>
             此為<strong>群組層級</strong>的管控開關，可讓特定群組單獨進入管控模式，而不影響其他群組。判斷邏輯採 OR 規則：<br>
@@ -628,12 +629,13 @@
         <div class="flow-step" id="flow-group-ai">
           <div class="flow-num">3</div>
           <div class="flow-body">
-            <div class="flow-title">該群組 AI 問答開關檢查</div>
+            <div class="flow-title">該群組 AI 問答開關檢查（含 AI素材）</div>
             <div class="flow-desc">
               查詢此聊天室（<span class="code">chat_id</span>）在「群組管理」中的 <span class="code">ai_enabled</span> 設定（預設開啟）。
             </div>
             <div class="flow-outcome">
-              <div class="flow-branch"><span class="tag tag-red">關閉</span> 不查詢知識庫、不回覆；若此機器人有啟用「AI 救援」，會記錄此訊息為救援候選（除非本訊息本身是「引用回覆」某則候選訊息，此時代表已被人工處理，改為標記該候選為已處理）</div>
+              <div class="flow-branch"><span class="tag tag-blue">關閉＋已開 AI素材</span> 改走<a href="#asset-kb">素材知識庫</a>：訊息須命中「素材需求關鍵字」才會繼續（沒命中＝不呼叫 AI、不回覆、不記救援候選），命中後沿用下方步驟 4～6（管控待審、靜默、冷卻、Fallback）</div>
+              <div class="flow-branch"><span class="tag tag-red">關閉（未開 AI素材）</span> 不查詢知識庫、不回覆；若此機器人有啟用「AI 救援」，會記錄此訊息為救援候選（除非本訊息本身是「引用回覆」某則候選訊息，此時代表已被人工處理，改為標記該候選為已處理）</div>
               <div class="flow-branch"><span class="tag tag-gray">開啟</span> 繼續下一步</div>
             </div>
           </div>
@@ -882,7 +884,7 @@
     <section id="knowledge-page">
       <h2>知識庫管理頁面</h2>
       <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 知識庫管理</span></p>
-      <p>分為三個分頁：知識庫來源、AI對話日誌、AI無解答對話紀錄。</p>
+      <p>分為四個分頁：知識庫來源、素材知識庫、AI對話日誌、AI無解答對話紀錄。</p>
 
       <h3>知識庫來源 Tab</h3>
       <table>
@@ -909,6 +911,22 @@
         <li>若文件<strong>不是</strong> Q&amp;A 格式，則改用「段落切塊」方式：中文內容每 400 字一段、重疊 50 字；英文內容每 400 字一段、重疊 40 字，讓 AI 查詢時仍有上下文可用（但不會被記成 Q&amp;A 筆數）。</li>
         <li>查詢知識庫時，<strong>該機器人所有啟用文件的全部段落都會一次送給 Claude 判斷</strong>，沒有做關鍵字先篩選再送 AI 的兩段式流程，因此文件量越大、Token 成本越高，建議定期清理不需要的舊文件。</li>
       </ul>
+
+      <h3 id="asset-kb">素材知識庫 Tab（AI素材）</h3>
+      <p>功能與操作跟「知識庫來源」完全相同（上傳文件、啟用／停用、換機器人、Q&amp;A 編輯、下載原始檔／QA 內容），差別只在<strong>文件分開存放、用途不同</strong>：這裡上傳的是遊戲素材、遊戲清單、ICON、LOGO、宣傳素材、大獎素材等文件，只會給「AI素材」使用；「知識庫來源」的文件只給「AI 問答」使用，兩邊互不混用（資料庫以文件的 <span class="code">kb_type</span> 欄位區分：<span class="code">general</span>／<span class="code">asset</span>）。</p>
+      <table>
+        <thead><tr><th style="width:190px">項目</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td>啟用方式</td><td>在「機器人管理 → 群組管理」該群組先<strong>關閉 AI 問答</strong>，再開啟新的「AI素材」開關。兩者互斥：AI 問答開著＝走一般知識庫，AI 問答關閉＋AI素材開啟＝走素材知識庫。</td></tr>
+          <tr><td>觸發閘門</td><td>訊息必須含「素材需求關鍵字」才會呼叫素材知識庫 AI：<span class="code">素材</span>、<span class="code">圖示／图示</span>、<span class="code">圖標／图标</span>、<span class="code">入口圖／入口图</span>、<span class="code">遊戲清單／游戏清单</span>、<span class="code">遊戲列表／游戏列表</span>、<span class="code">海報／海报</span>、<span class="code">橫幅／横幅</span>，以及英文單字 <span class="code">icon</span>／<span class="code">logo</span>／<span class="code">asset</span>／<span class="code">material</span>／<span class="code">banner</span>／<span class="code">poster</span>／<span class="code">artwork</span>／<span class="code">thumbnail</span>／<span class="code">game list</span>（英文採單字邊界，不會誤判 <span class="code">logout</span>、<span class="code">iconic</span>）。<strong>沒命中閘門的訊息完全不處理</strong>（不呼叫 AI、不回覆），行為與沒開 AI素材相同，避免群組裡一般聊天被誤回「轉人工」，也避免每則訊息都消耗 AI 用量。</td></tr>
+          <tr><td>處理順序</td><td>排在原本所有前置功能之後：先走原本的<strong>遊戲素材查詢（JILI／TADA，需廠商指定遊戲）</strong>，沒解答才輪到素材知識庫；訊息少於 10 字元一樣直接忽略；命中「跳過知識庫」關鍵字的訊息一樣直接跳過（轉人工或靜默），後續由人員查看。</td></tr>
+          <tr><td>AI 回答範圍</td><td>素材知識庫 AI 的提示詞要求「只回答遊戲素材需求」，其他任何問題（帳號、投注、RTP、白名單、活動規則…）一律回固定識別字串 <span class="code">NO_ANSWER_FOUND</span>，視為無解答。語言規則、不可推斷延伸等其餘規則與一般知識庫相同。</td></tr>
+          <tr><td>找不到答案時</td><td>沿用既有邏輯：該群組開啟「找不到答案時靜默」就不回覆（仍記錄無解答紀錄）；否則回覆轉人工固定訊息（中文「您好，人員將會協助確認，請稍後」／英文對應版本，含 10 秒冷卻）。不會有其他多餘回覆。</td></tr>
+          <tr><td>即時對話管控</td><td>群組（或機器人）開啟管控模式時，素材知識庫的回答<strong>不會直接送出</strong>，而是進入「待發送回覆」（來源標記為 <span class="code">asset_kb</span>），需人員在即時對話管控頁面手動按「發送」；沒有答案時只記錄訊息，等人員手動回覆，與一般知識庫的管控行為相同。</td></tr>
+          <tr><td>統計、日誌與工單</td><td>成功回覆會計入回覆統計，並依群組「自動建立工單」設定建立 Freshdesk 工單（來源 <span class="code">asset_kb</span>，在回覆工單統計歸入「其他建立工單數」）。<strong>素材回覆不寫入「AI對話日誌」</strong>（該頁是一般知識庫的檢討／補 QA 用）；無解答的訊息仍會寫入「AI無解答對話紀錄」，該頁「加入知識庫」的歸屬文件清單會同時列出一般與素材文件（素材文件前綴 <span class="code">[素材]</span>），方便把素材缺口補進素材知識庫。</td></tr>
+          <tr><td>AI 救援</td><td>開啟 AI素材的群組<strong>不記救援候選</strong>（AI 救援目前尚未使用，素材群組先不納入）。AI 救援查詢一律只讀一般知識庫，不會讀到素材文件。</td></tr>
+        </tbody>
+      </table>
 
       <h3>AI對話日誌 Tab</h3>
       <p>顯示近 <strong>7 天</strong>內、AI <strong>成功回答</strong>的所有問答紀錄（超過 7 天自動清除）。此頁面只收錄「知識庫 AI 問答」內容，<strong>不含</strong>關鍵字規則命中的固定回覆（因其非 AI 生成內容）。</p>

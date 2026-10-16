@@ -1449,7 +1449,20 @@ class BotManager:
             models.TelegramGroupSetting.bot_id == bot_id,
             models.TelegramGroupSetting.chat_id == chat_id,
         ).first()
-        if group_setting and not group_setting.ai_enabled:
+        # AI素材：AI 問答關閉、且該群組開了「AI素材」時，改查「素材知識庫」（只回答遊戲素材需求）。
+        # 此時一律不記救援候選（AI 救援尚未使用，素材群組先不納入）。素材關鍵字閘門沒命中就
+        # 完全略過（不呼叫 AI、不回覆，行為與沒開 AI素材時相同）；命中後繼續走下面的步驟 3，
+        # 沿用同一套管控待審、靜默、冷卻、fallback、統計與無解答紀錄邏輯。
+        # 前面的長度過濾、跳過知識庫關鍵字、遊戲素材查詢（JILI/TADA）都已經先執行過。
+        _asset_mode = False
+        if group_setting and not group_setting.ai_enabled and group_setting.ai_material_enabled:
+            from services.game_asset_service import detect_asset_kb_request
+            if not detect_asset_kb_request(text):
+                logger.debug(f"Bot {bot_id} 群組 {chat_id} AI素材：未命中素材需求關鍵字，略過")
+                return
+            logger.info(f"Bot {bot_id} 群組 {chat_id} AI素材：命中素材需求關鍵字，查詢素材知識庫")
+            _asset_mode = True
+        elif group_setting and not group_setting.ai_enabled:
             logger.info(f"Bot {bot_id} 群組 {chat_id} AI 問答已關閉，跳過知識庫查詢")
             # 救援功能：記錄候選訊息 / 標記已被直接回覆
             rescue_setting = db.query(models.AIRescueSetting).filter(
@@ -1489,7 +1502,8 @@ class BotManager:
 
         # 3. 嘗試知識庫 AI 回覆
         try:
-            result = await asyncio.to_thread(query_knowledge, bot_id, text)
+            result = await asyncio.to_thread(
+                query_knowledge, bot_id, text, kb_type="asset" if _asset_mode else "general")
         except Exception as e:
             logger.error(f"Bot {bot_id} query_knowledge 發生例外：{e}", exc_info=True)
             result = None
@@ -1509,7 +1523,8 @@ class BotManager:
                                      sender_id, sender_name, text, db,
                                      telegram_message_id=tg_msg_id)
             if reply:
-                _save_pending_reply(bot_id, chat_id, msg.id, reply, db)
+                _save_pending_reply(bot_id, chat_id, msg.id, reply, db,
+                                    source="asset_kb" if _asset_mode else "knowledge_base")
                 logger.info(f"Bot {bot_id} 管控模式：已儲存訊息 + 待發回覆")
             else:
                 logger.info(f"Bot {bot_id} 管控模式：已儲存訊息（無 KB 答案，等待管理員手動回覆）")
@@ -1517,11 +1532,13 @@ class BotManager:
             if reply:
                 await update.message.reply_text(reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
-                                       input_tokens=input_tokens, output_tokens=output_tokens,
-                                       cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
+                if not _asset_mode:
+                    # 素材知識庫的回覆不寫進「AI對話日誌」（該頁是一般知識庫的檢討／補 QA 用）
+                    _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
+                                           input_tokens=input_tokens, output_tokens=output_tokens,
+                                           cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
                 if _ticket_creation_enabled:
-                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name, bot_id, chat_id, chat_type, "kb"), daemon=True).start()
+                    threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name, bot_id, chat_id, chat_type, "asset_kb" if _asset_mode else "kb"), daemon=True).start()
             else:
                 # 沒有關鍵字規則也沒有知識庫結果 → fallback
                 if bool(_group_setting.silent_no_answer if _group_setting else False):

@@ -227,9 +227,22 @@ function GroupManageTab({ user }) {
   const handleToggleAI = async (chatId, enabled) => {
     try {
       await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, ai_enabled: enabled })
-      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, ai_enabled: enabled } : g))
+      // 後端在 AI 問答開啟時會同步把 AI素材關掉（兩者互斥），畫面也要同步
+      setGroups(prev => prev.map(g => g.chat_id === chatId
+        ? { ...g, ai_enabled: enabled, ai_material_enabled: enabled ? false : g.ai_material_enabled }
+        : g))
     } catch {
       message.error('切換失敗')
+    }
+  }
+
+  const handleToggleAIMaterial = async (chatId, enabled) => {
+    try {
+      await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, ai_material_enabled: enabled })
+      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, ai_material_enabled: enabled } : g))
+      message.success(enabled ? 'AI素材已啟用' : 'AI素材已關閉')
+    } catch (err) {
+      message.error(err?.response?.data?.detail || '切換失敗')
     }
   }
 
@@ -370,7 +383,7 @@ function GroupManageTab({ user }) {
             rowKey="chat_id"
             dataSource={groups}
             pagination={false}
-            scroll={{ x: 1270, y: 480 }}
+            scroll={{ x: 1370, y: 480 }}
             columns={[
               {
                 title: 'AI 問答',
@@ -380,6 +393,20 @@ function GroupManageTab({ user }) {
                   <Switch checked={val} size="small"
                     onChange={checked => handleToggleAI(record.chat_id, checked)}
                     disabled={!canEdit(user)} />
+                ),
+              },
+              {
+                title: 'AI素材',
+                dataIndex: 'ai_material_enabled',
+                width: 100,
+                render: (val, record) => (
+                  <Tooltip title={record.ai_enabled ? '需先關閉「AI 問答」才能開啟 AI素材（改查素材知識庫，只回答遊戲素材需求）' : '改查「素材知識庫」，只回答遊戲素材需求'}>
+                    <span>
+                      <Switch checked={!!val && !record.ai_enabled} size="small"
+                        onChange={checked => handleToggleAIMaterial(record.chat_id, checked)}
+                        disabled={!canEdit(user) || !!record.ai_enabled} />
+                    </span>
+                  </Tooltip>
                 ),
               },
               {

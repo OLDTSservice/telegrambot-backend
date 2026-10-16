@@ -25,9 +25,21 @@ _EDIT = require_page_edit("telegram_knowledge")
 
 # ── 文件 CRUD ──────────────────────────────────────────────────────────────
 
+_KB_TYPES = ("general", "asset")
+
+
 @router.get("", response_model=List[schemas.DocOut])
-def list_docs(db: Session = Depends(get_db), _=Depends(_VIEW)):
-    docs = db.query(models.KnowledgeDoc).all()
+def list_docs(kb_type: str = "general", db: Session = Depends(get_db), _=Depends(_VIEW)):
+    """kb_type：general（預設，一般知識庫）／asset（素材知識庫）／all（兩種都列）。
+    預設只回一般文件，舊版前端沒帶參數時行為不變，素材文件不會混進一般清單。"""
+    q = db.query(models.KnowledgeDoc)
+    if kb_type == "asset":
+        q = q.filter(models.KnowledgeDoc.kb_type == "asset")
+    elif kb_type == "general":
+        q = q.filter((models.KnowledgeDoc.kb_type == "general") | (models.KnowledgeDoc.kb_type.is_(None)))
+    elif kb_type != "all":
+        raise HTTPException(status_code=400, detail="kb_type 只能是 general、asset 或 all")
+    docs = q.all()
     for doc in docs:
         doc.qa_count = db.query(models.KnowledgeQA).filter(
             models.KnowledgeQA.doc_id == doc.id
@@ -39,9 +51,12 @@ def list_docs(db: Session = Depends(get_db), _=Depends(_VIEW)):
 async def upload_doc(
     bot_id: int = Form(...),
     file: UploadFile = File(...),
+    kb_type: str = Form("general"),
     db: Session = Depends(get_db),
     _=Depends(_EDIT),
 ):
+    if kb_type not in _KB_TYPES:
+        raise HTTPException(status_code=400, detail="kb_type 只能是 general 或 asset")
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="機器人不存在")
@@ -63,6 +78,7 @@ async def upload_doc(
         original_filename=file.filename,
         file_type=ext.lstrip("."),
         file_size=len(content),
+        kb_type=kb_type,
     )
     db.add(doc)
     db.commit()

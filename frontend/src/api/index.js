@@ -49,7 +49,7 @@ export const updateRule = (id, d) => api.put(`/rules/${id}`, d)
 export const deleteRule = id => api.delete(`/rules/${id}`)
 
 // ── Knowledge ──────────────────────────────────
-export const getDocs = () => api.get('/knowledge')
+export const getDocs = (kbType = 'general') => api.get('/knowledge', { params: { kb_type: kbType } })
 export const uploadDoc = formData => api.post('/knowledge', formData)
 export const updateDoc = (id, d) => api.put(`/knowledge/${id}`, d)
 export const deleteDoc = id => api.delete(`/knowledge/${id}`)

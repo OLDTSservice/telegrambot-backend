@@ -7,7 +7,7 @@ import {
   UploadOutlined, DeleteOutlined, FileTextOutlined, EditOutlined,
   FilePdfOutlined, FileExcelOutlined, FileWordOutlined,
   DownloadOutlined, PlusOutlined, BookOutlined, MessageOutlined, SearchOutlined,
-  CopyOutlined,
+  CopyOutlined, PictureOutlined,
 } from '@ant-design/icons'
 import api, { getDocs, uploadDoc, updateDoc, deleteDoc, getBots } from '../api'
 import { formatDateTime, formatDate } from '../utils/datetime'
@@ -96,7 +96,9 @@ function QAModal({ open, onClose, onSave, initial, docs }) {
 }
 
 // ── 知識庫來源 Tab ─────────────────────────────────────────────────────────
-function SourceTab({ user }) {
+// kbType：general＝知識庫來源（AI 問答用）；asset＝素材知識庫（AI素材用，只回答遊戲素材需求）
+function SourceTab({ user, kbType = 'general' }) {
+  const isAsset = kbType === 'asset'
   const [docs, setDocs] = useState([])
   const [bots, setBots] = useState([])
   const [loading, setLoading] = useState(false)
@@ -121,7 +123,7 @@ function SourceTab({ user }) {
   const loadDocs = useCallback(async () => {
     setLoading(true)
     try {
-      const [dRes, bRes] = await Promise.all([getDocs(), getBots()])
+      const [dRes, bRes] = await Promise.all([getDocs(kbType), getBots()])
       setDocs(dRes.data)
       setBots(bRes.data)
     } catch {
@@ -171,6 +173,7 @@ function SourceTab({ user }) {
     if (!pendingFile) { message.warning('請選擇要上傳的文件'); return }
     const formData = new FormData()
     formData.append('bot_id', selectedBotId)
+    formData.append('kb_type', kbType)
     formData.append('file', pendingFile)
     setUploading(true)
     try {
@@ -335,7 +338,7 @@ function SourceTab({ user }) {
         {/* 左側文件列表 */}
         <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', fontWeight: 600, fontSize: 15, color: '#1a1a2e' }}>
-            文件清單 <Tag style={{ marginLeft: 6 }}>{docs.length} 份</Tag>
+            {isAsset ? '素材文件清單' : '文件清單'} <Tag style={{ marginLeft: 6 }}>{docs.length} 份</Tag>
           </div>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
@@ -466,7 +469,7 @@ function SourceTab({ user }) {
       </div>
 
       {/* 上傳 Modal */}
-      <Modal title="上傳知識庫文件" open={uploadOpen} onOk={handleUpload} onCancel={() => { setUploadOpen(false); setPendingFile(null); setSelectedBotId(null) }}
+      <Modal title={isAsset ? '上傳素材知識庫文件' : '上傳知識庫文件'} open={uploadOpen} onOk={handleUpload} onCancel={() => { setUploadOpen(false); setPendingFile(null); setSelectedBotId(null) }}
         okText="上傳並處理" cancelText="取消" confirmLoading={uploading}>
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
@@ -585,7 +588,7 @@ function LogsTab({ user }) {
   const [search, setSearch] = useDebouncedSearch(kw => { searchRef.current = kw; loadLogs(1, botFilter, kw) })
 
   useEffect(() => {
-    Promise.all([api.get('/knowledge'), api.get('/bots')]).then(([dRes, bRes]) => {
+    Promise.all([api.get('/knowledge', { params: { kb_type: 'general' } }), api.get('/bots')]).then(([dRes, bRes]) => {
       setDocs(dRes.data)
       setBots(bRes.data)
     })
@@ -748,7 +751,7 @@ function NoAnswerTab({ user }) {
   const [search, setSearch] = useDebouncedSearch(kw => { searchRef.current = kw; loadLogs(1, botFilter, kw) })
 
   useEffect(() => {
-    Promise.all([api.get('/knowledge'), api.get('/bots')]).then(([dRes, bRes]) => {
+    Promise.all([api.get('/knowledge', { params: { kb_type: 'all' } }), api.get('/bots')]).then(([dRes, bRes]) => {
       setDocs(dRes.data)
       setBots(bRes.data)
     })
@@ -846,7 +849,7 @@ function NoAnswerTab({ user }) {
             <div style={{ fontWeight: 500, marginBottom: 6 }}>歸屬文件</div>
             <Select style={{ width: '100%' }} placeholder="選擇文件"
               value={selectedDocId} onChange={setSelectedDocId}>
-              {docs.map(d => <Select.Option key={d.id} value={d.id}>{d.original_filename}</Select.Option>)}
+              {docs.map(d => <Select.Option key={d.id} value={d.id}>{d.kb_type === 'asset' ? '[素材] ' : ''}{d.original_filename}</Select.Option>)}
             </Select>
           </div>
           <Form form={addForm} layout="vertical">
@@ -874,7 +877,12 @@ export default function KnowledgePage({ user }) {
           {
             key: 'source',
             label: <span><BookOutlined /> 知識庫來源</span>,
-            children: <SourceTab user={user} />,
+            children: <SourceTab user={user} kbType="general" />,
+          },
+          {
+            key: 'asset-source',
+            label: <span><PictureOutlined /> 素材知識庫</span>,
+            children: <SourceTab user={user} kbType="asset" />,
           },
           {
             key: 'logs',

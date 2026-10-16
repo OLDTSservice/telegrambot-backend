@@ -291,10 +291,12 @@ def _score_chunks(question: str, chunks) -> list[str]:
 
 # ── 知識庫查詢（Telegram）────────────────────────────────────────────────────
 
-def query_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple]:
+def query_knowledge(bot_id: int, question: str, db=None, kb_type: str = "general") -> Optional[tuple]:
     """
     db 參數保留供除錯端點直接呼叫；
     從 asyncio.to_thread 呼叫時請不要傳 db，函式會自行建立 session。
+    kb_type：general＝一般知識庫（預設，AI 問答與 AI 救援都用這個）；asset＝素材知識庫
+    （AI素材用）。兩種文件互不混用，一般查詢絕不會讀到素材文件，反之亦然。
     """
     import models
     from database import SessionLocal
@@ -306,13 +308,21 @@ def query_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple]:
     try:
         logger.info(f"Telegram Bot {bot_id} 開始知識庫查詢：「{question[:50]}」")
 
-        docs = db.query(models.KnowledgeDoc).filter(
+        doc_query = db.query(models.KnowledgeDoc).filter(
             models.KnowledgeDoc.bot_id == bot_id,
             models.KnowledgeDoc.is_enabled == True
-        ).all()
+        )
+        if kb_type == "asset":
+            doc_query = doc_query.filter(models.KnowledgeDoc.kb_type == "asset")
+        else:
+            # 舊資料的 kb_type 可能是 NULL，視為一般知識庫
+            doc_query = doc_query.filter(
+                (models.KnowledgeDoc.kb_type == "general") | (models.KnowledgeDoc.kb_type.is_(None))
+            )
+        docs = doc_query.all()
 
         if not docs:
-            logger.info(f"Bot {bot_id} 無啟用的知識庫文件")
+            logger.info(f"Bot {bot_id} 無啟用的{'素材' if kb_type == 'asset' else ''}知識庫文件")
             return None
 
         doc_ids = [d.id for d in docs]
@@ -325,7 +335,7 @@ def query_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple]:
             return None
 
         top_chunks = _score_chunks(question, all_chunks)
-        return _call_claude(question, top_chunks, bot_id)
+        return _call_claude(question, top_chunks, bot_id, asset_mode=(kb_type == "asset"))
     finally:
         if own_db:
             db.close()
@@ -369,7 +379,7 @@ def query_teams_knowledge(bot_id: int, question: str, db=None) -> Optional[tuple
 
 # ── 呼叫 Claude ──────────────────────────────────────────────────────────────
 
-def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tuple]:
+def _call_claude(question: str, chunks: list[str], bot_id: int, asset_mode: bool = False) -> Optional[tuple]:
     context = "\n\n".join(chunks)
     logger.info(f"Bot {bot_id} 呼叫 Claude，context {len(context)} 字元")
     try:
@@ -396,10 +406,19 @@ def _call_claude(question: str, chunks: list[str], bot_id: int) -> Optional[tupl
                 "Document\nhttps://...\n\nSingle Wallet API Document\nhttps://...」，不可直接照抄"
                 "中文原文回覆；網址本身維持原樣不翻譯。\n"
             )
+        # 素材知識庫模式：只回答遊戲素材需求，其他任何問題一律回固定字串（上層會轉人工／靜默）
+        asset_rule = (
+            "0. 【素材專用】你只負責回答「遊戲素材需求」：遊戲清單、遊戲 ICON、LOGO、宣傳素材、大獎素材、"
+            "海報、橫幅等素材或圖檔的取得方式、下載連結、資料夾位置。問題如果不是在索取這類素材"
+            "（例如帳號、投注、RTP、白名單、活動規則、技術問題、閒聊），一律視為與素材無關，"
+            f"只回覆固定字串：{NO_ANSWER_TOKEN}，不要嘗試回答。\n"
+            if asset_mode else ""
+        )
         system_prompt = (
             "你是一個問答機器人。請根據以下知識庫內容，直接回答問題的答案，"
             "不要加入任何額外補充、說明或開場白。"
             "重要規則：\n"
+            f"{asset_rule}"
             "1. 只有在知識庫中有【直接對應的答案】時才回答，不可自行推斷、整合或延伸事實內容"
             "（不可新增知識庫沒有的資訊、不可補充原本沒有的細節）。\n"
             "1a. 【務必逐一檢查清單類內容】知識庫裡常有清單或表格（例如遊戲列表、支援項目清單），"
