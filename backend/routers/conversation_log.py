@@ -35,7 +35,12 @@ def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str], chat_id:
     """近 7 日紀錄；chat_id 有值時只看該群組；q 有值時只保留「問題內容」包含該關鍵字的紀錄（不分大小寫）。
     關鍵字裡的 % 與 _ 視為一般字元（帳號常含底線，不能當成 LIKE 萬用字元）。"""
     since = datetime.utcnow() - timedelta(days=7)
-    query = db.query(models.ConversationLog).filter(models.ConversationLog.created_at >= since)
+    # AI對話日誌頁只列一般知識庫的回覆（kb_type 為 NULL 的舊資料視為 general）；
+    # 素材知識庫的回覆為了使用量統計也會寫進同一張表，但不顯示在這頁，也不能被拿去補一般知識庫 QA
+    query = db.query(models.ConversationLog).filter(
+        models.ConversationLog.created_at >= since,
+        (models.ConversationLog.kb_type == "general") | (models.ConversationLog.kb_type.is_(None)),
+    )
     if bot_id:
         query = query.filter(models.ConversationLog.bot_id == bot_id)
     if chat_id:

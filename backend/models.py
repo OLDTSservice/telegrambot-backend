@@ -150,6 +150,7 @@ class ConversationLog(Base):
     output_tokens = Column(Integer, default=0)
     cache_read_tokens = Column(Integer, default=0)
     cache_write_tokens = Column(Integer, default=0)
+    kb_type = Column(String(16), default="general")   # general＝一般知識庫；asset＝素材知識庫（AI對話日誌頁只看 general）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="conversation_logs")
@@ -168,6 +169,7 @@ class NoAnswerLog(Base):
     output_tokens = Column(Integer, default=0)
     cache_read_tokens = Column(Integer, default=0)
     cache_write_tokens = Column(Integer, default=0)
+    kb_type = Column(String(16), default="general")   # general＝一般知識庫；asset＝素材知識庫
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="no_answer_logs")
@@ -253,6 +255,11 @@ class TelegramPendingReply(Base):
     reply_text = Column(Text, nullable=False)
     status = Column(String(16), default="pending")   # pending / sent / discarded
     source = Column(String(16), default="knowledge_base")  # knowledge_base / keyword / asset_kb（素材知識庫），發送時只有 knowledge_base 才寫入 AI 對話日誌
+    # 產生這則回覆時 AI 消耗的 token，發送時一併寫進對話日誌（管控模式的日誌是發送當下才寫，否則會是 0）
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
+    cache_read_tokens = Column(Integer, default=0)
+    cache_write_tokens = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     sent_at = Column(DateTime, nullable=True)
 

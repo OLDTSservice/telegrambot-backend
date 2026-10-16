@@ -197,6 +197,7 @@ class RecentQueryOut(BaseModel):
     output_tokens: int
     cache_read_tokens: int
     cache_write_tokens: int
+    kb_type: str = "general"  # general（一般知識庫）| asset（素材知識庫）
     created_at: datetime
 
     class Config:
@@ -225,6 +226,7 @@ def get_recent_queries(
             chat_name=log.chat_name, question=log.question, answer=log.answer,
             input_tokens=log.input_tokens, output_tokens=log.output_tokens,
             cache_read_tokens=log.cache_read_tokens, cache_write_tokens=log.cache_write_tokens,
+            kb_type=log.kb_type or "general",
             created_at=log.created_at,
         ) for log in answered
     ] + [
@@ -233,6 +235,7 @@ def get_recent_queries(
             chat_name=log.chat_name, question=log.question, answer=None,
             input_tokens=log.input_tokens, output_tokens=log.output_tokens,
             cache_read_tokens=log.cache_read_tokens, cache_write_tokens=log.cache_write_tokens,
+            kb_type=log.kb_type or "general",
             created_at=log.created_at,
         ) for log in unanswered
     ]

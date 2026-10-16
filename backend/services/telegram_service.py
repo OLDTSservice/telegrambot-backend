@@ -1523,20 +1523,31 @@ class BotManager:
                                      sender_id, sender_name, text, db,
                                      telegram_message_id=tg_msg_id)
             if reply:
+                # token 跟著待發回覆存起來，管理員按「發送」時才寫對話日誌，要一併帶上，
+                # 否則日誌／使用量統計的明細會是 0（總量在上面的 record_usage 已經計入）
                 _save_pending_reply(bot_id, chat_id, msg.id, reply, db,
-                                    source="asset_kb" if _asset_mode else "knowledge_base")
+                                    source="asset_kb" if _asset_mode else "knowledge_base",
+                                    input_tokens=input_tokens, output_tokens=output_tokens,
+                                    cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
                 logger.info(f"Bot {bot_id} 管控模式：已儲存訊息 + 待發回覆")
             else:
+                if input_tokens or output_tokens or cache_read_tokens or cache_write_tokens:
+                    # AI 有被呼叫卻找不到答案：同樣消耗 token，補一筆無解答紀錄讓使用量統計看得到
+                    _save_no_answer_log(bot_id, chat_id, chat_name, text, db,
+                                        input_tokens=input_tokens, output_tokens=output_tokens,
+                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+                                        kb_type="asset" if _asset_mode else "general")
                 logger.info(f"Bot {bot_id} 管控模式：已儲存訊息（無 KB 答案，等待管理員手動回覆）")
         else:
             if reply:
                 await update.message.reply_text(reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                if not _asset_mode:
-                    # 素材知識庫的回覆不寫進「AI對話日誌」（該頁是一般知識庫的檢討／補 QA 用）
-                    _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
-                                           input_tokens=input_tokens, output_tokens=output_tokens,
-                                           cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
+                # 素材知識庫的回覆也寫入（kb_type=asset），使用量統計才看得到 token；
+                # AI對話日誌頁只列 general，不會混進素材回覆
+                _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
+                                       input_tokens=input_tokens, output_tokens=output_tokens,
+                                       cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+                                       kb_type="asset" if _asset_mode else "general")
                 if _ticket_creation_enabled:
                     threading.Thread(target=_create_freshdesk_ticket_bg, args=(text, reply, chat_name, bot_id, chat_id, chat_type, "asset_kb" if _asset_mode else "kb"), daemon=True).start()
             else:
@@ -1545,11 +1556,18 @@ class BotManager:
                     # 靜默模式：不回覆、不受冷卻限制，仍記錄無解答 log
                     _save_no_answer_log(bot_id, chat_id, chat_name, text, db,
                                         input_tokens=input_tokens, output_tokens=output_tokens,
-                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
+                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+                                        kb_type="asset" if _asset_mode else "general")
                     return
                 # 一般模式（含冷卻）
                 if now - last_ts < _COOLDOWN_SECS:
                     logger.debug(f"Bot {bot_id} 使用者 {cooldown_key} 冷卻中，略過 fallback")
+                    if input_tokens or output_tokens or cache_read_tokens or cache_write_tokens:
+                        # 冷卻只是不重複回覆；這次 AI 已經被呼叫、token 已消耗，仍要記錄讓使用量統計對得上
+                        _save_no_answer_log(bot_id, chat_id, chat_name, text, db,
+                                            input_tokens=input_tokens, output_tokens=output_tokens,
+                                            cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+                                            kb_type="asset" if _asset_mode else "general")
                     return
                 _no_match_ts[cooldown_key] = now
                 import re
@@ -1562,7 +1580,8 @@ class BotManager:
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
                 _save_no_answer_log(bot_id, chat_id, chat_name, text, db,
                                     input_tokens=input_tokens, output_tokens=output_tokens,
-                                    cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
+                                    cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+                                    kb_type="asset" if _asset_mode else "general")
 
 
 def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_name, text, db, telegram_message_id=None):
@@ -1578,11 +1597,14 @@ def _save_live_message(bot_id, chat_id, chat_name, chat_type, sender_id, sender_
     return msg
 
 
-def _save_pending_reply(bot_id, chat_id, message_id, reply_text, db, source="knowledge_base"):
+def _save_pending_reply(bot_id, chat_id, message_id, reply_text, db, source="knowledge_base",
+                        input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0):
     import models
     pending = models.TelegramPendingReply(
         bot_id=bot_id, chat_id=chat_id, message_id=message_id,
         reply_text=reply_text, status="pending", source=source,
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
     )
     db.add(pending)
     db.commit()
@@ -1642,7 +1664,8 @@ def start_all_enabled_bots(db):
 
 
 def _save_conversation_log(bot_id, chat_id, chat_name, question, answer, db,
-                            input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0):
+                            input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0,
+                            kb_type="general"):
     import models
     from datetime import datetime, timedelta
     log = models.ConversationLog(
@@ -1650,6 +1673,7 @@ def _save_conversation_log(bot_id, chat_id, chat_name, question, answer, db,
         question=question, answer=answer,
         input_tokens=input_tokens, output_tokens=output_tokens,
         cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+        kb_type=kb_type,
     )
     db.add(log)
     try:
@@ -1665,13 +1689,15 @@ def _save_conversation_log(bot_id, chat_id, chat_name, question, answer, db,
 
 
 def _save_no_answer_log(bot_id, chat_id, chat_name, question, db,
-                         input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0):
+                         input_tokens=0, output_tokens=0, cache_read_tokens=0, cache_write_tokens=0,
+                         kb_type="general"):
     import models
     from datetime import datetime, timedelta
     log = models.NoAnswerLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, question=question,
         input_tokens=input_tokens, output_tokens=output_tokens,
         cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
+        kb_type=kb_type,
     )
     db.add(log)
     try:

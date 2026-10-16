@@ -251,12 +251,17 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(_EDIT
             ))
         db.commit()
 
-    # 若為知識庫 AI 回覆（非關鍵字規則），寫入 AI 對話日誌，與一般模式行為一致
-    if last_msg and pending.source == "knowledge_base":
+    # 若為知識庫 AI 回覆（非關鍵字規則），寫入對話日誌，與一般模式行為一致；
+    # 一併帶上產生這則回覆時消耗的 token，使用量統計的明細才不會是 0。
+    # 素材知識庫（asset_kb）的回覆同樣寫入，以 kb_type=asset 標記（AI對話日誌頁不列素材）。
+    if last_msg and pending.source in ("knowledge_base", "asset_kb"):
         from services.telegram_service import _save_conversation_log
         _save_conversation_log(
             pending.bot_id, pending.chat_id, last_msg.chat_name,
             last_msg.text, pending.reply_text, db,
+            input_tokens=pending.input_tokens or 0, output_tokens=pending.output_tokens or 0,
+            cache_read_tokens=pending.cache_read_tokens or 0, cache_write_tokens=pending.cache_write_tokens or 0,
+            kb_type="asset" if pending.source == "asset_kb" else "general",
         )
 
     # 自動開單（與 AI 回覆相同流程）
