@@ -253,7 +253,7 @@ def send_pending(pending_id: int, db: Session = Depends(get_db), _=Depends(_EDIT
 
     # 若為知識庫 AI 回覆（非關鍵字規則），寫入對話日誌，與一般模式行為一致；
     # 一併帶上產生這則回覆時消耗的 token，使用量統計的明細才不會是 0。
-    # 素材知識庫（asset_kb）的回覆同樣寫入，以 kb_type=asset 標記（AI對話日誌頁不列素材）。
+    # 基本資訊知識庫（asset_kb）的回覆同樣寫入，以 kb_type=asset 標記（AI對話日誌頁不列素材）。
     if last_msg and pending.source in ("knowledge_base", "asset_kb"):
         from services.telegram_service import _save_conversation_log
         _save_conversation_log(

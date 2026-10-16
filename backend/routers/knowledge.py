@@ -30,8 +30,8 @@ _KB_TYPES = ("general", "asset")
 
 @router.get("", response_model=List[schemas.DocOut])
 def list_docs(kb_type: str = "general", db: Session = Depends(get_db), _=Depends(_VIEW)):
-    """kb_type：general（預設，一般知識庫）／asset（素材知識庫）／all（兩種都列）。
-    預設只回一般文件，舊版前端沒帶參數時行為不變，素材文件不會混進一般清單。"""
+    """kb_type：general（預設，一般知識庫）／asset（基本資訊知識庫）／all（兩種都列）。
+    預設只回一般文件，舊版前端沒帶參數時行為不變，基本資訊文件不會混進一般清單。"""
     q = db.query(models.KnowledgeDoc)
     if kb_type == "asset":
         q = q.filter(models.KnowledgeDoc.kb_type == "asset")

@@ -96,7 +96,7 @@ function QAModal({ open, onClose, onSave, initial, docs }) {
 }
 
 // ── 知識庫來源 Tab ─────────────────────────────────────────────────────────
-// kbType：general＝知識庫來源（AI 問答用）；asset＝素材知識庫（AI素材用，只回答遊戲素材需求）
+// kbType：general＝知識庫來源（AI 問答用）；asset＝基本資訊知識庫（AI基本資訊用，只回答遊戲素材需求）
 function SourceTab({ user, kbType = 'general' }) {
   const isAsset = kbType === 'asset'
   const [docs, setDocs] = useState([])
@@ -338,7 +338,7 @@ function SourceTab({ user, kbType = 'general' }) {
         {/* 左側文件列表 */}
         <div style={{ flex: '0 0 320px', maxWidth: '100%', border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', fontWeight: 600, fontSize: 15, color: '#1a1a2e' }}>
-            {isAsset ? '素材文件清單' : '文件清單'} <Tag style={{ marginLeft: 6 }}>{docs.length} 份</Tag>
+            {isAsset ? '基本資訊文件清單' : '文件清單'} <Tag style={{ marginLeft: 6 }}>{docs.length} 份</Tag>
           </div>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
@@ -469,7 +469,7 @@ function SourceTab({ user, kbType = 'general' }) {
       </div>
 
       {/* 上傳 Modal */}
-      <Modal title={isAsset ? '上傳素材知識庫文件' : '上傳知識庫文件'} open={uploadOpen} onOk={handleUpload} onCancel={() => { setUploadOpen(false); setPendingFile(null); setSelectedBotId(null) }}
+      <Modal title={isAsset ? '上傳基本資訊知識庫文件' : '上傳知識庫文件'} open={uploadOpen} onOk={handleUpload} onCancel={() => { setUploadOpen(false); setPendingFile(null); setSelectedBotId(null) }}
         okText="上傳並處理" cancelText="取消" confirmLoading={uploading}>
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
@@ -560,7 +560,7 @@ function LogsTab({ user }) {
   const [groups, setGroups] = useState([])
   const [groupFilter, setGroupFilter] = useState(undefined)
   const groupRef = useRef(undefined)
-  // 類型篩選：undefined＝全部；general＝一般知識庫；asset＝素材知識庫（AI素材）
+  // 類型篩選：undefined＝全部；general＝一般知識庫；asset＝基本資訊知識庫（AI基本資訊）
   const [kbFilter, setKbFilter] = useState(undefined)
   const kbRef = useRef(undefined)
   const loadGroups = async (botId) => {
@@ -645,7 +645,7 @@ function LogsTab({ user }) {
             setGroupFilter(undefined); groupRef.current = undefined
             loadGroups(botFilter); loadLogs(1, botFilter, searchRef.current, undefined)
           }}
-          options={[{ value: 'general', label: '一般知識庫' }, { value: 'asset', label: '素材知識庫' }]} />
+          options={[{ value: 'general', label: '一般知識庫' }, { value: 'asset', label: '基本資訊知識庫' }]} />
         <Select allowClear showSearch placeholder="篩選群組名稱" style={{ width: 260 }}
           value={groupFilter} optionFilterProp="name"
           notFoundContent="近 7 日沒有紀錄的群組"
@@ -676,7 +676,7 @@ function LogsTab({ user }) {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
                   <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
-                  {log.kb_type === 'asset' && <Tag color="geekblue">素材</Tag>}
+                  {log.kb_type === 'asset' && <Tag color="geekblue">基本資訊</Tag>}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 15, color: '#111', marginBottom: 6 }}>Q：{highlight(log.question, searchRef.current)}</div>
                 <div style={{ fontSize: 15, color: '#333', lineHeight: 1.65 }}>A：{log.answer}</div>
@@ -705,8 +705,8 @@ function LogsTab({ user }) {
             <div style={{ fontWeight: 500, marginBottom: 6 }}>歸屬文件</div>
             <Select style={{ width: '100%' }} placeholder="選擇文件"
               value={selectedDocId} onChange={setSelectedDocId}
-              notFoundContent={addToKbModal.log?.kb_type === 'asset' ? '尚無素材知識庫文件' : '尚無一般知識庫文件'}>
-              {/* 一般與素材知識庫分開：此紀錄屬於哪一種，就只能補進同一種的文件 */}
+              notFoundContent={addToKbModal.log?.kb_type === 'asset' ? '尚無基本資訊知識庫文件' : '尚無一般知識庫文件'}>
+              {/* 一般與基本資訊知識庫分開：此紀錄屬於哪一種，就只能補進同一種的文件 */}
               {docs.filter(d => (d.kb_type || 'general') === (addToKbModal.log?.kb_type || 'general'))
                 .map(d => <Select.Option key={d.id} value={d.id}>{d.original_filename}</Select.Option>)}
             </Select>
@@ -841,7 +841,7 @@ function NoAnswerTab({ user }) {
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 14, color: '#555' }}>
                   <span>{formatDateTime(log.created_at)}</span>
                   <span style={{ color: '#1677ff', fontWeight: 600 }}>{log.chat_name}</span>
-                  {log.kb_type === 'asset' && <Tag color="geekblue">素材</Tag>}
+                  {log.kb_type === 'asset' && <Tag color="geekblue">基本資訊</Tag>}
                 </div>
                 <div style={{ fontSize: 15, color: '#111', fontWeight: 500, whiteSpace: 'pre-wrap' }}>{highlight(log.question, searchRef.current)}</div>
                 {canEdit(user) && (
@@ -869,8 +869,8 @@ function NoAnswerTab({ user }) {
             <div style={{ fontWeight: 500, marginBottom: 6 }}>歸屬文件</div>
             <Select style={{ width: '100%' }} placeholder="選擇文件"
               value={selectedDocId} onChange={setSelectedDocId}
-              notFoundContent={addModal.log?.kb_type === 'asset' ? '尚無素材知識庫文件' : '尚無一般知識庫文件'}>
-              {/* 一般與素材知識庫分開：此紀錄屬於哪一種，就只能補進同一種的文件 */}
+              notFoundContent={addModal.log?.kb_type === 'asset' ? '尚無基本資訊知識庫文件' : '尚無一般知識庫文件'}>
+              {/* 一般與基本資訊知識庫分開：此紀錄屬於哪一種，就只能補進同一種的文件 */}
               {docs.filter(d => (d.kb_type || 'general') === (addModal.log?.kb_type || 'general'))
                 .map(d => <Select.Option key={d.id} value={d.id}>{d.original_filename}</Select.Option>)}
             </Select>
@@ -904,7 +904,7 @@ export default function KnowledgePage({ user }) {
           },
           {
             key: 'asset-source',
-            label: <span><PictureOutlined /> 素材知識庫</span>,
+            label: <span><PictureOutlined /> 基本資訊知識庫</span>,
             children: <SourceTab user={user} kbType="asset" />,
           },
           {

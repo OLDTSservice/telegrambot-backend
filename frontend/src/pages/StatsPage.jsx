@@ -324,7 +324,7 @@ export default function StatsPage() {
                         {q.has_answer
                           ? <Tag color="green">已解答</Tag>
                           : <Tag color="red">無解答</Tag>}
-                        {q.kb_type === 'asset' && <Tag color="geekblue">素材</Tag>}
+                        {q.kb_type === 'asset' && <Tag color="geekblue">基本資訊</Tag>}
                       </td>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                         <Text style={{ fontSize: 12 }}>{q.chat_name}</Text>

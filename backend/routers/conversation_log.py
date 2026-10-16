@@ -36,8 +36,8 @@ def _recent_query(db: Session, bot_id: Optional[int], q: Optional[str], chat_id:
                   kb_type: Optional[str] = None):
     """近 7 日紀錄；chat_id 有值時只看該群組；q 有值時只保留「問題內容」包含該關鍵字的紀錄（不分大小寫）。
     關鍵字裡的 % 與 _ 視為一般字元（帳號常含底線，不能當成 LIKE 萬用字元）。
-    kb_type：不帶／all＝一般與素材都列；general＝只列一般知識庫（kb_type 為 NULL 的舊資料視為 general）；
-    asset＝只列素材知識庫（AI素材）的回覆。"""
+    kb_type：不帶／all＝一般與基本資訊都列；general＝只列一般知識庫（kb_type 為 NULL 的舊資料視為 general）；
+    asset＝只列基本資訊知識庫（AI基本資訊）的回覆。"""
     since = datetime.utcnow() - timedelta(days=7)
     query = db.query(models.ConversationLog).filter(models.ConversationLog.created_at >= since)
     if kb_type == "general":
@@ -96,10 +96,10 @@ def list_groups(bot_id: Optional[int] = None, kb_type: Optional[str] = None,
 
 
 def _ensure_same_kb_type(log_kb: Optional[str], doc_kb: Optional[str]):
-    """一般與素材知識庫分開存放：紀錄屬於哪一種，就只能補進同一種的文件，避免素材內容混進一般知識庫（反之亦然）。"""
+    """一般與基本資訊知識庫分開存放：紀錄屬於哪一種，就只能補進同一種的文件，避免基本資訊內容混進一般知識庫（反之亦然）。"""
     log_kb, doc_kb = log_kb or "general", doc_kb or "general"
     if log_kb != doc_kb:
-        names = {"general": "一般知識庫", "asset": "素材知識庫"}
+        names = {"general": "一般知識庫", "asset": "基本資訊知識庫"}
         raise HTTPException(
             status_code=400,
             detail=f"此紀錄屬於{names.get(log_kb, log_kb)}，只能新增到{names.get(log_kb, log_kb)}的文件"

@@ -60,13 +60,13 @@ def detect_game_asset_request(text: str) -> bool:
     return any(kw.lower() in lower for kw in _GAME_ASSET_KEYWORDS)
 
 
-# 「AI素材」（素材知識庫）的需求關鍵字閘門：訊息沒命中就完全不呼叫 AI、也不回覆，避免 AI 問答
-# 關閉的群組裡每一則一般聊天都去打一次 AI，或被誤回「轉人工」。命中後才交給素材知識庫 AI 判斷。
+# 「AI基本資訊」（基本資訊知識庫）的需求關鍵字閘門：訊息沒命中就完全不呼叫 AI、也不回覆，避免 AI 問答
+# 關閉的群組裡每一則一般聊天都去打一次 AI，或被誤回「轉人工」。命中後才交給基本資訊知識庫 AI 判斷。
 # 中文沒有單字邊界問題，直接子字串比對；英文用單字邊界，避免 logo 命中 logout/logon、
 # icon 命中 iconic 之類的字。
 #
 # 範圍：除了純素材（ICON／LOGO／宣傳／大獎素材），也涵蓋廠商常問、答案固定的「遊戲基本資料」——
-# 遊戲清單／排行、試玩、官網、API／串接文件、貨幣、地區限制、語言、時區。素材知識庫 AI 的提示詞
+# 遊戲清單／排行、試玩、官網、API／串接文件、貨幣、地區限制、語言、時區。基本資訊知識庫 AI 的提示詞
 # （ai_service._call_claude 的 asset_mode）範圍要跟這份清單一致，否則閘門放行了、AI 卻因為
 # 「不是素材」一律回無解答。中文簡繁都列；每個中文詞也附對應英文（英文用單字邊界比對）。
 # 已被其他詞涵蓋的就不重複列（例如「遊戲素材」「大獎素材」含「素材」、「熱門遊戲清單」含
@@ -121,7 +121,7 @@ _ASSET_KB_EN_RE = re.compile(r'\b(?:' + '|'.join(_ASSET_KB_EN_FRAGMENTS) + r')\b
 
 
 def detect_asset_kb_request(text: str) -> bool:
-    """訊息是否像在索取遊戲素材或遊戲基本資料（見上方清單說明），用來決定要不要呼叫素材知識庫 AI。"""
+    """訊息是否像在索取遊戲素材或遊戲基本資料（見上方清單說明），用來決定要不要呼叫基本資訊知識庫 AI。"""
     lower = text.lower()
     if any(kw in lower for kw in _ASSET_KB_CJK_KEYWORDS):
         return True

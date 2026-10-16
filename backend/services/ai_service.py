@@ -295,8 +295,8 @@ def query_knowledge(bot_id: int, question: str, db=None, kb_type: str = "general
     """
     db 參數保留供除錯端點直接呼叫；
     從 asyncio.to_thread 呼叫時請不要傳 db，函式會自行建立 session。
-    kb_type：general＝一般知識庫（預設，AI 問答與 AI 救援都用這個）；asset＝素材知識庫
-    （AI素材用）。兩種文件互不混用，一般查詢絕不會讀到素材文件，反之亦然。
+    kb_type：general＝一般知識庫（預設，AI 問答與 AI 救援都用這個）；asset＝基本資訊知識庫
+    （AI基本資訊用）。兩種文件互不混用，一般查詢絕不會讀到基本資訊文件，反之亦然。
     """
     import models
     from database import SessionLocal
@@ -322,7 +322,7 @@ def query_knowledge(bot_id: int, question: str, db=None, kb_type: str = "general
         docs = doc_query.all()
 
         if not docs:
-            logger.info(f"Bot {bot_id} 無啟用的{'素材' if kb_type == 'asset' else ''}知識庫文件")
+            logger.info(f"Bot {bot_id} 無啟用的{'基本資訊' if kb_type == 'asset' else ''}知識庫文件")
             return None
 
         doc_ids = [d.id for d in docs]
@@ -406,9 +406,9 @@ def _call_claude(question: str, chunks: list[str], bot_id: int, asset_mode: bool
                 "Document\nhttps://...\n\nSingle Wallet API Document\nhttps://...」，不可直接照抄"
                 "中文原文回覆；網址本身維持原樣不翻譯。\n"
             )
-        # 素材知識庫模式：只回答遊戲素材需求，其他任何問題一律回固定字串（上層會轉人工／靜默）
+        # 基本資訊知識庫模式：只回答遊戲素材與遊戲基本資料，其他任何問題一律回固定字串（上層會轉人工／靜默）
         asset_rule = (
-            "0. 【素材專用】你只負責回答「遊戲素材與遊戲基本資料」相關問題："
+            "0. 【基本資訊專用】你只負責回答「遊戲素材與遊戲基本資料」相關問題："
             "(a) 素材：遊戲 ICON、LOGO、入口圖、宣傳素材、大獎素材（影片／圖片）、海報、橫幅的取得方式、下載連結、資料夾位置；"
             "(b) 遊戲基本資料：遊戲清單、熱門遊戲排行、遊戲試玩（Demo）連結、官方網站、API／串接文件、"
             "支援的貨幣、地區／國家限制、支援的語言、API 或後台使用的時區。"

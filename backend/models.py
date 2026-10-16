@@ -96,7 +96,7 @@ class KnowledgeDoc(Base):
     file_size = Column(Integer)
     chroma_collection = Column(String(100))
     is_enabled = Column(Boolean, default=True)
-    # general＝一般知識庫（AI 問答用）；asset＝素材知識庫（AI素材用，只回答遊戲素材需求）
+    # general＝一般知識庫（AI 問答用）；asset＝基本資訊知識庫（AI基本資訊用，只回答遊戲素材需求）
     kb_type = Column(String(16), default="general")
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -150,7 +150,7 @@ class ConversationLog(Base):
     output_tokens = Column(Integer, default=0)
     cache_read_tokens = Column(Integer, default=0)
     cache_write_tokens = Column(Integer, default=0)
-    kb_type = Column(String(16), default="general")   # general＝一般知識庫；asset＝素材知識庫（AI對話日誌頁只看 general）
+    kb_type = Column(String(16), default="general")   # general＝一般知識庫；asset＝基本資訊知識庫（AI對話日誌頁只看 general）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="conversation_logs")
@@ -169,7 +169,7 @@ class NoAnswerLog(Base):
     output_tokens = Column(Integer, default=0)
     cache_read_tokens = Column(Integer, default=0)
     cache_write_tokens = Column(Integer, default=0)
-    kb_type = Column(String(16), default="general")   # general＝一般知識庫；asset＝素材知識庫
+    kb_type = Column(String(16), default="general")   # general＝一般知識庫；asset＝基本資訊知識庫
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="no_answer_logs")
@@ -254,7 +254,7 @@ class TelegramPendingReply(Base):
     message_id = Column(Integer, ForeignKey("telegram_messages.id"), nullable=False)
     reply_text = Column(Text, nullable=False)
     status = Column(String(16), default="pending")   # pending / sent / discarded
-    source = Column(String(16), default="knowledge_base")  # knowledge_base / keyword / asset_kb（素材知識庫），發送時只有 knowledge_base 才寫入 AI 對話日誌
+    source = Column(String(16), default="knowledge_base")  # knowledge_base / keyword / asset_kb（基本資訊知識庫），發送時只有 knowledge_base 才寫入 AI 對話日誌
     # 產生這則回覆時 AI 消耗的 token，發送時一併寫進對話日誌（管控模式的日誌是發送當下才寫，否則會是 0）
     input_tokens = Column(Integer, default=0)
     output_tokens = Column(Integer, default=0)
@@ -633,7 +633,7 @@ class TelegramGroupSetting(Base):
     bot_id = Column(Integer, ForeignKey("telegram_bots.id"), nullable=False)
     chat_id = Column(String(50), nullable=False)
     ai_enabled = Column(Boolean, default=True)
-    ai_material_enabled = Column(Boolean, default=False)      # AI素材開關：只有 AI 問答關閉時才會生效，改查「素材知識庫」
+    ai_material_enabled = Column(Boolean, default=False)      # AI基本資訊開關：只有 AI 問答關閉時才會生效，改查「基本資訊知識庫」
     is_managed = Column(Boolean, default=False)               # 群組層級管控模式開關
     whitelist_vendor_check = Column(Boolean, default=False)   # 白名單廠商驗證開關
     whitelist_allowed_vendors = Column(Text, nullable=True)   # 允許廠商前綴，逗號分隔

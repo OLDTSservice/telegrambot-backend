@@ -135,11 +135,11 @@ def update_group_setting(
         models.TelegramGroupSetting.bot_id == payload.bot_id,
         models.TelegramGroupSetting.chat_id == chat_id,
     ).first()
-    # AI素材與 AI 問答互斥，且兩個開關都可以隨時切換，由後端維持「AI 問答開著 → AI素材一定是關」：
-    # 開 AI素材 → 同時把 AI 問答關掉；開 AI 問答 → 同時把 AI素材關掉；兩者可以同時關閉
+    # AI基本資訊與 AI 問答互斥，且兩個開關都可以隨時切換，由後端維持「AI 問答開著 → AI基本資訊一定是關」：
+    # 開 AI基本資訊 → 同時把 AI 問答關掉；開 AI 問答 → 同時把 AI基本資訊關掉；兩者可以同時關閉
     # （例如該群組完全不需要知識庫協助）。同一次請求兩個都要開是矛盾的，直接拒絕。
     if payload.ai_material_enabled and payload.ai_enabled:
-        raise HTTPException(status_code=400, detail="AI素材與 AI 問答不能同時開啟")
+        raise HTTPException(status_code=400, detail="AI基本資訊與 AI 問答不能同時開啟")
     new_ai_enabled = payload.ai_enabled
     new_ai_material = payload.ai_material_enabled
     if new_ai_material:

@@ -197,7 +197,7 @@ class RecentQueryOut(BaseModel):
     output_tokens: int
     cache_read_tokens: int
     cache_write_tokens: int
-    kb_type: str = "general"  # general（一般知識庫）| asset（素材知識庫）
+    kb_type: str = "general"  # general（一般知識庫）| asset（基本資訊知識庫）
     created_at: datetime
 
     class Config:

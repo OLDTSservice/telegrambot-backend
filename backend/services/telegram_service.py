@@ -1449,18 +1449,18 @@ class BotManager:
             models.TelegramGroupSetting.bot_id == bot_id,
             models.TelegramGroupSetting.chat_id == chat_id,
         ).first()
-        # AI素材：AI 問答關閉、且該群組開了「AI素材」時，改查「素材知識庫」（只回答遊戲素材需求）。
-        # 此時一律不記救援候選（AI 救援尚未使用，素材群組先不納入）。素材關鍵字閘門沒命中就
-        # 完全略過（不呼叫 AI、不回覆，行為與沒開 AI素材時相同）；命中後繼續走下面的步驟 3，
+        # AI基本資訊：AI 問答關閉、且該群組開了「AI基本資訊」時，改查「基本資訊知識庫」（只回答遊戲素材需求）。
+        # 此時一律不記救援候選（AI 救援尚未使用，基本資訊群組先不納入）。基本資訊關鍵字閘門沒命中就
+        # 完全略過（不呼叫 AI、不回覆，行為與沒開 AI基本資訊時相同）；命中後繼續走下面的步驟 3，
         # 沿用同一套管控待審、靜默、冷卻、fallback、統計與無解答紀錄邏輯。
         # 前面的長度過濾、跳過知識庫關鍵字、遊戲素材查詢（JILI/TADA）都已經先執行過。
         _asset_mode = False
         if group_setting and not group_setting.ai_enabled and group_setting.ai_material_enabled:
             from services.game_asset_service import detect_asset_kb_request
             if not detect_asset_kb_request(text):
-                logger.debug(f"Bot {bot_id} 群組 {chat_id} AI素材：未命中素材需求關鍵字，略過")
+                logger.debug(f"Bot {bot_id} 群組 {chat_id} AI基本資訊：未命中基本資訊需求關鍵字，略過")
                 return
-            logger.info(f"Bot {bot_id} 群組 {chat_id} AI素材：命中素材需求關鍵字，查詢素材知識庫")
+            logger.info(f"Bot {bot_id} 群組 {chat_id} AI基本資訊：命中基本資訊需求關鍵字，查詢基本資訊知識庫")
             _asset_mode = True
         elif group_setting and not group_setting.ai_enabled:
             logger.info(f"Bot {bot_id} 群組 {chat_id} AI 問答已關閉，跳過知識庫查詢")
@@ -1542,8 +1542,8 @@ class BotManager:
             if reply:
                 await update.message.reply_text(reply)
                 _record_group_stat(bot_id, chat_id, chat_name, chat_type, db)
-                # 素材知識庫的回覆也寫入（kb_type=asset），使用量統計才看得到 token；
-                # AI對話日誌頁只列 general，不會混進素材回覆
+                # 基本資訊知識庫的回覆也寫入（kb_type=asset），使用量統計才看得到 token；
+                # AI對話日誌頁只列 general，不會混進基本資訊回覆
                 _save_conversation_log(bot_id, chat_id, chat_name, text, reply, db,
                                        input_tokens=input_tokens, output_tokens=output_tokens,
                                        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens,
