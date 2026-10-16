@@ -236,14 +236,32 @@ function GroupManageTab({ user }) {
     }
   }
 
-  const handleToggleAIMaterial = async (chatId, enabled) => {
+  const doToggleAIMaterial = async (chatId, enabled) => {
     try {
       await api.put(`/group-settings/${encodeURIComponent(chatId)}`, { bot_id: selectedBotId, ai_material_enabled: enabled })
-      setGroups(prev => prev.map(g => g.chat_id === chatId ? { ...g, ai_material_enabled: enabled } : g))
+      // 後端開啟 AI素材時會同步把 AI 問答關掉（兩者互斥），畫面也要同步
+      setGroups(prev => prev.map(g => g.chat_id === chatId
+        ? { ...g, ai_material_enabled: enabled, ai_enabled: enabled ? false : g.ai_enabled }
+        : g))
       message.success(enabled ? 'AI素材已啟用' : 'AI素材已關閉')
     } catch (err) {
       message.error(err?.response?.data?.detail || '切換失敗')
     }
+  }
+
+  // AI素材可隨時切換；AI 問答開著時要開 AI素材，會同時關閉 AI 問答（影響該群組的一般知識庫回覆），先確認
+  const handleToggleAIMaterial = (record, enabled) => {
+    if (enabled && record.ai_enabled) {
+      Modal.confirm({
+        title: '開啟 AI素材會同時關閉 AI 問答',
+        content: `「${record.chat_name}」目前的 AI 問答是開啟的。AI素材與 AI 問答互斥，開啟後此群組將改查「素材知識庫」（只回答遊戲素材與基本資料需求），不再使用一般知識庫回覆。確定要切換嗎？`,
+        okText: '確定切換',
+        cancelText: '取消',
+        onOk: () => doToggleAIMaterial(record.chat_id, true),
+      })
+      return
+    }
+    doToggleAIMaterial(record.chat_id, enabled)
   }
 
   const handleToggleManaged = async (chatId, enabled) => {
@@ -400,11 +418,11 @@ function GroupManageTab({ user }) {
                 dataIndex: 'ai_material_enabled',
                 width: 100,
                 render: (val, record) => (
-                  <Tooltip title={record.ai_enabled ? '需先關閉「AI 問答」才能開啟 AI素材（改查素材知識庫，只回答遊戲素材需求）' : '改查「素材知識庫」，只回答遊戲素材需求'}>
+                  <Tooltip title="改查「素材知識庫」，只回答遊戲素材與基本資料需求。可隨時切換；與「AI 問答」互斥：開啟時會同時關閉 AI 問答，AI 問答開著時此開關一定是關閉狀態">
                     <span>
                       <Switch checked={!!val && !record.ai_enabled} size="small"
-                        onChange={checked => handleToggleAIMaterial(record.chat_id, checked)}
-                        disabled={!canEdit(user) || !!record.ai_enabled} />
+                        onChange={checked => handleToggleAIMaterial(record, checked)}
+                        disabled={!canEdit(user)} />
                     </span>
                   </Tooltip>
                 ),

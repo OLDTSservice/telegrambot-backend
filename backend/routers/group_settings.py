@@ -135,21 +135,22 @@ def update_group_setting(
         models.TelegramGroupSetting.bot_id == payload.bot_id,
         models.TelegramGroupSetting.chat_id == chat_id,
     ).first()
-    # AI素材與 AI 問答互斥：AI 問答開著時不能開 AI素材；把 AI 問答打開時順手把 AI素材關掉。
-    # 先算出「這次更新後」的 AI 問答狀態（欄位各自獨立，要合併已存的值與這次送來的值）。
-    final_ai_enabled = (
-        payload.ai_enabled if payload.ai_enabled is not None
-        else (setting.ai_enabled if setting else True)
-    )
-    if payload.ai_material_enabled and final_ai_enabled:
-        raise HTTPException(status_code=400, detail="AI素材只能在 AI 問答關閉時開啟")
+    # AI素材與 AI 問答互斥，且兩個開關都可以隨時切換，由後端維持「AI 問答開著 → AI素材一定是關」：
+    # 開 AI素材 → 同時把 AI 問答關掉；開 AI 問答 → 同時把 AI素材關掉；兩者可以同時關閉
+    # （例如該群組完全不需要知識庫協助）。同一次請求兩個都要開是矛盾的，直接拒絕。
+    if payload.ai_material_enabled and payload.ai_enabled:
+        raise HTTPException(status_code=400, detail="AI素材與 AI 問答不能同時開啟")
+    new_ai_enabled = payload.ai_enabled
+    new_ai_material = payload.ai_material_enabled
+    if new_ai_material:
+        new_ai_enabled = False
+    elif new_ai_enabled:
+        new_ai_material = False
     if setting:
-        if payload.ai_enabled is not None:
-            setting.ai_enabled = payload.ai_enabled
-            if payload.ai_enabled:
-                setting.ai_material_enabled = False
-        if payload.ai_material_enabled is not None:
-            setting.ai_material_enabled = payload.ai_material_enabled
+        if new_ai_enabled is not None:
+            setting.ai_enabled = new_ai_enabled
+        if new_ai_material is not None:
+            setting.ai_material_enabled = new_ai_material
         if payload.is_managed is not None:
             setting.is_managed = payload.is_managed
         if payload.whitelist_vendor_check is not None:
@@ -170,8 +171,8 @@ def update_group_setting(
         db.add(models.TelegramGroupSetting(
             bot_id=payload.bot_id,
             chat_id=chat_id,
-            ai_enabled=payload.ai_enabled if payload.ai_enabled is not None else True,
-            ai_material_enabled=payload.ai_material_enabled or False,
+            ai_enabled=new_ai_enabled if new_ai_enabled is not None else True,
+            ai_material_enabled=new_ai_material or False,
             is_managed=payload.is_managed or False,
             whitelist_vendor_check=payload.whitelist_vendor_check or False,
             whitelist_allowed_vendors=payload.whitelist_allowed_vendors,

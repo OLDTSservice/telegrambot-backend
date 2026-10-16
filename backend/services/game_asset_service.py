@@ -64,22 +64,61 @@ def detect_game_asset_request(text: str) -> bool:
 # 關閉的群組裡每一則一般聊天都去打一次 AI，或被誤回「轉人工」。命中後才交給素材知識庫 AI 判斷。
 # 中文沒有單字邊界問題，直接子字串比對；英文用單字邊界，避免 logo 命中 logout/logon、
 # icon 命中 iconic 之類的字。
+#
+# 範圍：除了純素材（ICON／LOGO／宣傳／大獎素材），也涵蓋廠商常問、答案固定的「遊戲基本資料」——
+# 遊戲清單／排行、試玩、官網、API／串接文件、貨幣、地區限制、語言、時區。素材知識庫 AI 的提示詞
+# （ai_service._call_claude 的 asset_mode）範圍要跟這份清單一致，否則閘門放行了、AI 卻因為
+# 「不是素材」一律回無解答。中文簡繁都列；每個中文詞也附對應英文（英文用單字邊界比對）。
+# 已被其他詞涵蓋的就不重複列（例如「遊戲素材」「大獎素材」含「素材」、「熱門遊戲清單」含
+# 「遊戲清單」、「遊戲官網」含「官網」、「遊戲入口圖」含「入口圖」）。
 _ASSET_KB_CJK_KEYWORDS = (
-    "素材", "圖示", "图示", "圖標", "图标", "入口圖", "入口图",
+    # 素材
+    "素材", "圖示", "图示", "圖標", "图标", "入口圖", "入口图", "海報", "海报", "橫幅", "横幅",
+    "遊戲image", "游戏image", "大獎影片", "大奖影片", "大獎圖片", "大奖图片",
+    # 遊戲清單／排行
     "遊戲清單", "游戏清单", "遊戲列表", "游戏列表",
-    "海報", "海报", "橫幅", "横幅",
+    "遊戲排名", "游戏排名", "遊戲排行", "游戏排行",
+    # 試玩／官網
+    "遊戲試玩", "游戏试玩", "試玩連結", "试玩链接",
+    "官網", "官网", "官方網站", "官方网站",
+    # API／串接文件
+    "api文件", "api文檔", "api文档", "串接文件", "串接文檔", "串接文档",
+    # 貨幣
+    "貨幣支援", "货币支援", "货币支持", "貨幣清單", "货币清单", "貨幣列表", "货币列表",
+    "支援貨幣", "支援货币", "支持货币",
+    # 地區／國家限制
+    "地區限制", "地区限制", "國家限制", "国家限制",
+    "阻擋哪些國家", "阻挡哪些国家", "阻擋地區", "阻挡地区",
+    # 語言
+    "語言支援", "语言支援", "语言支持", "語言列表", "语言列表",
+    "語系支援", "语系支援", "语系支持", "語系列表", "语系列表",
+    "支援語言", "支援语言", "支持语言", "支援語系", "支援语系", "支持语系",
+    # 時區
+    "api時區", "api时区", "後台時區", "后台时区",
 )
-_ASSET_KB_EN_RE = re.compile(
-    r'\b(?:icons?|logos?|assets?|materials?|banners?|posters?|artworks?|thumbnails?'
-    r'|game[\s_-]*lists?|gamelists?)\b',
-    re.IGNORECASE,
+_ASSET_KB_EN_FRAGMENTS = (
+    r'icons?', r'logos?', r'assets?', r'materials?', r'banners?', r'posters?', r'artworks?', r'thumbnails?',
+    r'game[\s_-]*images?',
+    r'game[\s_-]*lists?', r'gamelists?', r'(?:top|popular|hot)[\s_-]*games?',
+    r'game[\s_-]*rank(?:ing)?s?',
+    r'(?:jackpot|big[\s_-]*win)[\s_-]*(?:videos?|images?|pictures?|photos?)',
+    r'game[\s_-]*(?:trials?|demos?)', r'demo[\s_-]*(?:links?|urls?|sites?|websites?)', r'trial[\s_-]*links?',
+    r'official[\s_-]*(?:web)?sites?',
+    r'api[\s_-]*(?:docs?|documents?|documentation)', r'integration[\s_-]*(?:docs?|documents?|documentation)',
+    r'currency[\s_-]*(?:support|lists?)', r'supported[\s_-]*currenc(?:y|ies)',
+    r'region(?:al)?[\s_-]*restrictions?', r'country[\s_-]*restrictions?',
+    r'(?:restricted|blocked)[\s_-]*(?:countries|regions?)', r'geo[\s_-]*(?:blocking|restrictions?)',
+    r'countr(?:y|ies)[\s_-]*(?:(?:are|is)[\s_-]*)?blocked', r'msg104',
+    r'languages?',
+    r'api[\s_-]*time[\s_-]*zones?', r'(?:backend|back[\s_-]*office|bo)[\s_-]*time[\s_-]*zones?',
 )
+_ASSET_KB_EN_RE = re.compile(r'\b(?:' + '|'.join(_ASSET_KB_EN_FRAGMENTS) + r')\b', re.IGNORECASE)
 
 
 def detect_asset_kb_request(text: str) -> bool:
-    """訊息是否像在索取遊戲素材（遊戲清單、ICON、LOGO、宣傳／大獎素材、海報、橫幅…），
-    用來決定要不要呼叫素材知識庫 AI。"""
-    if any(kw in text for kw in _ASSET_KB_CJK_KEYWORDS):
+    """訊息是否像在索取遊戲素材或遊戲基本資料（見上方清單說明），用來決定要不要呼叫素材知識庫 AI。"""
+    lower = text.lower()
+    if any(kw in lower for kw in _ASSET_KB_CJK_KEYWORDS):
         return True
     return bool(_ASSET_KB_EN_RE.search(text))
 
