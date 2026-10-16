@@ -334,9 +334,9 @@ function SourceTab({ user, kbType = 'general' }) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 }}>
         {/* 左側文件列表 */}
-        <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ flex: '0 0 320px', maxWidth: '100%', border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', fontWeight: 600, fontSize: 15, color: '#1a1a2e' }}>
             {isAsset ? '素材文件清單' : '文件清單'} <Tag style={{ marginLeft: 6 }}>{docs.length} 份</Tag>
           </div>
@@ -368,7 +368,7 @@ function SourceTab({ user, kbType = 'general' }) {
                   <span>{formatDate(doc.created_at)}</span>
                   <Tag color="blue" style={{ marginLeft: 2, fontSize: 13 }}>QA: {doc.qa_count ?? 0}</Tag>
                 </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 12px', marginTop: 8 }}>
                   <Switch checked={doc.is_enabled} size="small"
                     onChange={(checked, e) => { e.stopPropagation(); handleToggle(doc, checked) }}
                     disabled={!canEdit(user)} />
@@ -396,7 +396,7 @@ function SourceTab({ user, kbType = 'general' }) {
         </div>
 
         {/* 右側 Q&A 列表 */}
-        <div style={{ border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ flex: '1 1 380px', minWidth: 0, border: '1.5px solid #c0c6d8', borderRadius: 8, overflow: 'hidden' }}>
           {!selectedDoc ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, color: '#555', gap: 8 }}>
               <BookOutlined style={{ fontSize: 36 }} />
@@ -404,9 +404,9 @@ function SourceTab({ user, kbType = 'general' }) {
             </div>
           ) : (
             <>
-              <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 600, fontSize: 15, color: '#1a1a2e', flexShrink: 0 }}>{selectedDoc.original_filename}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ padding: '10px 14px', borderBottom: '1.5px solid #c0c6d8', background: '#f0f2f7', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 15, color: '#1a1a2e', minWidth: 0, wordBreak: 'break-all' }}>{selectedDoc.original_filename}</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                   <Input
                     size="small"
                     placeholder="搜尋關鍵字…"
