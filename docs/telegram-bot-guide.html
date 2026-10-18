@@ -933,7 +933,7 @@
           <tr><td>AI 回答範圍</td><td>基本資訊知識庫 AI 的提示詞要求「只回答遊戲素材與遊戲基本資料」，範圍與上方閘門一致：素材（ICON／LOGO／入口圖／宣傳／大獎素材等）、遊戲清單與排行、試玩連結、官網、API／串接文件、支援貨幣、地區／國家限制、支援語言、API／後台時區。其他任何問題（帳號、投注紀錄、輸贏、RTP、白名單申請、活動規則、其他技術問題…）一律回固定識別字串 <span class="code">NO_ANSWER_FOUND</span>，視為無解答。語言規則、不可推斷延伸等其餘規則與一般知識庫相同。<strong>因此「基本資訊知識庫」實際上也放這些遊戲基本資料文件</strong>（例如貨幣清單、地區限制表、語言支援表），不只是圖檔素材。</td></tr>
           <tr><td>找不到答案時</td><td>沿用既有邏輯：該群組開啟「找不到答案時靜默」就不回覆（仍記錄無解答紀錄）；否則回覆轉人工固定訊息（中文「您好，人員將會協助確認，請稍後」／英文對應版本，含 10 秒冷卻）。不會有其他多餘回覆。</td></tr>
           <tr><td>即時對話管控</td><td>群組（或機器人）開啟管控模式時，基本資訊知識庫的回答<strong>不會直接送出</strong>，而是進入「待發送回覆」（來源標記為 <span class="code">asset_kb</span>），需人員在即時對話管控頁面手動按「發送」；沒有答案時只記錄訊息，等人員手動回覆，與一般知識庫的管控行為相同。<strong>Token 用量一樣會被記錄</strong>：產生回答當下的 Token 數字會跟著待發回覆存起來，人員按「發送」時寫進日誌（見下一列）；AI 有被呼叫卻找不到答案時，也會補一筆無解答紀錄帶 Token。</td></tr>
-          <tr><td>統計、日誌與工單</td><td>成功回覆會計入回覆統計，並依群組「自動建立工單」設定建立 Freshdesk 工單（來源 <span class="code">asset_kb</span>，在回覆工單統計歸入「其他建立工單數」）。<strong>基本資訊回覆的 Token 都會記錄在「使用量統計」</strong>：總量（今日／本月／各機器人）照常累計；「最近 20 筆知識庫查詢 Token 紀錄」與群組花費排行也會列出，基本資訊的列會多一個「基本資訊」標籤。基本資訊回覆與一般回覆寫在同一張日誌表（以 <span class="code">kb_type=asset</span> 區分），<strong>也會顯示在「AI對話日誌」頁</strong>（有「基本資訊」標籤，可用「篩選類型」只看基本資訊）。無解答的訊息仍會寫入「AI無解答對話紀錄」（含 Token）。兩個頁面的「新增至知識庫」都依紀錄類型限制可選文件：基本資訊紀錄只能補進基本資訊知識庫文件、一般紀錄只能補進一般知識庫文件，避免兩邊內容混在一起。</td></tr>
+          <tr><td>統計、日誌與工單</td><td>成功回覆會計入回覆統計，並依群組「自動建立工單」設定建立 Freshdesk 工單（來源 <span class="code">asset_kb</span>，在回覆工單統計獨立列為「基本資訊建立工單數」，不算進「知識庫」也不算進「其他」）。<strong>基本資訊回覆的 Token 都會記錄在「使用量統計」</strong>：總量（今日／本月／各機器人）照常累計；「最近 20 筆知識庫查詢 Token 紀錄」與群組花費排行也會列出，基本資訊的列會多一個「基本資訊」標籤。基本資訊回覆與一般回覆寫在同一張日誌表（以 <span class="code">kb_type=asset</span> 區分），<strong>也會顯示在「AI對話日誌」頁</strong>（有「基本資訊」標籤，可用「篩選類型」只看基本資訊）。無解答的訊息仍會寫入「AI無解答對話紀錄」（含 Token）。兩個頁面的「新增至知識庫」都依紀錄類型限制可選文件：基本資訊紀錄只能補進基本資訊知識庫文件、一般紀錄只能補進一般知識庫文件，避免兩邊內容混在一起。</td></tr>
           <tr><td>AI 救援</td><td>開啟 AI基本資訊的群組<strong>不記救援候選</strong>（AI 救援目前尚未使用，基本資訊群組先不納入）。AI 救援查詢一律只讀一般知識庫，不會讀到基本資訊文件。</td></tr>
         </tbody>
       </table>
@@ -1605,9 +1605,9 @@
           <tr><td>快捷時間選擇</td><td>今日 / 昨日 / 近7日 / 近30日 / 本月 / 上個月 / 今年 / 去年，一鍵切換常用區間。</td></tr>
           <tr><td>自訂範圍</td><td>日期範圍選擇器，可指定任意起訖日期；選擇自訂範圍後快捷按鈕會取消highlight。</td></tr>
           <tr><td>機器人篩選</td><td>可選特定機器人或「全部機器人」加總。</td></tr>
-          <tr><td>摘要卡片</td><td>總回覆次數、活躍群組數、知識庫建立工單數、白名單建立工單數、查輸贏回覆工單數、其他建立工單數（皆依所選時間範圍統計）。</td></tr>
+          <tr><td>摘要卡片</td><td>總回覆次數、活躍群組數、知識庫建立工單數、基本資訊建立工單數、白名單建立工單數、查輸贏回覆工單數、其他建立工單數（皆依所選時間範圍統計）。</td></tr>
           <tr><td>回覆趨勢折線圖</td><td>依所選時間範圍呈現每日回覆次數變化。</td></tr>
-          <tr><td>群組回覆排行（長條圖 + 表格）</td><td>各群組回覆次數排名與佔比，前三名以 🥇🥈🥉 標示；表格額外顯示每個群組個別的<strong>知識庫工單</strong>、<strong>其他工單</strong>、<strong>白名單工單</strong>、<strong>查輸贏工單</strong>次數，方便看出哪些群組實際成功建立了多少工單，不只是回覆次數。<br>
+          <tr><td>群組回覆排行（長條圖 + 表格）</td><td>各群組回覆次數排名與佔比，前三名以 🥇🥈🥉 標示；表格額外顯示每個群組個別的<strong>知識庫工單</strong>、<strong>基本資訊工單</strong>、<strong>其他工單</strong>、<strong>白名單工單</strong>、<strong>查輸贏工單</strong>次數，方便看出哪些群組實際成功建立了多少工單，不只是回覆次數。<br>
             <strong>長條圖顯示規則</strong>：圖表只畫前 10 名（完整排名看右側表格）；每個群組名稱一律完整列出、不會因空間不足而跳著隱藏，名稱超過 24 字以「…」截斷（游標移到長條上可看完整名稱），每條長條右側直接標示回覆次數。圖表高度依群組數固定（每列約 34px），名稱欄位寬度固定，不隨視窗大小變動；視窗太窄時圖表維持最小寬度 560px，改為在卡片內橫向捲動，而不是壓縮。Teams 版統計頁相同。</td></tr>
         </tbody>
       </table>
@@ -1619,7 +1619,8 @@
         四種工單數都只計算<strong>實際有建立 Freshdesk 工單</strong>的次數（來源記錄於 <span class="code">TicketCreationLog</span>，永久保留、不受時間範圍限制，白名單/查輸贏例外，見下）：
         <ul>
           <li><strong>知識庫建立工單數</strong>：知識庫 AI 回覆命中時建立的工單（<span class="code">source=kb</span>）。</li>
-          <li><strong>其他建立工單數</strong>：JILI／TADA遊戲素材查詢、TADA Gamelist進階查詢、關鍵字規則命中這幾種來源建立的工單加總（<span class="code">source</span> 不是 <span class="code">kb</span>／<span class="code">whitelist</span>／<span class="code">netwin</span>）。</li>
+          <li><strong>基本資訊建立工單數</strong>：基本資訊知識庫（群組開啟「AI基本資訊」）回覆命中時建立的工單（<span class="code">source=asset_kb</span>）。</li>
+          <li><strong>其他建立工單數</strong>：JILI／TADA遊戲素材查詢、TADA Gamelist進階查詢、關鍵字規則命中這幾種來源建立的工單加總（<span class="code">source</span> 不是 <span class="code">kb</span>／<span class="code">asset_kb</span>／<span class="code">whitelist</span>／<span class="code">netwin</span>）。</li>
           <li><strong>白名單建立工單數</strong>：取自 <span class="code">WhitelistLog</span>（<span class="code">status=success</span>），與其他三種工單數各自獨立統計，避免重複計算。</li>
           <li><strong>查輸贏回覆工單數</strong>：取自 <span class="code">NetwinQueryLog</span>（僅計 <span class="code">outcome=auto_replied</span>），同樣獨立統計。</li>
         </ul>
@@ -1645,7 +1646,7 @@
       <div class="callout">
         <strong>與 Telegram 版的差異</strong>
         <ul>
-          <li><strong>沒有「知識庫建立工單數」與「其他建立工單數」</strong>：Teams 個人帳號機器人只有後台白名單與查輸贏兩種會回覆、建單的功能（不做知識庫／AI 回覆、關鍵字規則、遊戲素材查詢），這兩項在 Teams 永遠是 0，所以不顯示。</li>
+          <li><strong>沒有「知識庫」「基本資訊」與「其他」建立工單數</strong>：Teams 個人帳號機器人只有後台白名單與查輸贏兩種會回覆、建單的功能（不做知識庫／AI 回覆、關鍵字規則、遊戲素材查詢），這兩項在 Teams 永遠是 0，所以不顯示。</li>
           <li><strong>工單數額外要求「已回覆」</strong>：Telegram 沒有模式之分，查到／加白成功就一定回覆並建單；Teams 有「只記錄」「加白／查詢但不回覆」模式，這些模式下即使加白成功或符合門檻也不會回覆、不會建單，所以只計入實際已回覆的紀錄。</li>
           <li>與 Telegram 相同，工單數<strong>不會</strong>另外檢查群組的「自動建立工單」開關；若某群關閉了自動建立工單，數字代表的是「符合建單條件的回覆次數」。</li>
         </ul>

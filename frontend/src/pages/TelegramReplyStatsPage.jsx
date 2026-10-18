@@ -3,7 +3,7 @@ import {
   Card, Row, Col, Select, DatePicker, Table, Tag, Space,
   Typography, Statistic, Spin, Empty, Button,
 } from 'antd'
-import { TrophyOutlined, MessageOutlined, RobotOutlined, FileTextOutlined, CheckCircleOutlined, LineChartOutlined } from '@ant-design/icons'
+import { TrophyOutlined, MessageOutlined, RobotOutlined, FileTextOutlined, CheckCircleOutlined, LineChartOutlined, PictureOutlined } from '@ant-design/icons'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, LabelList,
@@ -40,7 +40,7 @@ export default function TelegramReplyStatsPage() {
   const [bots, setBots] = useState([])
   const [rankData, setRankData] = useState([])
   const [trendData, setTrendData] = useState([])
-  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, other_tickets: 0, whitelist_tickets: 0, netwin_tickets: 0 })
+  const [ticketCounts, setTicketCounts] = useState({ kb_tickets: 0, asset_tickets: 0, other_tickets: 0, whitelist_tickets: 0, netwin_tickets: 0 })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -119,6 +119,10 @@ export default function TelegramReplyStatsPage() {
       render: v => <Text style={{ color: '#722ed1' }}>{(v || 0).toLocaleString()}</Text>,
     },
     {
+      title: '基本資訊工單', dataIndex: 'asset_tickets', width: 120,
+      render: v => <Text style={{ color: '#2f54eb' }}>{(v || 0).toLocaleString()}</Text>,
+    },
+    {
       title: '其他工單', dataIndex: 'other_tickets', width: 110,
       render: v => <Text style={{ color: '#eb2f96' }}>{(v || 0).toLocaleString()}</Text>,
     },
@@ -190,19 +194,19 @@ export default function TelegramReplyStatsPage() {
 
       {/* 摘要卡片 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col span={8}>
+        <Col xs={12} md={6}>
           <Card>
             <Statistic title="總回覆次數" value={totalReplies}
               prefix={<MessageOutlined />} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={12} md={6}>
           <Card>
             <Statistic title="活躍群組數" value={rankData.length}
               prefix={<RobotOutlined />} valueStyle={{ color: '#52c41a' }} />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={12} md={6}>
           <Card>
             <Statistic
               title="知識庫建立工單數"
@@ -212,7 +216,17 @@ export default function TelegramReplyStatsPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={12} md={6}>
+          <Card>
+            <Statistic
+              title="基本資訊建立工單數"
+              value={ticketCounts.asset_tickets}
+              prefix={<PictureOutlined />}
+              valueStyle={{ color: '#2f54eb' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} md={6}>
           <Card>
             <Statistic
               title="白名單建立工單數"
@@ -222,7 +236,7 @@ export default function TelegramReplyStatsPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={12} md={6}>
           <Card>
             <Statistic
               title="查輸贏回覆工單數"
@@ -232,7 +246,7 @@ export default function TelegramReplyStatsPage() {
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={12} md={6}>
           <Card>
             <Statistic
               title="其他建立工單數"
@@ -312,7 +326,7 @@ export default function TelegramReplyStatsPage() {
                 columns={rankColumns}
                 pagination={{ pageSize: 8, size: 'small' }}
                 size="small"
-                scroll={{ x: 720, y: 320 }}
+                scroll={{ x: 840, y: 320 }}
                 locale={{ emptyText: '此期間無回覆記錄' }}
               />
             </Card>

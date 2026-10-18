@@ -96,8 +96,19 @@ def telegram_group_stats(
         kb_q = kb_q.filter(models.TicketCreationLog.created_at >= start_utc, models.TicketCreationLog.created_at < end_utc)
     kb_by_chat = dict(kb_q.group_by(models.TicketCreationLog.chat_id).all())
 
+    # 基本資訊建立工單數：基本資訊知識庫（AI基本資訊）回覆建立的工單（source=asset_kb），獨立統計，
+    # 不算進「知識庫」也不算進「其他」。
+    asset_q = db.query(models.TicketCreationLog.chat_id, func.count(models.TicketCreationLog.id)).filter(
+        models.TicketCreationLog.source == "asset_kb"
+    )
+    if bot_id:
+        asset_q = asset_q.filter(models.TicketCreationLog.bot_id == bot_id)
+    if start_utc:
+        asset_q = asset_q.filter(models.TicketCreationLog.created_at >= start_utc, models.TicketCreationLog.created_at < end_utc)
+    asset_by_chat = dict(asset_q.group_by(models.TicketCreationLog.chat_id).all())
+
     other_q = db.query(models.TicketCreationLog.chat_id, func.count(models.TicketCreationLog.id)).filter(
-        models.TicketCreationLog.source.notin_(["whitelist", "netwin", "kb"])
+        models.TicketCreationLog.source.notin_(["whitelist", "netwin", "kb", "asset_kb"])
     )
     if bot_id:
         other_q = other_q.filter(models.TicketCreationLog.bot_id == bot_id)
@@ -128,6 +139,7 @@ def telegram_group_stats(
         {"chat_id": r.chat_id, "chat_name": r.chat_name,
          "chat_type": r.chat_type, "reply_count": r.total,
          "kb_tickets": kb_by_chat.get(r.chat_id, 0),
+         "asset_tickets": asset_by_chat.get(r.chat_id, 0),
          "other_tickets": other_by_chat.get(r.chat_id, 0),
          "whitelist_tickets": wl_by_chat.get(r.chat_id, 0),
          "netwin_tickets": nw_by_chat.get(r.chat_id, 0)}
@@ -252,7 +264,7 @@ def ticket_counts(
     db: Session = Depends(get_db),
     _=Depends(_VIEW_TG),
 ):
-    """知識庫建立工單數 + 其他建立工單數 + 白名單工單數 + 查輸贏回覆工單數"""
+    """知識庫建立工單數 + 基本資訊建立工單數 + 其他建立工單數 + 白名單工單數 + 查輸贏回覆工單數"""
     # created_at 以 UTC 儲存，但 date_from/date_to 是前端送來的台灣日曆日期，
     # 需先把台灣日期範圍換算成對應的 UTC 時間範圍，再拿去跟 created_at 比較，
     # 否則台灣時間每天 00:00–08:00 的資料會被歸類到前一天，統計對不上。
@@ -273,8 +285,17 @@ def ticket_counts(
     kb_q = apply(kb_q, models.TicketCreationLog.created_at)
     kb_count = kb_q.scalar() or 0
 
+    # 基本資訊建立工單數：基本資訊知識庫（AI基本資訊）回覆建立的工單（source=asset_kb），獨立統計
+    asset_q = db.query(func.count(models.TicketCreationLog.id)).filter(
+        models.TicketCreationLog.source == "asset_kb"
+    )
+    if bot_id:
+        asset_q = asset_q.filter(models.TicketCreationLog.bot_id == bot_id)
+    asset_q = apply(asset_q, models.TicketCreationLog.created_at)
+    asset_count = asset_q.scalar() or 0
+
     other_q = db.query(func.count(models.TicketCreationLog.id)).filter(
-        models.TicketCreationLog.source.notin_(["whitelist", "netwin", "kb"])
+        models.TicketCreationLog.source.notin_(["whitelist", "netwin", "kb", "asset_kb"])
     )
     if bot_id:
         other_q = other_q.filter(models.TicketCreationLog.bot_id == bot_id)
@@ -298,7 +319,7 @@ def ticket_counts(
     nw_q = apply(nw_q, models.NetwinQueryLog.created_at)
     nw_count = nw_q.scalar() or 0
 
-    return {"kb_tickets": kb_count, "other_tickets": other_count,
+    return {"kb_tickets": kb_count, "asset_tickets": asset_count, "other_tickets": other_count,
             "whitelist_tickets": wl_count, "netwin_tickets": nw_count}
 
 
