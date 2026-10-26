@@ -100,6 +100,7 @@ _NETWIN_TRIGGER_WORDS = (
     "bets are unusual", "bet is unusual", "是否有对赌", "是否有對賭",
     "存在异常", "存在異常", "异常刷水", "異常刷水", "投注行为", "投注行為",
     "suspicious betting", "opposite betting",
+    "bet of this player is valid", "bet is valid", "bets are valid",
 )
 
 
@@ -138,6 +139,8 @@ _LABELED_PATTERNS = (
     # 「UID:」（User ID 縮寫）。前面用負向 lookbehind 而非 \b：「玩家UID：」這種中文字直接相接
     # 的寫法 \b 判斷不出字界，但仍要排除 GUID: 之類英數字緊接在前的字。
     re.compile(r'(?<![A-Za-z0-9_])uid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    # 「Username :」（單獨的 username 欄位，Member username 已在上面優先比對）。
+    re.compile(r'(?<![A-Za-z0-9_])user[\s_-]*name\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」／中文「帳號：」「會員：」「用戶：」標籤（比對到單獨的帳號欄位，例如
@@ -151,7 +154,12 @@ _LABELED_PATTERNS = (
 # 但要排除掉 Kiosk ID／理帳號／理會員／理用戶這種代理帳號欄位——那不是玩家帳號，在下方
 # extract_account() 依行掃描時透過 _KIOSK_LINE_MARKERS 排除，而不是在這裡直接比對整段
 # 文字，避免「代理帳號：xxx」這種同樣含「帳號」字樣的代理欄位被誤當成玩家帳號。
-_GENERIC_ID_RE = re.compile(r'(?<!kiosk )(?<!agent )\bid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE)
+# 「Bet ID／Round ID／Game ID／Ticket ID／Order ID／Transaction ID／Wager ID」是注單／局號／
+# 遊戲等編號、不是玩家帳號（19 碼的 Bet ID 會被當成帳號去查 API 而 zero_match），一併排除。
+_NON_ACCOUNT_ID_PREFIXES = ("kiosk", "agent", "bet", "round", "game", "ticket", "order", "transaction", "wager")
+_GENERIC_ID_RE = re.compile(
+    "".join(f"(?<!{w}{sep})" for w in _NON_ACCOUNT_ID_PREFIXES for sep in (" ", "_", "-"))
+    + r'\bid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE)
 _CHINESE_ACCOUNT_LABEL_RE = re.compile(
     r'(?:玩家)?(?:帳號|賬號|账号|帐号|帳戶|賬戶|账户|帐户|會員(?:號)?|会员(?:号)?|用戶(?:號)?|用户(?:号)?)'
     r'\s*[:：]\s*([A-Za-z0-9_]+)'
