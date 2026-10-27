@@ -44,6 +44,16 @@ _DATE_STRIP_PATTERNS = (
     re.compile(r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2}(?:,?\s+\d{2,4})?\b',
                re.IGNORECASE),
     re.compile(r'\b\d{1,4}[-/]\d{1,2}[-/]\d{1,4}\b'),
+    # 行首的條列編號「1.」「2、」「3)」（後面不是數字，避免吃掉「1.5」開頭的小數）。實際發生過：
+    # 廠商用 1.～8. 條列活動問題，編號被當成 GameID 1/2/4/5/6，回了一串不相干的遊戲素材。
+    re.compile(r'(?m)^[ \t]*\d{1,2}[.、)）](?!\d)'),
+    # 圖片尺寸「300*300」「300x300」「300×300」（兩側可有空白）與「300px」「300像素」：實際發生過
+    # 「請問有海王彩金素材圖嗎？ 300*300的」，尺寸的 300 剛好等於 Fortune Gems 3 的 GameID。
+    re.compile(r'\d+\s*[*×xX]\s*\d+'),
+    re.compile(r'\d+\s*(?:px|像素)', re.IGNORECASE),
+    # 小數／版本號（1.5、v2.0.1）與百分比（50%）：數字前後是符號，不會被詞界規則擋掉。
+    re.compile(r'\d+(?:\.\d+)+'),
+    re.compile(r'\d+\s*%'),
 )
 
 
