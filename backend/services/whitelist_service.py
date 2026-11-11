@@ -15,25 +15,12 @@ SITE_BASE = os.getenv("WHITELIST_SITE_BASE", "https://wb-api4.jlfafafa3.com")
 SITE_USER = os.getenv("WHITELIST_SITE_USER", "TESTwhitelist")
 SITE_PASS = os.getenv("WHITELIST_SITE_PASS", "Igs22995048")
 
-# 站點設定：登入／取廠商清單／新增白名單所需的網址與帳密。舊後台與新後台（tj-report）目前採同一套
-# 後台流程（登入頁、/do-login、WhiteListController、white-list-ip-settingForm），只有網域與密碼不同，
-# 所以 run_whitelist_sync 以 site 參數切換；新站若某個路徑與舊站不同，只要改下面 NEW_SITE 的對應欄位。
-# 新後台帳號僅有白名單功能權限，帳密預設值直接寫在程式內（也可用環境變數覆蓋）。
-_SITE_PATHS = {
-    "login_page": "/login",
-    "do_login": "/do-login",
-    "init": "/admin/maintenance/controller/WhiteListController",
-    "referer": "/admin/maintenance/white-list-ip-setting",
-    "save": "/admin/maintenance/white-list-ip-settingForm",
-}
-OLD_SITE = {"label": "old", "base": SITE_BASE, "user": SITE_USER, "password": SITE_PASS, **_SITE_PATHS}
-NEW_SITE = {
-    "label": "new",
-    "base": os.getenv("WHITELIST_NEW_SITE_BASE", "https://tj-report.jlfafafa2.com"),
-    "user": os.getenv("WHITELIST_NEW_SITE_USER", "TESTwhitelist"),
-    "password": os.getenv("WHITELIST_NEW_SITE_PASS", "@Igs22995048"),
-    **_SITE_PATHS,
-}
+# 新後台（tj-report）：單頁應用＋JSON REST API（/api/auth/login 取 JWT、/api/api-catalog/options 取廠商清單、
+# /api/ip-whitelist 新增／附加 IP），跟上面舊後台的表單流程完全不同，由 run_whitelist_sync_new 處理。
+# 此帳號只有白名單功能權限，帳密預設值直接寫在程式內（也可用環境變數覆蓋）。
+NEW_SITE_BASE = os.getenv("WHITELIST_NEW_SITE_BASE", "https://tj-report.jlfafafa2.com")
+NEW_SITE_USER = os.getenv("WHITELIST_NEW_SITE_USER", "TESTwhitelist")
+NEW_SITE_PASS = os.getenv("WHITELIST_NEW_SITE_PASS", "@Igs22995048")
 
 # 內部後台系統網址（逗號分隔，可設定多個），訊息中出現即視為強烈的「後台白名單」信號。
 # 未設定（空字串）時規則三完全不啟用，不影響既有規則一/規則二的判斷。
@@ -260,27 +247,244 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
     return vendor_code, all_parts, ips
 
 
+def _resolve_vendor(all_vendors: list, username_parts: list[str], allowed_vendor_prefixes: list = None,
+                    forced_vendor_name: str = None) -> tuple[Optional[str], Optional[str], bool]:
+    """從後台廠商清單（[(id, name), ...]）比對出這次要加白的廠商。舊後台與新後台共用同一套比對邏輯。
+
+    回傳 (matched_id, matched_name, rejected)：
+    - 比對成功且通過群組廠商驗證：(id, name, False)
+    - 無法確定廠商：(None, None, False)
+    - 廠商不在群組「允許廠商清單」內：(None, None, True)
+    """
+    matched_id = None
+    matched_name = None
+
+    # 分隔符號感知比對：前綴 P 允許廠商名稱 == P、P_* 或 P-*
+    # 避免 "ON9" 誤放行 "On9gaming"（沒有分隔符號，屬於不同廠商）
+    def _vendor_matches(vendor_upper: str, prefix_upper: str) -> bool:
+        return (
+            vendor_upper == prefix_upper
+            or vendor_upper.startswith(prefix_upper + '_')
+            or vendor_upper.startswith(prefix_upper + '-')
+        )
+
+    def _disambiguate_by_allowed(candidates):
+        """多筆候選歧義時，嘗試用群組「白名單廠商驗證」允許清單篩選出唯一一筆。"""
+        if not allowed_vendor_prefixes:
+            return None
+        filtered = [
+            c for c in candidates
+            if any(_vendor_matches(c[1].upper(), p.strip().upper()) for p in allowed_vendor_prefixes)
+        ]
+        return filtered[0] if len(filtered) == 1 else None
+
+    if forced_vendor_name:
+        # ── 單一總代理模式：跳過帳號比對，直接精確比對廠商名稱（忽略大小寫）──
+        exact_matches = [
+            (api_id, name) for api_id, name in all_vendors
+            if name.strip().upper() == forced_vendor_name.strip().upper()
+        ]
+        logger.info(f"[Whitelist] 單一總代理模式：目標='{forced_vendor_name}'，找到 {len(exact_matches)} 筆")
+        if len(exact_matches) == 1:
+            matched_id, matched_name = exact_matches[0]
+            logger.info(f"[Whitelist] 單一總代理模式匹配：id={matched_id}, name={matched_name}")
+        else:
+            logger.error(f"[Whitelist] 單一總代理模式無法確定廠商 '{forced_vendor_name}'（{len(exact_matches)} 筆），中止")
+    else:
+        # ── Step 4：逐段比對廠商名稱 ──────────────────────
+        full_username = '_'.join(username_parts).upper()
+        prev_candidates = []
+
+        for i in range(1, len(username_parts) + 1):
+            prefix = '_'.join(username_parts[:i]).upper()
+            candidates = [
+                (api_id, name)
+                for api_id, name in all_vendors
+                if name.upper() == prefix or name.upper().startswith(prefix + '_')
+            ]
+            logger.info(f"[Whitelist] 前綴 '{prefix}'：找到 {len(candidates)} 筆")
+
+            if len(candidates) == 1:
+                matched_id, matched_name = candidates[0]
+                logger.info(f"[Whitelist] 唯一匹配：id={matched_id}, name={matched_name}")
+                break
+            elif len(candidates) == 0:
+                # fallback：從上一輪候選中篩選完整帳號以該廠商名稱為前綴的
+                fallback = [
+                    (api_id, name)
+                    for api_id, name in prev_candidates
+                    if full_username == name.upper() or full_username.startswith(name.upper() + '_')
+                ]
+                logger.info(f"[Whitelist] 前綴 '{prefix}' 無匹配，fallback 候選：{[(n) for _, n in fallback]}")
+                if len(fallback) == 1:
+                    matched_id, matched_name = fallback[0]
+                    logger.info(f"[Whitelist] Fallback 唯一匹配：id={matched_id}, name={matched_name}")
+                else:
+                    picked = _disambiguate_by_allowed(fallback)
+                    if picked:
+                        matched_id, matched_name = picked
+                        logger.info(f"[Whitelist] Fallback 依群組允許清單消歧：{matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
+                break
+            else:
+                # 候選 ≥2 筆：優先用群組「允許廠商清單」消歧（明確設定，優先權最高）；
+                # 清單解不出唯一結果時，才退而用 Transfer / Seamless 段數猜測當最後 fallback
+                # （同品牌前綴僅差這兩條線，依帳號段數判斷：3 段含幣別視為 Transfer，2 段視為 Seamless）
+                picked = _disambiguate_by_allowed(candidates)
+                if picked:
+                    matched_id, matched_name = picked
+                    logger.info(f"[Whitelist] 候選 {len(candidates)} 筆，依群組允許清單消歧：{matched_name}")
+                    break
+                suffixes = {name.upper()[len(prefix):].lstrip('_-') for _, name in candidates}
+                if suffixes == {"TRANSFER", "SEAMLESS"}:
+                    seg_count = len(username_parts)
+                    target_suffix = "TRANSFER" if seg_count >= 3 else ("SEAMLESS" if seg_count == 2 else None)
+                    if target_suffix:
+                        pick = next((c for c in candidates if c[1].upper().endswith(target_suffix)), None)
+                        if pick:
+                            matched_id, matched_name = pick
+                            logger.info(
+                                f"[Whitelist] Transfer/Seamless 消歧：帳號共 {seg_count} 段 → 判定為 {matched_name}"
+                            )
+                            break
+            prev_candidates = candidates
+
+        # ── Step 4b：第二層 fallback — 廠商名稱為帳號第一段的前綴（取最長匹配）
+        if not matched_id:
+            first_segment = username_parts[0].upper()
+            prefix_matches = [
+                (api_id, name)
+                for api_id, name in all_vendors
+                if first_segment.startswith(name.upper()) and len(name) > 1
+            ]
+            if prefix_matches:
+                # 取廠商名稱最長的那一筆（最精確）
+                best = max(prefix_matches, key=lambda x: len(x[1]))
+                # 確認沒有其他同長度的競爭者
+                best_len = len(best[1])
+                same_len = [x for x in prefix_matches if len(x[1]) == best_len]
+                logger.info(f"[Whitelist] 第二層 fallback：第一段='{first_segment}'，候選={[(n) for _, n in prefix_matches]}，最長={best[1]}")
+                if len(same_len) == 1:
+                    matched_id, matched_name = best
+                    logger.info(f"[Whitelist] 第二層 fallback 匹配：id={matched_id}, name={matched_name}")
+                else:
+                    picked = _disambiguate_by_allowed(same_len)
+                    if picked:
+                        matched_id, matched_name = picked
+                        logger.info(f"[Whitelist] 第二層 fallback 依群組允許清單消歧：{matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
+            else:
+                logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
+
+        # ── Step 4c：廠商名稱各段中是否有任一段等於帳號第一段 ──────────
+        if not matched_id:
+            first_seg = username_parts[0].upper()
+            segment_matches = [
+                (api_id, name)
+                for api_id, name in all_vendors
+                if first_seg in [s.upper() for s in re.split(r'[_\-]', name)]
+            ]
+            logger.info(f"[Whitelist] Step4c 段落比對：first_seg='{first_seg}'，候選={[n for _, n in segment_matches]}")
+            if len(segment_matches) == 1:
+                matched_id, matched_name = segment_matches[0]
+                logger.info(f"[Whitelist] Step4c 唯一匹配：id={matched_id}, name={matched_name}")
+            elif len(segment_matches) > 1:
+                best = max(segment_matches, key=lambda x: len(x[1]))
+                same_len = [x for x in segment_matches if len(x[1]) == len(best[1])]
+                if len(same_len) == 1:
+                    matched_id, matched_name = best
+                    logger.info(f"[Whitelist] Step4c 最長匹配：id={matched_id}, name={matched_name}")
+                else:
+                    picked = _disambiguate_by_allowed(same_len)
+                    if picked:
+                        matched_id, matched_name = picked
+                        logger.info(f"[Whitelist] Step4c 依群組允許清單消歧：{matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
+
+        # ── Step 4c-2：廠商名稱後綴比對（帳號第一段是廠商名稱的結尾，
+        # 兩者間無底線/破折號分隔時適用，例如帳號 "TR1_xxx" 對應廠商 "TitanTR1"）──
+        if not matched_id:
+            first_seg = username_parts[0].upper()
+            suffix_matches = [
+                (api_id, name)
+                for api_id, name in all_vendors
+                if name.upper().endswith(first_seg) and len(name) > len(first_seg)
+            ]
+            logger.info(f"[Whitelist] Step4c-2 後綴比對：first_seg='{first_seg}'，候選={[n for _, n in suffix_matches]}")
+            if len(suffix_matches) == 1:
+                matched_id, matched_name = suffix_matches[0]
+                logger.info(f"[Whitelist] Step4c-2 唯一匹配：id={matched_id}, name={matched_name}")
+            elif len(suffix_matches) > 1:
+                picked = _disambiguate_by_allowed(suffix_matches)
+                if picked:
+                    matched_id, matched_name = picked
+                    logger.info(f"[Whitelist] Step4c-2 依群組允許清單消歧：{matched_name}")
+                else:
+                    logger.error(f"[Whitelist] Step4c-2 後綴比對有歧義（{[n for _, n in suffix_matches]}），中止")
+
+        # ── Step 4c-3：廠商名稱前綴比對（帳號第一段是廠商名稱的開頭，
+        # 兩者間無底線/破折號分隔時適用，例如帳號 "HWTYBMSTR_xxx" 對應廠商 "HWTYBMSTRMYR"）。
+        # 取「最短」且唯一者：避免帳號簡寫剛好也是另一個更長廠商名稱的前綴子集時誤判
+        # （例如 first_seg="HWTYBMSTR" 同時是 "HWTYBMSTRMYR" 與 "HWTYBMSTR1to1MYR" 的前綴，
+        # 正確答案是最短、最貼近的 "HWTYBMSTRMYR"）──
+        if not matched_id:
+            first_seg = username_parts[0].upper()
+            prefix_affix_matches = [
+                (api_id, name)
+                for api_id, name in all_vendors
+                if name.upper().startswith(first_seg) and len(name) > len(first_seg)
+            ]
+            logger.info(f"[Whitelist] Step4c-3 前綴比對：first_seg='{first_seg}'，候選={[n for _, n in prefix_affix_matches]}")
+            if prefix_affix_matches:
+                shortest = min(prefix_affix_matches, key=lambda x: len(x[1]))
+                shortest_len = len(shortest[1])
+                same_len = [x for x in prefix_affix_matches if len(x[1]) == shortest_len]
+                if len(same_len) == 1:
+                    matched_id, matched_name = shortest
+                    logger.info(f"[Whitelist] Step4c-3 唯一匹配：id={matched_id}, name={matched_name}")
+                else:
+                    picked = _disambiguate_by_allowed(same_len)
+                    if picked:
+                        matched_id, matched_name = picked
+                        logger.info(f"[Whitelist] Step4c-3 依群組允許清單消歧：{matched_name}")
+                    else:
+                        logger.error(f"[Whitelist] Step4c-3 最短匹配有歧義（{[n for _, n in same_len]}），中止")
+
+    if not matched_id:
+        return None, None, False
+
+    # ── Step 4d：群組廠商白名單驗證 ──────────────────────────────
+    if allowed_vendor_prefixes:
+        upper_name = matched_name.upper()
+        if not any(_vendor_matches(upper_name, p.strip().upper()) for p in allowed_vendor_prefixes):
+            logger.warning(f"[Whitelist] 廠商 '{matched_name}' 不在群組允許清單 {allowed_vendor_prefixes}，拒絕")
+            return None, None, True
+        logger.info(f"[Whitelist] 廠商驗證通過：'{matched_name}' 符合允許清單")
+    return matched_id, matched_name, False
+
+
 def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None,
-                       forced_vendor_name: str = None, site: dict = None) -> tuple[bool, Optional[str], bool]:
+                       forced_vendor_name: str = None) -> tuple[bool, Optional[str], bool]:
     """同步 HTTP 流程，直接在 asyncio.to_thread 的執行緒中執行
 
     forced_vendor_name：指定時代表「單一總代理」群組模式（訊息沒有帳號，只有 IP+關鍵字），
     跳過帳號比對邏輯，直接以此名稱精確比對（忽略大小寫）廠商清單。
-    site：要操作的後台站點設定（OLD_SITE／NEW_SITE），不指定時為舊後台（既有行為）。
     """
-    site = site or OLD_SITE
-    logger.info(f"[Whitelist] 開始（HTTP 模式，站點={site['label']}）：username_parts={username_parts}, IPs={ips}, forced_vendor_name={forced_vendor_name}")
+    logger.info(f"[Whitelist] 開始（HTTP 模式）：username_parts={username_parts}, IPs={ips}, forced_vendor_name={forced_vendor_name}")
 
-    with httpx.Client(base_url=site["base"], follow_redirects=True, timeout=60) as client:
+    with httpx.Client(base_url=SITE_BASE, follow_redirects=True, timeout=60) as client:
         try:
             # ── Step 1：GET 登入頁取得 session cookie ─────────
-            client.get(site["login_page"])
+            client.get("/login")
             logger.info(f"[Whitelist] 已取得 session，cookies={dict(client.cookies)}")
 
             # ── Step 2：POST /do-login（不需 reCAPTCHA）───────
-            login_r = client.post(site["do_login"], data={
-                "account": site["user"],
-                "password": site["password"],
+            login_r = client.post("/do-login", data={
+                "account": SITE_USER,
+                "password": SITE_PASS,
                 "rememberMe": "0",
             })
             login_json = login_r.json()
@@ -293,11 +497,11 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
 
             # ── Step 3：取廠商清單 ────────────────────────────
             init_r = client.post(
-                site["init"],
+                "/admin/maintenance/controller/WhiteListController",
                 data={"action": "init"},
                 headers={
                     "X-Requested-With": "XMLHttpRequest",
-                    "Referer": f"{site['base']}{site['referer']}",
+                    "Referer": f"{SITE_BASE}/admin/maintenance/white-list-ip-setting",
                 },
             )
             logger.info(f"[Whitelist] WhiteListController status={init_r.status_code}, size={len(init_r.content)}")
@@ -318,213 +522,12 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                 logger.error(f"[Whitelist] 廠商清單解析失敗，前300字：{init_r.text[:300]}")
                 return False, None, False
 
-            matched_id = None
-            matched_name = None
-
-            # 分隔符號感知比對：前綴 P 允許廠商名稱 == P、P_* 或 P-*
-            # 避免 "ON9" 誤放行 "On9gaming"（沒有分隔符號，屬於不同廠商）
-            def _vendor_matches(vendor_upper: str, prefix_upper: str) -> bool:
-                return (
-                    vendor_upper == prefix_upper
-                    or vendor_upper.startswith(prefix_upper + '_')
-                    or vendor_upper.startswith(prefix_upper + '-')
-                )
-
-            def _disambiguate_by_allowed(candidates):
-                """多筆候選歧義時，嘗試用群組「白名單廠商驗證」允許清單篩選出唯一一筆。"""
-                if not allowed_vendor_prefixes:
-                    return None
-                filtered = [
-                    c for c in candidates
-                    if any(_vendor_matches(c[1].upper(), p.strip().upper()) for p in allowed_vendor_prefixes)
-                ]
-                return filtered[0] if len(filtered) == 1 else None
-
-            if forced_vendor_name:
-                # ── 單一總代理模式：跳過帳號比對，直接精確比對廠商名稱（忽略大小寫）──
-                exact_matches = [
-                    (api_id, name) for api_id, name in all_vendors
-                    if name.strip().upper() == forced_vendor_name.strip().upper()
-                ]
-                logger.info(f"[Whitelist] 單一總代理模式：目標='{forced_vendor_name}'，找到 {len(exact_matches)} 筆")
-                if len(exact_matches) == 1:
-                    matched_id, matched_name = exact_matches[0]
-                    logger.info(f"[Whitelist] 單一總代理模式匹配：id={matched_id}, name={matched_name}")
-                else:
-                    logger.error(f"[Whitelist] 單一總代理模式無法確定廠商 '{forced_vendor_name}'（{len(exact_matches)} 筆），中止")
-            else:
-                # ── Step 4：逐段比對廠商名稱 ──────────────────────
-                full_username = '_'.join(username_parts).upper()
-                prev_candidates = []
-
-                for i in range(1, len(username_parts) + 1):
-                    prefix = '_'.join(username_parts[:i]).upper()
-                    candidates = [
-                        (api_id, name)
-                        for api_id, name in all_vendors
-                        if name.upper() == prefix or name.upper().startswith(prefix + '_')
-                    ]
-                    logger.info(f"[Whitelist] 前綴 '{prefix}'：找到 {len(candidates)} 筆")
-
-                    if len(candidates) == 1:
-                        matched_id, matched_name = candidates[0]
-                        logger.info(f"[Whitelist] 唯一匹配：id={matched_id}, name={matched_name}")
-                        break
-                    elif len(candidates) == 0:
-                        # fallback：從上一輪候選中篩選完整帳號以該廠商名稱為前綴的
-                        fallback = [
-                            (api_id, name)
-                            for api_id, name in prev_candidates
-                            if full_username == name.upper() or full_username.startswith(name.upper() + '_')
-                        ]
-                        logger.info(f"[Whitelist] 前綴 '{prefix}' 無匹配，fallback 候選：{[(n) for _, n in fallback]}")
-                        if len(fallback) == 1:
-                            matched_id, matched_name = fallback[0]
-                            logger.info(f"[Whitelist] Fallback 唯一匹配：id={matched_id}, name={matched_name}")
-                        else:
-                            picked = _disambiguate_by_allowed(fallback)
-                            if picked:
-                                matched_id, matched_name = picked
-                                logger.info(f"[Whitelist] Fallback 依群組允許清單消歧：{matched_name}")
-                            else:
-                                logger.error(f"[Whitelist] Fallback 無法確定廠商（{len(fallback)} 筆），中止")
-                        break
-                    else:
-                        # 候選 ≥2 筆：優先用群組「允許廠商清單」消歧（明確設定，優先權最高）；
-                        # 清單解不出唯一結果時，才退而用 Transfer / Seamless 段數猜測當最後 fallback
-                        # （同品牌前綴僅差這兩條線，依帳號段數判斷：3 段含幣別視為 Transfer，2 段視為 Seamless）
-                        picked = _disambiguate_by_allowed(candidates)
-                        if picked:
-                            matched_id, matched_name = picked
-                            logger.info(f"[Whitelist] 候選 {len(candidates)} 筆，依群組允許清單消歧：{matched_name}")
-                            break
-                        suffixes = {name.upper()[len(prefix):].lstrip('_-') for _, name in candidates}
-                        if suffixes == {"TRANSFER", "SEAMLESS"}:
-                            seg_count = len(username_parts)
-                            target_suffix = "TRANSFER" if seg_count >= 3 else ("SEAMLESS" if seg_count == 2 else None)
-                            if target_suffix:
-                                pick = next((c for c in candidates if c[1].upper().endswith(target_suffix)), None)
-                                if pick:
-                                    matched_id, matched_name = pick
-                                    logger.info(
-                                        f"[Whitelist] Transfer/Seamless 消歧：帳號共 {seg_count} 段 → 判定為 {matched_name}"
-                                    )
-                                    break
-                    prev_candidates = candidates
-
-                # ── Step 4b：第二層 fallback — 廠商名稱為帳號第一段的前綴（取最長匹配）
-                if not matched_id:
-                    first_segment = username_parts[0].upper()
-                    prefix_matches = [
-                        (api_id, name)
-                        for api_id, name in all_vendors
-                        if first_segment.startswith(name.upper()) and len(name) > 1
-                    ]
-                    if prefix_matches:
-                        # 取廠商名稱最長的那一筆（最精確）
-                        best = max(prefix_matches, key=lambda x: len(x[1]))
-                        # 確認沒有其他同長度的競爭者
-                        best_len = len(best[1])
-                        same_len = [x for x in prefix_matches if len(x[1]) == best_len]
-                        logger.info(f"[Whitelist] 第二層 fallback：第一段='{first_segment}'，候選={[(n) for _, n in prefix_matches]}，最長={best[1]}")
-                        if len(same_len) == 1:
-                            matched_id, matched_name = best
-                            logger.info(f"[Whitelist] 第二層 fallback 匹配：id={matched_id}, name={matched_name}")
-                        else:
-                            picked = _disambiguate_by_allowed(same_len)
-                            if picked:
-                                matched_id, matched_name = picked
-                                logger.info(f"[Whitelist] 第二層 fallback 依群組允許清單消歧：{matched_name}")
-                            else:
-                                logger.error(f"[Whitelist] 第二層 fallback 最長匹配有歧義（{[n for _, n in same_len]}），中止")
-                    else:
-                        logger.error(f"[Whitelist] 廠商無法確定，前10筆：{all_vendors[:10]}")
-
-                # ── Step 4c：廠商名稱各段中是否有任一段等於帳號第一段 ──────────
-                if not matched_id:
-                    first_seg = username_parts[0].upper()
-                    segment_matches = [
-                        (api_id, name)
-                        for api_id, name in all_vendors
-                        if first_seg in [s.upper() for s in re.split(r'[_\-]', name)]
-                    ]
-                    logger.info(f"[Whitelist] Step4c 段落比對：first_seg='{first_seg}'，候選={[n for _, n in segment_matches]}")
-                    if len(segment_matches) == 1:
-                        matched_id, matched_name = segment_matches[0]
-                        logger.info(f"[Whitelist] Step4c 唯一匹配：id={matched_id}, name={matched_name}")
-                    elif len(segment_matches) > 1:
-                        best = max(segment_matches, key=lambda x: len(x[1]))
-                        same_len = [x for x in segment_matches if len(x[1]) == len(best[1])]
-                        if len(same_len) == 1:
-                            matched_id, matched_name = best
-                            logger.info(f"[Whitelist] Step4c 最長匹配：id={matched_id}, name={matched_name}")
-                        else:
-                            picked = _disambiguate_by_allowed(same_len)
-                            if picked:
-                                matched_id, matched_name = picked
-                                logger.info(f"[Whitelist] Step4c 依群組允許清單消歧：{matched_name}")
-                            else:
-                                logger.error(f"[Whitelist] Step4c 歧義（{[n for _, n in same_len]}），中止")
-
-                # ── Step 4c-2：廠商名稱後綴比對（帳號第一段是廠商名稱的結尾，
-                # 兩者間無底線/破折號分隔時適用，例如帳號 "TR1_xxx" 對應廠商 "TitanTR1"）──
-                if not matched_id:
-                    first_seg = username_parts[0].upper()
-                    suffix_matches = [
-                        (api_id, name)
-                        for api_id, name in all_vendors
-                        if name.upper().endswith(first_seg) and len(name) > len(first_seg)
-                    ]
-                    logger.info(f"[Whitelist] Step4c-2 後綴比對：first_seg='{first_seg}'，候選={[n for _, n in suffix_matches]}")
-                    if len(suffix_matches) == 1:
-                        matched_id, matched_name = suffix_matches[0]
-                        logger.info(f"[Whitelist] Step4c-2 唯一匹配：id={matched_id}, name={matched_name}")
-                    elif len(suffix_matches) > 1:
-                        picked = _disambiguate_by_allowed(suffix_matches)
-                        if picked:
-                            matched_id, matched_name = picked
-                            logger.info(f"[Whitelist] Step4c-2 依群組允許清單消歧：{matched_name}")
-                        else:
-                            logger.error(f"[Whitelist] Step4c-2 後綴比對有歧義（{[n for _, n in suffix_matches]}），中止")
-
-                # ── Step 4c-3：廠商名稱前綴比對（帳號第一段是廠商名稱的開頭，
-                # 兩者間無底線/破折號分隔時適用，例如帳號 "HWTYBMSTR_xxx" 對應廠商 "HWTYBMSTRMYR"）。
-                # 取「最短」且唯一者：避免帳號簡寫剛好也是另一個更長廠商名稱的前綴子集時誤判
-                # （例如 first_seg="HWTYBMSTR" 同時是 "HWTYBMSTRMYR" 與 "HWTYBMSTR1to1MYR" 的前綴，
-                # 正確答案是最短、最貼近的 "HWTYBMSTRMYR"）──
-                if not matched_id:
-                    first_seg = username_parts[0].upper()
-                    prefix_affix_matches = [
-                        (api_id, name)
-                        for api_id, name in all_vendors
-                        if name.upper().startswith(first_seg) and len(name) > len(first_seg)
-                    ]
-                    logger.info(f"[Whitelist] Step4c-3 前綴比對：first_seg='{first_seg}'，候選={[n for _, n in prefix_affix_matches]}")
-                    if prefix_affix_matches:
-                        shortest = min(prefix_affix_matches, key=lambda x: len(x[1]))
-                        shortest_len = len(shortest[1])
-                        same_len = [x for x in prefix_affix_matches if len(x[1]) == shortest_len]
-                        if len(same_len) == 1:
-                            matched_id, matched_name = shortest
-                            logger.info(f"[Whitelist] Step4c-3 唯一匹配：id={matched_id}, name={matched_name}")
-                        else:
-                            picked = _disambiguate_by_allowed(same_len)
-                            if picked:
-                                matched_id, matched_name = picked
-                                logger.info(f"[Whitelist] Step4c-3 依群組允許清單消歧：{matched_name}")
-                            else:
-                                logger.error(f"[Whitelist] Step4c-3 最短匹配有歧義（{[n for _, n in same_len]}），中止")
-
+            matched_id, matched_name, vendor_rejected = _resolve_vendor(
+                all_vendors, username_parts, allowed_vendor_prefixes, forced_vendor_name)
+            if vendor_rejected:
+                return False, None, True
             if not matched_id:
                 return False, None, False
-
-            # ── Step 4d：群組廠商白名單驗證 ──────────────────────────────
-            if allowed_vendor_prefixes:
-                upper_name = matched_name.upper()
-                if not any(_vendor_matches(upper_name, p.strip().upper()) for p in allowed_vendor_prefixes):
-                    logger.warning(f"[Whitelist] 廠商 '{matched_name}' 不在群組允許清單 {allowed_vendor_prefixes}，拒絕")
-                    return False, None, True
-                logger.info(f"[Whitelist] 廠商驗證通過：'{matched_name}' 符合允許清單")
 
             # ── Step 5：新增白名單 ────────────────────────────
             import urllib.parse
@@ -533,7 +536,7 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                 form_list.append(("form[ip][]", ip))
 
             save_r = client.post(
-                site["save"],
+                "/admin/maintenance/white-list-ip-settingForm",
                 content=urllib.parse.urlencode(form_list).encode(),
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -557,8 +560,98 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
             return False, None, False
 
 
+def _new_site_error(resp) -> str:
+    """新後台 API 的錯誤回應是 {"error": "..."}，取出訊息給 log 用（不含任何帳密）。"""
+    try:
+        data = resp.json()
+        return str(data.get("error") or data)[:200]
+    except Exception:
+        return resp.text[:200].replace("\n", " ")
+
+
+def new_site_login(client: httpx.Client) -> bool:
+    """登入新後台並把 JWT 設到 client 的 Authorization header。只有 stage=full 才算登入成功；
+    需要二次驗證（TOTP／Google）或強制改密碼（pwd_change）時無法自動處理，回傳 False。"""
+    r = client.post("/auth/login", json={"username": NEW_SITE_USER, "password": NEW_SITE_PASS,
+                                         "recaptcha_token": ""})
+    if r.status_code != 200:
+        logger.error(f"[Whitelist-new] 登入失敗：HTTP {r.status_code}，{_new_site_error(r)}")
+        return False
+    data = r.json()
+    if data.get("stage") != "full" or not data.get("token"):
+        logger.error(f"[Whitelist-new] 登入未完成：stage={data.get('stage')}, "
+                     f"required_factors={data.get('required_factors')}（需二次驗證或改密碼，無法自動處理）")
+        return False
+    client.headers["Authorization"] = f"Bearer {data['token']}"
+    return True
+
+
 def run_whitelist_sync_new(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None,
                            forced_vendor_name: str = None) -> tuple[bool, Optional[str], bool]:
-    """新後台（tj-report）版本：流程與比對邏輯同 run_whitelist_sync，只是站點與帳密換成 NEW_SITE。"""
-    return run_whitelist_sync(username_parts, ips, allowed_vendor_prefixes,
-                              forced_vendor_name=forced_vendor_name, site=NEW_SITE)
+    """新後台（tj-report）版本。介面與回傳值同 run_whitelist_sync：(是否成功, 廠商名稱, 是否被群組廠商驗證拒絕)。
+
+    流程（對應新後台「系統管理 → IP 白名單 → 新增」，對象種類＝廠商）：
+    1. POST /api/auth/login 登入取得 JWT
+    2. GET /api/api-catalog/options 取廠商清單（api_users：id／name），用與舊後台相同的 _resolve_vendor 比對
+    3. GET /api/ip-whitelist 看該廠商是否已有白名單設定：
+       - 沒有 → POST /api/ip-whitelist 建立（target_type=api）
+       - 已有 → 把尚未存在的 IP 附加進原清單後 PUT（與後台畫面「新增」到已有設定的廠商時的行為一致）
+       - 要加的 IP 全都已存在 → 視為成功（IP 已在白名單內）
+    """
+    logger.info(f"[Whitelist-new] 開始：username_parts={username_parts}, IPs={ips}, forced_vendor_name={forced_vendor_name}")
+    ips = list(dict.fromkeys(ips))  # 去重並保留順序
+    try:
+        with httpx.Client(base_url=NEW_SITE_BASE.rstrip("/") + "/api", timeout=60, follow_redirects=True) as client:
+            if not new_site_login(client):
+                return False, None, False
+            logger.info("[Whitelist-new] 登入成功")
+
+            r = client.get("/api-catalog/options")
+            if r.status_code != 200:
+                logger.error(f"[Whitelist-new] 取廠商清單失敗：HTTP {r.status_code}，{_new_site_error(r)}")
+                return False, None, False
+            api_users = r.json().get("api_users") or []
+            all_vendors = [(str(u["id"]), u.get("name") or "") for u in api_users
+                           if u.get("id") is not None and (u.get("name") or "").strip()]
+            logger.info(f"[Whitelist-new] 廠商數：{len(all_vendors)}，前3筆：{all_vendors[:3]}")
+            if not all_vendors:
+                return False, None, False
+
+            matched_id, matched_name, rejected = _resolve_vendor(
+                all_vendors, username_parts, allowed_vendor_prefixes, forced_vendor_name)
+            if rejected:
+                return False, None, True
+            if not matched_id:
+                return False, None, False
+            target_id = next(u["id"] for u in api_users if str(u["id"]) == matched_id)
+
+            r = client.get("/ip-whitelist")
+            if r.status_code != 200:
+                logger.error(f"[Whitelist-new] 取白名單清單失敗：HTTP {r.status_code}，{_new_site_error(r)}")
+                return False, None, False
+            existing = next((e for e in (r.json().get("entries") or [])
+                             if e.get("target_type") == "api" and e.get("target_id") == target_id), None)
+
+            if existing:
+                current = existing.get("ips") or []
+                to_add = [ip for ip in ips if ip not in current]
+                if existing.get("status") != 1:
+                    # 後台這筆設定是停用狀態：加了 IP 也不會生效，不能回報成功，交給人員處理
+                    logger.error(f"[Whitelist-new] 廠商 {matched_name} 的白名單設定為停用狀態，不自動新增")
+                    return False, None, False
+                if not to_add:
+                    logger.info(f"[Whitelist-new] IP 已全部存在：廠商={matched_name}, IPs={ips}")
+                    return True, matched_name, False
+                r = client.put(f"/ip-whitelist/{existing['id']}", json={
+                    "ips": current + to_add, "remark": existing.get("remark") or "", "status": existing.get("status")})
+            else:
+                r = client.post("/ip-whitelist", json={
+                    "target_type": "api", "target_id": target_id, "ips": ips, "remark": "", "status": 1})
+            if r.status_code not in (200, 201, 204):
+                logger.error(f"[Whitelist-new] 新增失敗：HTTP {r.status_code}，{_new_site_error(r)}")
+                return False, None, False
+            logger.info(f"[Whitelist-new] 新增成功：廠商={matched_name}, IPs={ips}")
+            return True, matched_name, False
+    except Exception as e:
+        logger.error(f"[Whitelist-new] 例外：{e}", exc_info=True)
+        return False, None, False
