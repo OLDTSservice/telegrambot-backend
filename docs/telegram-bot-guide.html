@@ -1077,6 +1077,24 @@
         </tbody>
       </table>
 
+      <h3 id="whitelist-new">後台白名單處理(新)：新後台（tj-report）</h3>
+      <p class="path-crumb">側邊選單：<span class="code">Telegram 機器人 → 後台白名單處理(新)</span>、<span class="code">Teams 機器人 → 後台白名單處理(新)</span></p>
+      <p>為後續更換後台網址預先準備的平行功能：流程與舊版完全相同（登入 → 取廠商清單 → 比對廠商 → 新增白名單），只是站點換成新後台
+      <span class="code">https://tj-report.jlfafafa2.com</span>，使用僅有白名單權限的後台帳號。正式轉換後會再移除舊分頁與舊功能。</p>
+      <table>
+        <thead><tr><th>項目</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td>開關</td><td>每個機器人（Telegram、Teams 各自）有獨立的「自動白名單處理(新)」開關，對應 <span class="code">whitelist_new_enabled</span> 欄位，<strong>預設關閉</strong>，不影響舊版。</td></tr>
+          <tr><td><strong>與舊版開關互斥</strong></td><td>同一個機器人同時只會處理其中一個後台，避免重複加白與重複回覆。新版開著時要開舊版（或反過來）會被擋下並提示請先關閉另一邊；正式轉換時：先關舊版、再開新版即可，不用改程式。</td></tr>
+          <tr><td>偵測、解析、群組設定</td><td>與舊版<strong>共用同一套</strong>：偵測規則、帳號解析、廠商比對、群組的「白名單廠商驗證／允許廠商／單一總代理／Bo白名單添加放寬」，以及測試／UAT 環境排除、申請表單排除都不另設一套。Teams 的「模式」（只記錄／加白但不回覆／全自動）也共用。</td></tr>
+          <tr><td>處理記錄</td><td>新頁面只顯示新後台的處理記錄（資料表以 <span class="code">site=new</span> 區分）；舊頁面只顯示舊後台記錄（既有記錄視為舊後台）。</td></tr>
+          <tr><td>統計</td><td>新舊兩邊的成功記錄<strong>一併計入</strong>「回覆工單統計」的白名單建立工單數（兩個後台不會同時運行，不會重複計算）。</td></tr>
+          <tr><td>頁面權限</td><td>新增兩個頁面權限「Telegram：後台白名單處理(新)」「Teams：後台白名單處理(新)」，需在「帳號管理」另外授權給非超級管理員帳號。</td></tr>
+          <tr><td>站點設定</td><td>網域、帳號、密碼在 <span class="code">whitelist_service.NEW_SITE</span>，可用環境變數 <span class="code">WHITELIST_NEW_SITE_BASE</span>／<span class="code">WHITELIST_NEW_SITE_USER</span>／<span class="code">WHITELIST_NEW_SITE_PASS</span> 覆蓋。登入頁、登入、取清單、新增的路徑也集中在同一處，若新站某個路徑與舊站不同只需改這裡。</td></tr>
+          <tr><td>上線前驗證</td><td>在 <span class="code">backend</span> 目錄執行 <span class="code">tools/check_whitelist_site.py</span>：預設只檢查登入、取廠商清單與測試廠商 <span class="code">WinBet_1</span> 是否存在；加上 <span class="code">--add &lt;IP&gt;</span> 會真的對該測試廠商新增一筆 IP（請用不影響任何人的 IP，驗完到後台手動刪除）。</td></tr>
+        </tbody>
+      </table>
+
       <h3>自動偵測與比對規則</h3>
       <p style="color:var(--text-secondary); font-size:13.5px; margin-top:-4px">
         整體流程分成五大階段，由上而下依序判斷：<strong>⓪ 排除測試/UAT環境 → ① 排除表單 → ② 判斷是否為白名單請求 → ③ 解析帳號 → ④ 比對廠商</strong>。
@@ -1084,7 +1102,7 @@
 
       <h4 style="margin-top:22px">⓪ 測試／UAT 環境排除（比①更優先）</h4>
       <div class="callout warn" style="margin-top:8px">
-        目前只設定了一套<strong>正式環境</strong>白名單站點（單一網域＋單一組登入憑證，沒有對應的測試環境站點），若廠商訊息裡提到 <span class="code">staging</span>／<span class="code">測試</span>／<span class="code">测试</span>／<span class="code">test</span>／<span class="code">uat</span> 等字樣，一律<strong>完全跳過</strong>白名單自動處理（連下方「② 觸發關鍵字」都不會判斷），改走一般流程轉人工——因為系統根本沒有第二套站點可以對應，而不是去猜「這是哪個環境」。<br>
+        目前只設定了<strong>正式環境</strong>白名單站點（舊後台、新後台各一個網域與登入憑證，皆為正式環境，沒有對應的測試環境站點），若廠商訊息裡提到 <span class="code">staging</span>／<span class="code">測試</span>／<span class="code">测试</span>／<span class="code">test</span>／<span class="code">uat</span> 等字樣，一律<strong>完全跳過</strong>白名單自動處理（連下方「② 觸發關鍵字」都不會判斷），改走一般流程轉人工——因為系統根本沒有第二套站點可以對應，而不是去猜「這是哪個環境」。<br>
         <span class="code">test</span>／<span class="code">uat</span> 只有 3-4 個字母，採單字邊界比對，不會誤判 <span class="code">latest</span>／<span class="code">testing</span>／<span class="code">contest</span> 等字（比照下方「bo 縮寫」的處理方式）；中文與 <span class="code">staging</span> 較長、不易在其他語境下誤判，直接子字串比對即可。
       </div>
 

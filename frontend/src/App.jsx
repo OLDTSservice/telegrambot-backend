@@ -23,9 +23,11 @@ import TeamsIgnorePage from './pages/TeamsIgnorePage'
 import TelegramReplyStatsPage from './pages/TelegramReplyStatsPage'
 import TelegramLivePage from './pages/TelegramLivePage'
 import WhitelistPage from './pages/WhitelistPage'
+import WhitelistNewPage from './pages/WhitelistNewPage'
 import NetwinPage from './pages/NetwinPage'
 import TeamsReplyStatsPage from './pages/TeamsReplyStatsPage'
 import TeamsWhitelistPage from './pages/TeamsWhitelistPage'
+import TeamsWhitelistNewPage from './pages/TeamsWhitelistNewPage'
 import TeamsNetwinPage from './pages/TeamsNetwinPage'
 import TelegramBotAdminPage from './pages/TelegramBotAdminPage'
 
@@ -83,6 +85,7 @@ export default function App() {
         { key: '/telegram/reply-stats', icon: <LineChartOutlined />, label: '回覆工單統計' },
         { key: '/telegram/live', icon: <MessageOutlined />, label: '即時對話管控' },
         { key: '/telegram/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
+        { key: '/telegram/whitelist-new', icon: <SafetyOutlined />, label: '後台白名單處理(新)' },
         { key: '/telegram/netwin', icon: <LineChartOutlined />, label: '查輸贏回覆' },
       ],
     },
@@ -97,6 +100,7 @@ export default function App() {
         { key: '/teams/ignores', icon: <StopOutlined />, label: '忽略名單' },
         { key: '/teams/reply-stats', icon: <LineChartOutlined />, label: '回覆工單統計' },
         { key: '/teams/whitelist', icon: <SafetyOutlined />, label: '後台白名單處理' },
+        { key: '/teams/whitelist-new', icon: <SafetyOutlined />, label: '後台白名單處理(新)' },
         { key: '/teams/netwin', icon: <LineChartOutlined />, label: '查輸贏回覆' },
       ],
     },
@@ -189,6 +193,7 @@ export default function App() {
             <Route path="/telegram/reply-stats" element={guard('/telegram/reply-stats', () => <TelegramReplyStatsPage />)} />
             <Route path="/telegram/live" element={guard('/telegram/live', u => <TelegramLivePage user={u} />)} />
             <Route path="/telegram/whitelist" element={guard('/telegram/whitelist', u => <WhitelistPage user={u} />)} />
+            <Route path="/telegram/whitelist-new" element={guard('/telegram/whitelist-new', u => <WhitelistNewPage user={u} />)} />
             <Route path="/telegram/netwin" element={guard('/telegram/netwin', u => <NetwinPage user={u} />)} />
             <Route path="/teams/bots" element={guard('/teams/bots', u => <TeamsBotsPage user={u} />)} />
             <Route path="/teams/rules" element={guard('/teams/rules', u => <TeamsRulesPage user={u} />)} />
@@ -196,6 +201,7 @@ export default function App() {
             <Route path="/teams/ignores" element={guard('/teams/ignores', u => <TeamsIgnorePage user={u} />)} />
             <Route path="/teams/reply-stats" element={guard('/teams/reply-stats', () => <TeamsReplyStatsPage />)} />
             <Route path="/teams/whitelist" element={guard('/teams/whitelist', u => <TeamsWhitelistPage user={u} />)} />
+            <Route path="/teams/whitelist-new" element={guard('/teams/whitelist-new', u => <TeamsWhitelistNewPage user={u} />)} />
             <Route path="/teams/netwin" element={guard('/teams/netwin', u => <TeamsNetwinPage user={u} />)} />
             <Route path="/stats" element={guard('/stats', () => <StatsPage />)} />
             <Route path="/users" element={

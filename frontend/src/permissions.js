@@ -9,6 +9,7 @@ export const PAGES = [
   { key: 'telegram_reply_stats', path: '/telegram/reply-stats', group: 'Telegram 機器人', label: '回覆工單統計' },
   { key: 'telegram_live', path: '/telegram/live', group: 'Telegram 機器人', label: '即時對話管控' },
   { key: 'telegram_whitelist', path: '/telegram/whitelist', group: 'Telegram 機器人', label: '後台白名單處理' },
+  { key: 'telegram_whitelist_new', path: '/telegram/whitelist-new', group: 'Telegram 機器人', label: '後台白名單處理(新)' },
   { key: 'telegram_netwin', path: '/telegram/netwin', group: 'Telegram 機器人', label: '查輸贏回覆' },
   { key: 'teams_bots', path: '/teams/bots', group: 'Teams 機器人', label: '機器人管理' },
   { key: 'teams_rules', path: '/teams/rules', group: 'Teams 機器人', label: '關鍵字規則' },
@@ -16,6 +17,7 @@ export const PAGES = [
   { key: 'teams_ignores', path: '/teams/ignores', group: 'Teams 機器人', label: '忽略名單' },
   { key: 'teams_reply_stats', path: '/teams/reply-stats', group: 'Teams 機器人', label: '回覆工單統計' },
   { key: 'teams_whitelist', path: '/teams/whitelist', group: 'Teams 機器人', label: '後台白名單處理' },
+  { key: 'teams_whitelist_new', path: '/teams/whitelist-new', group: 'Teams 機器人', label: '後台白名單處理(新)' },
   { key: 'teams_netwin', path: '/teams/netwin', group: 'Teams 機器人', label: '查輸贏回覆' },
   { key: 'usage_stats', path: '/stats', group: '其他', label: '使用量統計' },
 ]

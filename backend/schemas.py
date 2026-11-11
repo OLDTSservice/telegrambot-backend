@@ -60,6 +60,7 @@ class BotUpdate(BaseModel):
     is_enabled: Optional[bool] = None
     is_managed: Optional[bool] = None
     whitelist_enabled: Optional[bool] = None
+    whitelist_new_enabled: Optional[bool] = None
     game_asset_enabled: Optional[bool] = None
     tada_asset_enabled: Optional[bool] = None
     tada_gamelist_query_enabled: Optional[bool] = None
@@ -80,6 +81,7 @@ class BotOut(BotBase):
     is_enabled: bool
     is_managed: bool = False
     whitelist_enabled: bool = False
+    whitelist_new_enabled: bool = False
     game_asset_enabled: bool = False
     tada_asset_enabled: bool = False
     tada_gamelist_query_enabled: bool = False
@@ -259,6 +261,7 @@ class TeamsBotUpdate(BaseModel):
     name: Optional[str] = None
     is_enabled: Optional[bool] = None
     whitelist_enabled: Optional[bool] = None
+    whitelist_new_enabled: Optional[bool] = None
     whitelist_mode: Optional[str] = None       # log_only / no_reply / full
     poll_interval_sec: Optional[int] = None
     netwin_query_enabled: Optional[bool] = None
@@ -274,6 +277,7 @@ class TeamsBotOut(BaseModel):
     account_email: Optional[str] = None
     is_enabled: bool
     whitelist_enabled: bool = False
+    whitelist_new_enabled: bool = False
     whitelist_mode: str = "full"
     poll_interval_sec: int = 20
     netwin_query_enabled: bool = False

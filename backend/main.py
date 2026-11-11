@@ -21,6 +21,10 @@ def _migrate_columns():
     migrations = [
         "ALTER TABLE telegram_bots ADD COLUMN is_managed BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_bots ADD COLUMN whitelist_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE telegram_bots ADD COLUMN whitelist_new_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE whitelist_logs ADD COLUMN site VARCHAR(8) DEFAULT 'old'",
+        "ALTER TABLE teams_whitelist_logs ADD COLUMN site VARCHAR(8) DEFAULT 'old'",
+        "ALTER TABLE teams_bots ADD COLUMN whitelist_new_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE telegram_messages ADD COLUMN telegram_message_id INTEGER",
         "ALTER TABLE usage_stats ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
         "ALTER TABLE usage_stats ADD COLUMN cache_write_tokens INTEGER DEFAULT 0",

@@ -9,6 +9,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import models
@@ -22,9 +23,11 @@ router = APIRouter(prefix="/api/teams-bots", tags=["Teams機器人"])
 _VIEW_BOTS = require_page_view("teams_bots")
 _EDIT_BOTS = require_page_edit("teams_bots")
 _WL_PAGES = ("teams_bots", "teams_whitelist")
+_WL_NEW_PAGES = ("teams_bots", "teams_whitelist_new")
 _NW_PAGES = ("teams_bots", "teams_netwin")
 _TEAMS_BOT_FIELD_PAGES = {
-    "whitelist_enabled": _WL_PAGES, "whitelist_mode": _WL_PAGES,
+    "whitelist_enabled": _WL_PAGES, "whitelist_new_enabled": _WL_NEW_PAGES,
+    "whitelist_mode": _WL_PAGES + ("teams_whitelist_new",),
     "netwin_query_enabled": _NW_PAGES, "netwin_mode": _NW_PAGES, "netwin_source_bot_id": _NW_PAGES,
 }
 
@@ -35,6 +38,7 @@ def _to_out(bot: models.TeamsBot) -> dict:
         "account_mri": bot.account_mri, "account_name": bot.account_name, "account_email": bot.account_email,
         "is_enabled": bool(bot.is_enabled),
         "whitelist_enabled": bool(bot.whitelist_enabled),
+        "whitelist_new_enabled": bool(bot.whitelist_new_enabled),
         "whitelist_mode": bot.whitelist_mode or "full",
         "poll_interval_sec": bot.poll_interval_sec or 20,
         "netwin_query_enabled": bool(bot.netwin_query_enabled),
@@ -63,10 +67,16 @@ def list_teams_bots(db: Session = Depends(get_db), _=Depends(require_viewer)):
 @router.put("/{bot_id}", response_model=schemas.TeamsBotOut)
 def update_teams_bot(bot_id: int, payload: schemas.TeamsBotUpdate,
                      db: Session = Depends(get_db),
-                     current_user=Depends(require_page_edit("teams_bots", "teams_whitelist", "teams_netwin"))):
+                     current_user=Depends(require_page_edit("teams_bots", "teams_whitelist", "teams_whitelist_new",
+                                                         "teams_netwin"))):
     bot = _get_bot(db, bot_id)
     data = payload.model_dump(exclude_none=True)
     ensure_field_permissions(current_user, data.keys(), _TEAMS_BOT_FIELD_PAGES, ("teams_bots",))
+    # 舊後台／新後台白名單開關互斥：同一機器人同時只會跑其中一個站點
+    if data.get("whitelist_enabled") and data.get("whitelist_new_enabled", bot.whitelist_new_enabled):
+        raise HTTPException(status_code=400, detail="「後台白名單處理(新)」已開啟，請先關閉後才能開啟舊版")
+    if data.get("whitelist_new_enabled") and data.get("whitelist_enabled", bot.whitelist_enabled):
+        raise HTTPException(status_code=400, detail="舊版「後台白名單處理」已開啟，請先關閉後才能開啟新版")
     if "whitelist_mode" in data and data["whitelist_mode"] not in ("log_only", "no_reply", "full"):
         raise HTTPException(status_code=400, detail="whitelist_mode 只能是 log_only / no_reply / full")
     if "netwin_mode" in data and data["netwin_mode"] not in ("log_only", "no_reply", "full"):
@@ -234,16 +244,28 @@ def update_group(bot_id: int, chat_id: str, payload: schemas.TeamsGroupUpdateIn,
 
 
 # ── 白名單處理紀錄 ──────────────────────────────────────────────────────────
-@router.get("/{bot_id}/whitelist-logs", response_model=List[schemas.TeamsWhitelistLogOut])
-def whitelist_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db),
-                   _=Depends(require_page_view("teams_whitelist"))):
+def _whitelist_logs(db: Session, bot_id: int, limit: int, site: str):
+    # 既有紀錄的 site 為 NULL／'old'，一律視為舊後台
     return (
         db.query(models.TeamsWhitelistLog)
-        .filter(models.TeamsWhitelistLog.bot_id == bot_id)
+        .filter(models.TeamsWhitelistLog.bot_id == bot_id,
+                func.coalesce(models.TeamsWhitelistLog.site, "old") == site)
         .order_by(models.TeamsWhitelistLog.created_at.desc())
         .limit(limit)
         .all()
     )
+
+
+@router.get("/{bot_id}/whitelist-logs", response_model=List[schemas.TeamsWhitelistLogOut])
+def whitelist_logs(bot_id: int, limit: int = 50, db: Session = Depends(get_db),
+                   _=Depends(require_page_view("teams_whitelist"))):
+    return _whitelist_logs(db, bot_id, limit, "old")
+
+
+@router.get("/{bot_id}/whitelist-logs-new", response_model=List[schemas.TeamsWhitelistLogOut])
+def whitelist_logs_new(bot_id: int, limit: int = 50, db: Session = Depends(get_db),
+                       _=Depends(require_page_view("teams_whitelist_new"))):
+    return _whitelist_logs(db, bot_id, limit, "new")
 
 
 # ── 查輸贏回覆紀錄 ──────────────────────────────────────────────────────────

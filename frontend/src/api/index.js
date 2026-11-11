@@ -71,6 +71,8 @@ export const updateTeamsGroup = (botId, chatId, d) =>
   api.put(`/teams-bots/${botId}/groups/${encodeURIComponent(chatId)}`, d)
 export const getTeamsWhitelistLogs = (botId, limit = 50) =>
   api.get(`/teams-bots/${botId}/whitelist-logs`, { params: { limit } })
+export const getTeamsWhitelistLogsNew = (botId, limit = 50) =>
+  api.get(`/teams-bots/${botId}/whitelist-logs-new`, { params: { limit } })
 export const getTeamsNetwinLogs = (botId, limit = 50) =>
   api.get(`/teams-bots/${botId}/netwin-logs`, { params: { limit } })
 export const recallTeamsWhitelistReply = (botId, logId) =>
@@ -124,6 +126,8 @@ export const getTeamsTicketCounts = (params) =>
 // ── Whitelist 後台白名單處理 ───────────────────
 export const getWhitelistLogs = (botId, limit = 10) =>
   api.get('/whitelist/logs', { params: { bot_id: botId, limit } })
+export const getWhitelistLogsNew = (botId, limit = 50) =>
+  api.get('/whitelist/logs-new', { params: { bot_id: botId, limit } })
 
 // ── Netwin 查輸贏回覆 ──────────────────────────
 export const getNetwinLogs = (botId, limit = 50) =>

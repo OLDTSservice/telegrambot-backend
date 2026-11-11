@@ -67,8 +67,8 @@ export default function WhitelistPage({ user }) {
       await updateBot(selectedBotId, { whitelist_enabled: checked })
       setWhitelistEnabled(checked)
       message.success(checked ? '白名單自動處理已啟用' : '白名單自動處理已關閉')
-    } catch {
-      message.error('切換失敗')
+    } catch (e) {
+      message.error(e.response?.data?.detail || '切換失敗')
     }
   }
 

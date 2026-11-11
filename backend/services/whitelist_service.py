@@ -15,6 +15,26 @@ SITE_BASE = os.getenv("WHITELIST_SITE_BASE", "https://wb-api4.jlfafafa3.com")
 SITE_USER = os.getenv("WHITELIST_SITE_USER", "TESTwhitelist")
 SITE_PASS = os.getenv("WHITELIST_SITE_PASS", "Igs22995048")
 
+# 站點設定：登入／取廠商清單／新增白名單所需的網址與帳密。舊後台與新後台（tj-report）目前採同一套
+# 後台流程（登入頁、/do-login、WhiteListController、white-list-ip-settingForm），只有網域與密碼不同，
+# 所以 run_whitelist_sync 以 site 參數切換；新站若某個路徑與舊站不同，只要改下面 NEW_SITE 的對應欄位。
+# 新後台帳號僅有白名單功能權限，帳密預設值直接寫在程式內（也可用環境變數覆蓋）。
+_SITE_PATHS = {
+    "login_page": "/login",
+    "do_login": "/do-login",
+    "init": "/admin/maintenance/controller/WhiteListController",
+    "referer": "/admin/maintenance/white-list-ip-setting",
+    "save": "/admin/maintenance/white-list-ip-settingForm",
+}
+OLD_SITE = {"label": "old", "base": SITE_BASE, "user": SITE_USER, "password": SITE_PASS, **_SITE_PATHS}
+NEW_SITE = {
+    "label": "new",
+    "base": os.getenv("WHITELIST_NEW_SITE_BASE", "https://tj-report.jlfafafa2.com"),
+    "user": os.getenv("WHITELIST_NEW_SITE_USER", "TESTwhitelist"),
+    "password": os.getenv("WHITELIST_NEW_SITE_PASS", "@Igs22995048"),
+    **_SITE_PATHS,
+}
+
 # 內部後台系統網址（逗號分隔，可設定多個），訊息中出現即視為強烈的「後台白名單」信號。
 # 未設定（空字串）時規則三完全不啟用，不影響既有規則一/規則二的判斷。
 _ADMIN_DOMAINS = [
@@ -241,24 +261,26 @@ def parse_whitelist_request(text: str) -> tuple[Optional[str], list[list[str]], 
 
 
 def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None,
-                       forced_vendor_name: str = None) -> tuple[bool, Optional[str], bool]:
+                       forced_vendor_name: str = None, site: dict = None) -> tuple[bool, Optional[str], bool]:
     """同步 HTTP 流程，直接在 asyncio.to_thread 的執行緒中執行
 
     forced_vendor_name：指定時代表「單一總代理」群組模式（訊息沒有帳號，只有 IP+關鍵字），
     跳過帳號比對邏輯，直接以此名稱精確比對（忽略大小寫）廠商清單。
+    site：要操作的後台站點設定（OLD_SITE／NEW_SITE），不指定時為舊後台（既有行為）。
     """
-    logger.info(f"[Whitelist] 開始（HTTP 模式）：username_parts={username_parts}, IPs={ips}, forced_vendor_name={forced_vendor_name}")
+    site = site or OLD_SITE
+    logger.info(f"[Whitelist] 開始（HTTP 模式，站點={site['label']}）：username_parts={username_parts}, IPs={ips}, forced_vendor_name={forced_vendor_name}")
 
-    with httpx.Client(base_url=SITE_BASE, follow_redirects=True, timeout=60) as client:
+    with httpx.Client(base_url=site["base"], follow_redirects=True, timeout=60) as client:
         try:
             # ── Step 1：GET 登入頁取得 session cookie ─────────
-            client.get("/login")
+            client.get(site["login_page"])
             logger.info(f"[Whitelist] 已取得 session，cookies={dict(client.cookies)}")
 
             # ── Step 2：POST /do-login（不需 reCAPTCHA）───────
-            login_r = client.post("/do-login", data={
-                "account": SITE_USER,
-                "password": SITE_PASS,
+            login_r = client.post(site["do_login"], data={
+                "account": site["user"],
+                "password": site["password"],
                 "rememberMe": "0",
             })
             login_json = login_r.json()
@@ -271,11 +293,11 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
 
             # ── Step 3：取廠商清單 ────────────────────────────
             init_r = client.post(
-                "/admin/maintenance/controller/WhiteListController",
+                site["init"],
                 data={"action": "init"},
                 headers={
                     "X-Requested-With": "XMLHttpRequest",
-                    "Referer": f"{SITE_BASE}/admin/maintenance/white-list-ip-setting",
+                    "Referer": f"{site['base']}{site['referer']}",
                 },
             )
             logger.info(f"[Whitelist] WhiteListController status={init_r.status_code}, size={len(init_r.content)}")
@@ -511,7 +533,7 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
                 form_list.append(("form[ip][]", ip))
 
             save_r = client.post(
-                "/admin/maintenance/white-list-ip-settingForm",
+                site["save"],
                 content=urllib.parse.urlencode(form_list).encode(),
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -533,3 +555,10 @@ def run_whitelist_sync(username_parts: list[str], ips: list[str], allowed_vendor
         except Exception as e:
             logger.error(f"[Whitelist] 例外：{e}", exc_info=True)
             return False, None, False
+
+
+def run_whitelist_sync_new(username_parts: list[str], ips: list[str], allowed_vendor_prefixes: list[str] = None,
+                           forced_vendor_name: str = None) -> tuple[bool, Optional[str], bool]:
+    """新後台（tj-report）版本：流程與比對邏輯同 run_whitelist_sync，只是站點與帳密換成 NEW_SITE。"""
+    return run_whitelist_sync(username_parts, ips, allowed_vendor_prefixes,
+                              forced_vendor_name=forced_vendor_name, site=NEW_SITE)

@@ -32,6 +32,8 @@ class TelegramBot(Base):
 
     is_managed = Column(Boolean, default=False)       # 即時對話管控總開關
     whitelist_enabled = Column(Boolean, default=False) # 後台白名單自動處理開關
+    # 新後台（tj-report）白名單自動處理開關；與舊後台開關互斥（同一機器人只會跑其中一個站點）
+    whitelist_new_enabled = Column(Boolean, default=False)
     game_asset_enabled = Column(Boolean, default=False) # JILI 遊戲素材查詢開關
     tada_asset_enabled = Column(Boolean, default=False) # TADA 遊戲素材查詢開關
     tada_gamelist_query_enabled = Column(Boolean, default=False) # TADA Gamelist進階查詢開關（熱門排行/欄位查詢/複合篩選）
@@ -279,6 +281,7 @@ class WhitelistLog(Base):
     full_username = Column(String(255), nullable=True) # 完整代理帳號（如 Ogpro_GOLDBET9AU_MYR）
     ip_list = Column(Text, nullable=False)              # 換行分隔的 IP 列表
     status = Column(String(16), default="success")     # success / failed
+    site = Column(String(8), default="old")            # old＝舊後台 / new＝新後台（tj-report）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bot = relationship("TelegramBot", back_populates="whitelist_logs")
@@ -353,6 +356,7 @@ class TeamsBot(Base):
     account_email = Column(String(255), nullable=True)     # 登入時 id_token 的 preferred_username
     poll_interval_sec = Column(Integer, default=20)        # 輪詢間隔；伺服器限 15 次/分，別低於 10 秒
     whitelist_enabled = Column(Boolean, default=False)     # 後台白名單自動處理開關
+    whitelist_new_enabled = Column(Boolean, default=False)  # 新後台白名單自動處理開關（與舊開關互斥）
     # log_only：只偵測、寫紀錄，不打後台、不回覆（上線前觀察誤判用）
     # no_reply：打後台加白、寫紀錄，但不在群組回覆
     # full：打後台 + 回覆 Done / 拒絕訊息 + 建工單
@@ -430,6 +434,7 @@ class TeamsWhitelistLog(Base):
     full_username = Column(String(255), nullable=True)
     ip_list = Column(Text, nullable=False)
     status = Column(String(16), default="success")     # success / failed / rejected / log_only
+    site = Column(String(8), default="old")            # old＝舊後台 / new＝新後台（tj-report）
     reply_sent = Column(Boolean, default=False)
     # 機器人自己送出的回覆（收回用）：Teams 回傳的訊息 id，拿不到時改用送出時自訂的 clientmessageid 反查
     reply_msg_id = Column(String(32), nullable=True)

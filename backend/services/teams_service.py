@@ -379,13 +379,13 @@ def _record_teams_group_stat(bot_id: int, conversation_id: str, conv_name: str, 
 
 
 def _save_whitelist_log(db, bot_id, chat_id, chat_name, msg_id, sender, vendor_name, ips,
-                        status, full_username=None, reply_sent=False, sender_mri=None):
+                        status, full_username=None, reply_sent=False, sender_mri=None, site="old"):
     import models
     db.add(models.TeamsWhitelistLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name, msg_id=str(msg_id), sender=sender,
         sender_mri=sender_mri,
         vendor_name=vendor_name, full_username=full_username, ip_list="\n".join(ips),
-        status=status, reply_sent=reply_sent,
+        status=status, reply_sent=reply_sent, site=site,
     ))
     try:
         db.commit()
@@ -529,7 +529,7 @@ class TeamsWatcher(threading.Thread):
         logger.info(f"[Teams {bot.id}] [{chat_name}] {sender_name}: {text[:80]!r}")
 
         # 順序同 Telegram：白名單優先，沒被白名單處理掉的訊息才判斷查輸贏
-        if bot.whitelist_enabled and self._try_whitelist(db, bot, setting, chat_id, chat_name, m,
+        if (bot.whitelist_enabled or bot.whitelist_new_enabled) and self._try_whitelist(db, bot, setting, chat_id, chat_name, m,
                                                          sender_mri, sender_name, text):
             return
         if bot.netwin_query_enabled and setting and setting.netwin_enabled:
@@ -587,8 +587,13 @@ class TeamsWatcher(threading.Thread):
     def _handle_whitelist(self, db, bot, setting, chat_id, chat_name, m, sender_name, text) -> bool:
         """回傳 False＝解析不出帳號/IP（同 Telegram，繼續往下判斷查輸贏）；其餘皆 True。"""
         import models
-        from services.whitelist_service import parse_whitelist_request, run_whitelist_sync
+        from services.whitelist_service import parse_whitelist_request, run_whitelist_sync, run_whitelist_sync_new
         from services.telegram_service import _create_freshdesk_ticket_bg
+
+        # 舊後台／新後台（tj-report）開關互斥；萬一兩個都開，保守以舊後台為準（同 Telegram）
+        use_new = bool(bot.whitelist_new_enabled) and not bot.whitelist_enabled
+        site = "new" if use_new else "old"
+        run_sync = run_whitelist_sync_new if use_new else run_whitelist_sync
 
         # 查重：同一則訊息只加白一次（防程式在寫回進度前被砍掉、重啟後重看同一則）
         if db.query(models.TeamsWhitelistLog).filter(
@@ -622,13 +627,13 @@ class TeamsWatcher(threading.Thread):
                 _save_whitelist_log(db, bot.id, chat_id, chat_name, m["id"], sender_name,
                                     (parts[0] if parts else forced) or "unknown", ips, "log_only",
                                     full_username="_".join(parts) if parts else f"(單一總代理：{forced})",
-                                    sender_mri=sender_mri)
+                                    sender_mri=sender_mri, site=site)
             return True
 
         any_success = any_rejected = False
         for parts, forced in jobs:
             try:
-                success, matched, rejected = run_whitelist_sync(parts, ips, allowed_vendors, forced_vendor_name=forced)
+                success, matched, rejected = run_sync(parts, ips, allowed_vendors, forced_vendor_name=forced)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"[Teams {bot.id}] 白名單自動化例外：{e}", exc_info=True)
                 success, matched, rejected = False, None, False
@@ -637,7 +642,7 @@ class TeamsWatcher(threading.Thread):
                                 matched or (parts[0] if parts else forced) or "unknown", ips, status,
                                 full_username="_".join(parts) if parts else f"(單一總代理：{forced})",
                                 reply_sent=(mode == "full" and (success or rejected)),
-                                sender_mri=sender_mri)
+                                sender_mri=sender_mri, site=site)
             any_success |= success
             any_rejected |= rejected
 

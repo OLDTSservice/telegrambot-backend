@@ -1097,8 +1097,16 @@ class BotManager:
                 if v.strip()
             ]
 
-        if bot_record.whitelist_enabled and not _is_application_form(text) and not _is_staging_environment_request(text):
-            from services.whitelist_service import detect_whitelist_request, parse_whitelist_request, run_whitelist_sync
+        # 舊後台／新後台（tj-report）白名單開關互斥（API 層已擋同時開啟）；萬一資料上兩個都開，保守以舊後台為準。
+        _wl_use_new = bool(bot_record.whitelist_new_enabled) and not bot_record.whitelist_enabled
+        _wl_site = "new" if _wl_use_new else "old"
+        if ((bot_record.whitelist_enabled or bot_record.whitelist_new_enabled)
+                and not _is_application_form(text) and not _is_staging_environment_request(text)):
+            from services.whitelist_service import (
+                detect_whitelist_request, parse_whitelist_request, run_whitelist_sync, run_whitelist_sync_new,
+            )
+            if _wl_use_new:
+                run_whitelist_sync = run_whitelist_sync_new
             _relaxed_bo = bool(_group_setting.relaxed_bo_detect if _group_setting else False)
             if detect_whitelist_request(text, relaxed=_relaxed_bo):
                 vendor_code, all_parts, ips = parse_whitelist_request(text)
@@ -1119,7 +1127,7 @@ class BotManager:
                         _save_whitelist_log(bot_id, chat_id, chat_name,
                                             log_vendor, "\n".join(ips),
                                             "success" if success else "failed", db,
-                                            full_username="_".join(username_parts))
+                                            full_username="_".join(username_parts), site=_wl_site)
                         if success:
                             any_success = True
                         if vendor_rejected:
@@ -1165,7 +1173,8 @@ class BotManager:
                     _save_whitelist_log(bot_id, chat_id, chat_name,
                                         matched_vendor or _group_setting.single_vendor_name, "\n".join(ips),
                                         "success" if success else "failed", db,
-                                        full_username=f"(單一總代理：{_group_setting.single_vendor_name})")
+                                        full_username=f"(單一總代理：{_group_setting.single_vendor_name})",
+                                        site=_wl_site)
                     if success:
                         try:
                             await update.message.reply_text("Done")
@@ -1717,11 +1726,12 @@ def _save_no_answer_log(bot_id, chat_id, chat_name, question, db,
         db.rollback()
 
 
-def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status, db, full_username=None):
+def _save_whitelist_log(bot_id, chat_id, chat_name, vendor_name, ip_list, status, db, full_username=None,
+                        site="old"):
     import models
     log = models.WhitelistLog(
         bot_id=bot_id, chat_id=chat_id, chat_name=chat_name,
-        vendor_name=vendor_name, full_username=full_username, ip_list=ip_list, status=status,
+        vendor_name=vendor_name, full_username=full_username, ip_list=ip_list, status=status, site=site,
     )
     db.add(log)
     try:

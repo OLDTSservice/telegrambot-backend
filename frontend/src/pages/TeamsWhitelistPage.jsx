@@ -63,7 +63,8 @@ export default function TeamsWhitelistPage({ user }) {
       const r = await updateTeamsBot(botId, patch)
       setBots(prev => prev.map(b => b.id === botId ? r.data : b))
       message.success(okMsg)
-    } catch (e) { message.error(e.response?.data?.detail || '更新失敗') }
+      return true
+    } catch (e) { message.error(e.response?.data?.detail || '更新失敗'); return false }
   }
 
   const logColumns = columns.map(c => {
@@ -98,7 +99,7 @@ export default function TeamsWhitelistPage({ user }) {
           <Space>
             <Text strong>自動白名單處理：</Text>
             <Switch checked={enabled} disabled={!canEdit || !botId} checkedChildren="啟用" unCheckedChildren="關閉"
-              onChange={c => { setEnabled(c); save({ whitelist_enabled: c }, c ? '白名單自動處理已啟用' : '白名單自動處理已關閉') }} />
+              onChange={async c => { setEnabled(c); if (!(await save({ whitelist_enabled: c }, c ? '白名單自動處理已啟用' : '白名單自動處理已關閉'))) setEnabled(!c) }} />
           </Space>
           <Space>
             <Text strong>模式：</Text>

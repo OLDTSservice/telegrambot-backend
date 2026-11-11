@@ -13,6 +13,7 @@ _NETWIN_PAGES = ("telegram_bots", "telegram_netwin")
 _BOT_FIELD_PAGES = {
     "is_managed": ("telegram_bots", "telegram_live"),
     "whitelist_enabled": ("telegram_bots", "telegram_whitelist"),
+    "whitelist_new_enabled": ("telegram_bots", "telegram_whitelist_new"),
     "netwin_query_enabled": _NETWIN_PAGES, "netwin_key_id": _NETWIN_PAGES, "netwin_api_key": _NETWIN_PAGES,
     "netwin_api_base_url": _NETWIN_PAGES, "netwin_threshold": _NETWIN_PAGES, "netwin_reply_zh": _NETWIN_PAGES,
     "netwin_reply_en": _NETWIN_PAGES, "netwin_reply_delay_seconds": _NETWIN_PAGES,
@@ -62,7 +63,8 @@ def create_bot(payload: schemas.BotCreate, db: Session = Depends(get_db), _=Depe
 @router.put("/{bot_id}", response_model=schemas.BotOut)
 def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(get_db),
                current_user=Depends(require_page_edit("telegram_bots", "telegram_live",
-                                                      "telegram_whitelist", "telegram_netwin"))):
+                                                      "telegram_whitelist", "telegram_whitelist_new",
+                                                      "telegram_netwin"))):
     ensure_field_permissions(current_user, payload.model_dump(exclude_unset=True).keys(),
                              _BOT_FIELD_PAGES, ("telegram_bots",))
     bot = db.query(models.TelegramBot).filter(models.TelegramBot.id == bot_id).first()
@@ -80,8 +82,17 @@ def update_bot(bot_id: int, payload: schemas.BotUpdate, db: Session = Depends(ge
         bot.token = payload.token
     if payload.is_managed is not None:
         bot.is_managed = payload.is_managed
+    # 舊後台／新後台白名單開關互斥：同一機器人同時只會跑其中一個站點，避免重複加白與重複回覆
+    if payload.whitelist_enabled:
+        if payload.whitelist_new_enabled or (payload.whitelist_new_enabled is None and bot.whitelist_new_enabled):
+            raise HTTPException(status_code=400, detail="「後台白名單處理(新)」已開啟，請先關閉後才能開啟舊版")
+    if payload.whitelist_new_enabled:
+        if payload.whitelist_enabled or (payload.whitelist_enabled is None and bot.whitelist_enabled):
+            raise HTTPException(status_code=400, detail="舊版「後台白名單處理」已開啟，請先關閉後才能開啟新版")
     if payload.whitelist_enabled is not None:
         bot.whitelist_enabled = payload.whitelist_enabled
+    if payload.whitelist_new_enabled is not None:
+        bot.whitelist_new_enabled = payload.whitelist_new_enabled
     if payload.game_asset_enabled is not None:
         bot.game_asset_enabled = payload.game_asset_enabled
     if payload.tada_asset_enabled is not None:

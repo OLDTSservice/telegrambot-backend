@@ -72,10 +72,10 @@ require_viewer = require_role("superadmin", "editor", "viewer")
 # 「帳號管理」不在其中：固定只有超級管理員能使用。
 PAGE_KEYS = (
     "telegram_bots", "telegram_rules", "telegram_knowledge", "telegram_ignores",
-    "telegram_bot_admins", "telegram_reply_stats", "telegram_live", "telegram_whitelist",
+    "telegram_bot_admins", "telegram_reply_stats", "telegram_live", "telegram_whitelist", "telegram_whitelist_new",
     "telegram_netwin",
     "teams_bots", "teams_rules", "teams_knowledge", "teams_ignores",
-    "teams_reply_stats", "teams_whitelist", "teams_netwin",
+    "teams_reply_stats", "teams_whitelist", "teams_whitelist_new", "teams_netwin",
     "usage_stats",
 )
 
