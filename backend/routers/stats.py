@@ -212,11 +212,18 @@ def get_recent_queries(
 ):
     """合併「有解答」與「無解答」兩種知識庫呼叫紀錄，依時間排序取最新 N 筆。
     無解答的呼叫同樣會消耗 Token（Claude 判斷找不到答案也要付費），
-    但過去只記錄在 NoAnswerLog、不會出現在這份清單，容易讓人誤以為沒有消耗。"""
-    answered = db.query(models.ConversationLog).order_by(
+    但過去只記錄在 NoAnswerLog、不會出現在這份清單，容易讓人誤以為沒有消耗。
+    只列出實際有消耗 Token（也就是有費用）的紀錄：四種 Token 都是 0 的紀錄（例如關鍵字規則、
+    遊戲素材查詢、管控模式尚未送出前的紀錄）沒有花費，不列入；過濾在查詢階段做，
+    所以顯示的是「最近 N 筆有花費的」，不會因為前面夾雜 0 花費紀錄而不足 N 筆。"""
+    def _spent(m):
+        return (func.coalesce(m.input_tokens, 0) + func.coalesce(m.output_tokens, 0)
+                + func.coalesce(m.cache_read_tokens, 0) + func.coalesce(m.cache_write_tokens, 0)) > 0
+
+    answered = db.query(models.ConversationLog).filter(_spent(models.ConversationLog)).order_by(
         models.ConversationLog.created_at.desc()
     ).limit(limit).all()
-    unanswered = db.query(models.NoAnswerLog).order_by(
+    unanswered = db.query(models.NoAnswerLog).filter(_spent(models.NoAnswerLog)).order_by(
         models.NoAnswerLog.created_at.desc()
     ).limit(limit).all()
 

@@ -297,10 +297,10 @@ export default function StatsPage() {
       {/* 最近 20 筆查詢 Token 紀錄 */}
       <Card
         title="最近 20 筆知識庫查詢 Token 紀錄"
-        extra={<Text type="secondary" style={{ fontSize: 12 }}>含「無解答」呼叫（AI 判斷找不到答案時仍會消耗 Token）</Text>}
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>只顯示有消耗 Token（有花費）的紀錄；含「無解答」呼叫（AI 判斷找不到答案時仍會消耗 Token）</Text>}
       >
         {recentQueries.length === 0 ? (
-          <Empty description="尚無查詢紀錄" />
+          <Empty description="尚無有消耗 Token 的查詢紀錄" />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
