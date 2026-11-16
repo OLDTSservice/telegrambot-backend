@@ -101,6 +101,7 @@ _NETWIN_TRIGGER_WORDS = (
     "存在异常", "存在異常", "异常刷水", "異常刷水", "投注行为", "投注行為",
     "suspicious betting", "opposite betting",
     "bet of this player is valid", "bet is valid", "bets are valid",
+    "返奖是否正确", "返獎是否正確", "返奖是否正常", "返獎是否正常",
 )
 
 
@@ -130,18 +131,21 @@ def detect_netwin_query_request(text: str) -> bool:
 # 停止比對，所以「K2817843157298307@api-2882.game」這種帳號後面帶 @網域 的完整
 # account 格式，會自然只擷取到「@」前面的 name 部分，不需要額外處理。
 _LABELED_PATTERNS = (
-    re.compile(r'player[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'玩家[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r"member(?:'s|’s)?[\s_-]*username\s*[:：]\s*([A-Za-z0-9_]+)", re.IGNORECASE),
-    re.compile(r'game[\s_-]*account\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'user[\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'用[户戶][\s_-]*id\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'player[\s_-]*id\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    # 「会员ID：」「會員ID：」（會員編號當帳號用）。「会员」與「ID」之間沒有字界，泛用 \bid 規則比不到，
+    # 也不符合下方「會員(號)：」標籤（中間夾了 ID），所以獨立列一條。
+    re.compile(r'[会會][员員][\s_-]*id\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'玩家[\s_-]*id\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r"member(?:'s|’s)?[\s_-]*username\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)", re.IGNORECASE),
+    re.compile(r'game[\s_-]*account\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'user[\s_-]*id\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'用[户戶][\s_-]*id\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     # 「UID:」（User ID 縮寫）。前面用負向 lookbehind 而非 \b：「玩家UID：」這種中文字直接相接
     # 的寫法 \b 判斷不出字界，但仍要排除 GUID: 之類英數字緊接在前的字。
-    re.compile(r'(?<![A-Za-z0-9_])uid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'(?<![A-Za-z0-9_])uid\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
     # 「Username :」（單獨的 username 欄位，Member username 已在上面優先比對）。
-    re.compile(r'(?<![A-Za-z0-9_])user[\s_-]*name\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
-    re.compile(r'\bplayer\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'(?<![A-Za-z0-9_])user[\s_-]*name\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
+    re.compile(r'\bplayer\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE),
 )
 # 泛用「ID：」／中文「帳號：」「會員：」「用戶：」標籤（比對到單獨的帳號欄位，例如
 # 「ID : QOGABAE011O2」或「玩家賬號 : 2n3401167716」，含簡繁「帳/賬/帐」與「號/戶/户」
@@ -159,10 +163,10 @@ _LABELED_PATTERNS = (
 _NON_ACCOUNT_ID_PREFIXES = ("kiosk", "agent", "bet", "round", "game", "ticket", "order", "transaction", "wager")
 _GENERIC_ID_RE = re.compile(
     "".join(f"(?<!{w}{sep})" for w in _NON_ACCOUNT_ID_PREFIXES for sep in (" ", "_", "-"))
-    + r'\bid\s*[:：]\s*([A-Za-z0-9_]+)', re.IGNORECASE)
+    + r'\bid\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)', re.IGNORECASE)
 _CHINESE_ACCOUNT_LABEL_RE = re.compile(
     r'(?:玩家)?(?:帳號|賬號|账号|帐号|帳戶|賬戶|账户|帐户|會員(?:號)?|会员(?:号)?|用戶(?:號)?|用户(?:号)?)'
-    r'\s*[:：]\s*([A-Za-z0-9_]+)'
+    r'\s*[:：]\s*[\"\x27“”‘’「」]?\s*([A-Za-z0-9_]+)'
 )
 _GENERIC_ACCOUNT_PATTERNS = (_GENERIC_ID_RE, _CHINESE_ACCOUNT_LABEL_RE)
 # 特定廠商固定格式：帳號包在全形【】內，且可能出現在句子中間（非獨立一行），
