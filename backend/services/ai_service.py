@@ -5,6 +5,7 @@
 - 完全不使用 ChromaDB/ONNX，記憶體佔用極低
 """
 import os
+import re
 import asyncio
 import logging
 from typing import Optional
@@ -22,6 +23,63 @@ def get_anthropic_client():
         import anthropic
         _anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
     return _anthropic_client
+
+
+# ── 知識庫問答使用的模型（可用環境變數切換，預設維持原本的 Haiku 4.5）──────────────
+# KB_MODEL：知識庫問答（含語言保底翻譯）用的模型；KB_EFFORT：新一代模型（Haiku 5.5）的思考努力程度，
+# 預設 low——單純的知識庫問答不需要深度思考，努力程度越高越花輸出 token、也越慢。
+# 每次呼叫時才讀環境變數（不在載入模組時固定），方便測試腳本在同一個行程內切換模型比較。
+KB_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
+
+
+def _kb_model() -> str:
+    return (os.getenv("KB_MODEL") or KB_MODEL_DEFAULT).strip()
+
+
+def _kb_request_kwargs(max_tokens: int) -> dict:
+    """依目前模型組出 messages.create 的模型相關參數。
+
+    Haiku 4.5（舊世代）：維持原本行為——temperature=0、max_tokens 不變。
+    Haiku 5.5 以後的新世代：
+      - 不能送 temperature（非預設值會回 400），所以不送；
+      - 預設會開自適應思考，思考 token 也算在 max_tokens 內，原本的 1024 可能在思考完之前就用完、
+        回覆變成空的，所以放寬到至少 4096；
+      - 用 output_config.effort 控制思考深度（目前安裝的 anthropic SDK 0.28 還沒有這個參數，
+        所以走 extra_body 直接帶進請求本文）。"""
+    model = _kb_model()
+    if model.startswith("claude-haiku-4"):
+        return {"model": model, "max_tokens": max_tokens, "temperature": 0}
+    effort = (os.getenv("KB_EFFORT") or "low").strip()
+    return {
+        "model": model,
+        "max_tokens": max(max_tokens, 4096),
+        "extra_body": {"output_config": {"effort": effort}},
+    }
+
+
+def _first_text(message) -> Optional[str]:
+    """取回覆裡第一個文字區塊。新世代模型的回覆可能先有 thinking 區塊（content[0] 不一定是文字），
+    被安全機制拒答（stop_reason=refusal）或輸出被截斷時甚至完全沒有文字區塊，所以不能直接讀 content[0].text。"""
+    for block in message.content or []:
+        if getattr(block, "type", None) == "text" and getattr(block, "text", None) is not None:
+            return block.text
+    return None
+
+
+# 新世代模型（實測 Haiku 5.5）偶爾會在正常答案後面多吐出一段 <ip_reminder>…</ip_reminder>（內容是
+# 著作權提醒的文字），不處理的話會連同答案一起發到廠商群組。這類「提醒」標籤不是答案的一部分，
+# 一律整段移除（含結尾標籤缺失、被截斷的情況）。LEAKED_TAG_COUNT 供比較腳本統計發生次數。
+_LEAKED_TAG_RE = re.compile(r"<(\w*reminder)\b[^>]*>.*?(?:</\1\s*>|\Z)", re.DOTALL | re.IGNORECASE)
+LEAKED_TAG_COUNT = 0
+
+
+def _strip_leaked_tags(text: str) -> str:
+    global LEAKED_TAG_COUNT
+    cleaned = _LEAKED_TAG_RE.sub("", text)
+    if cleaned != text:
+        LEAKED_TAG_COUNT += 1
+        logger.warning(f"回覆中夾帶了 reminder 標籤區塊，已移除：{text[len(cleaned.rstrip()):][:80]!r}")
+    return cleaned.strip()
 
 
 # ── 文件解析 ────────────────────────────────────────────────────────────────
@@ -126,16 +184,17 @@ def _force_translate(client, text: str, target_is_chinese: bool):
     target_lang = "繁體中文" if target_is_chinese else "英文"
     try:
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            temperature=0,
+            **_kb_request_kwargs(1024),
             system=(
                 f"請將使用者提供的文字整段翻譯成{target_lang}，只輸出翻譯結果本身，"
                 "不要加任何說明、開場白或引號。網址、連結、數字、產品/檔案名稱等專有名詞維持原文不變、不要翻譯。"
             ),
             messages=[{"role": "user", "content": text}],
         )
-        translated = message.content[0].text.strip()
+        translated = _strip_leaked_tags(_first_text(message) or "").strip()
+        if not translated:
+            logger.warning(f"強制翻譯保底機制沒有取得文字回覆（stop_reason={message.stop_reason}）")
+            return None, message.usage.input_tokens, message.usage.output_tokens
         return translated, message.usage.input_tokens, message.usage.output_tokens
     except Exception as e:
         logger.error(f"強制翻譯保底機制失敗：{e}", exc_info=True)
@@ -446,10 +505,16 @@ def _call_claude(question: str, chunks: list[str], bot_id: int, asset_mode: bool
             f"4. 若知識庫中沒有直接對應的資訊，請只回覆固定字串：{NO_ANSWER_TOKEN}，"
             "不要加任何其他文字、標點或說明，也不要翻譯這個字串。"
         )
+        if not _kb_model().startswith("claude-haiku-4"):
+            # 新世代模型實測偶爾會在答案後面夾帶 <ip_reminder> 之類的內部標籤，並偶爾在中文問題的答案裡混入英文開頭。
+            # 只對新模型加這兩條（Haiku 4.5 的提示詞維持原樣，不改變既有行為與快取）；程式端另有標籤移除保底。
+            system_prompt += (
+                "\n5. 只輸出答案本身。回覆中不可出現任何 XML／HTML 標籤、系統提醒或內部說明文字（例如 <ip_reminder>）。"
+                "\n6. 整則回覆只能使用規則 3 判定的單一語言，不可在同一句話裡中英混用（網址、產品名稱、遊戲名稱、"
+                "參數名稱等專有名詞除外）。"
+            )
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            temperature=0,
+            **_kb_request_kwargs(1024),
             system=[
                 {
                     "type": "text",
@@ -467,14 +532,24 @@ def _call_claude(question: str, chunks: list[str], bot_id: int, asset_mode: bool
             }],
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
         )
-        reply = message.content[0].text.strip()
         cache_read = getattr(message.usage, "cache_read_input_tokens", 0) or 0
         cache_write = getattr(message.usage, "cache_creation_input_tokens", 0) or 0
+        in_tok, out_tok = message.usage.input_tokens, message.usage.output_tokens
+        reply_text = _first_text(message)
+        if reply_text is not None:
+            reply_text = _strip_leaked_tags(reply_text)
+        if reply_text is None or not reply_text.strip():
+            # 沒有任何文字回覆（被拒答、或輸出被截斷）：當成「沒有答案」處理，讓上層照原本流程轉人工，
+            # 但 token 仍回傳，使用量統計才不會漏記這次呼叫。
+            logger.warning(
+                f"Bot {bot_id} Claude 沒有回傳文字（stop_reason={message.stop_reason}），視為無答案觸發 fallback"
+            )
+            return None, in_tok, out_tok, cache_read, cache_write
+        reply = reply_text.strip()
         logger.info(
             f"Bot {bot_id} Claude 回覆成功，tokens: in={message.usage.input_tokens} "
             f"cache_read={cache_read} cache_write={cache_write}"
         )
-        in_tok, out_tok = message.usage.input_tokens, message.usage.output_tokens
         # 若 Claude 判斷找不到答案，回傳 (None, tokens) 讓上層仍能記錄用量
         if NO_ANSWER_TOKEN in reply:
             logger.info(f"Bot {bot_id} Claude 表示找不到答案，觸發 fallback")

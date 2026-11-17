@@ -13,17 +13,44 @@ router = APIRouter(prefix="/api/stats", tags=["使用量統計"])
 _VIEW = require_page_view("usage_stats")
 _EDIT = require_page_edit("usage_stats")
 
-# claude-haiku-4-5 定價（USD / 1M tokens），僅供費用預估參考，與前端 StatsPage.jsx 的 PRICE 常數一致
-_PRICE = {"input": 0.80, "output": 4.00, "cache_write": 1.00, "cache_read": 0.08}
+# 費用預估單價（USD / 1M tokens），僅供參考，依知識庫問答目前使用的模型（環境變數 KB_MODEL）挑選；
+# 前端 StatsPage.jsx 從 /api/stats/pricing 取同一份，不再自己寫死。
+# - claude-haiku-4-5：沿用原本系統內的估算單價（0.80 / 4.00 / 快取寫入 1.00 / 快取讀取 0.08）。
+# - claude-haiku-5-5：輸入 0.10、輸出 0.50（提示詞 100K token 以內的官方單價）；快取讀取／寫入依一般倍率
+#   （讀取 0.1 倍、寫入 1.25 倍）估算，屬估計值。
+_PRICES_BY_MODEL = {
+    "claude-haiku-4-5": {"input": 0.80, "output": 4.00, "cache_write": 1.00, "cache_read": 0.08},
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cache_write": 0.125, "cache_read": 0.01},
+}
+
+
+def _kb_model_and_price():
+    from services.ai_service import _kb_model
+    model = _kb_model()
+    for key, price in _PRICES_BY_MODEL.items():
+        if model.startswith(key):
+            return model, price
+    return model, _PRICES_BY_MODEL["claude-haiku-4-5"]
+
+
+_PRICE = _PRICES_BY_MODEL["claude-haiku-4-5"]  # 保留舊名稱（預設值），實際計算改用 _kb_model_and_price()
 
 
 def _calc_usd(input_tok: int, output_tok: int, cache_read: int, cache_write: int) -> float:
+    price = _kb_model_and_price()[1]
     return (
-        input_tok * _PRICE["input"] +
-        output_tok * _PRICE["output"] +
-        cache_read * _PRICE["cache_read"] +
-        cache_write * _PRICE["cache_write"]
+        input_tok * price["input"] +
+        output_tok * price["output"] +
+        cache_read * price["cache_read"] +
+        cache_write * price["cache_write"]
     ) / 1_000_000
+
+
+@router.get("/pricing")
+def get_pricing(_=Depends(_VIEW)):
+    """目前知識庫問答使用的模型與費用預估單價（給前端顯示費用用）"""
+    model, price = _kb_model_and_price()
+    return {"model": model, "price": price}
 
 
 def _month_token_totals(db: Session, month_str: str):

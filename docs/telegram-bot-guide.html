@@ -1695,7 +1695,8 @@
         </tbody>
       </table>
 
-      <h4>費用估算公式（依 <span class="code">claude-haiku-4-5</span> 定價，僅供參考）</h4>
+      <h4>費用估算公式（依知識庫問答目前使用的模型定價，僅供參考）</h4>
+      <p>單價會跟著環境變數 <span class="code">KB_MODEL</span> 自動切換（後端 <span class="code">/api/stats/pricing</span> 提供，前端不再寫死）。下表為預設的 <span class="code">claude-haiku-4-5</span>；改用 <span class="code">claude-haiku-5-5</span> 時為：輸入 US$ 0.10、輸出 US$ 0.50、快取寫入 US$ 0.125、快取讀取 US$ 0.01（輸入／輸出為官方單價，提示詞超過 100K Token 時單價較高；快取兩項依一般倍率估算）。</p>
       <table>
         <thead><tr><th>Token 類型</th><th>單價（每 100 萬 Token）</th></tr></thead>
         <tbody>
@@ -1769,7 +1770,8 @@
           <tr><td>中文切塊大小</td><td>每段 400 字，重疊 50 字</td><td>用於非 Q&amp;A 格式文件</td></tr>
           <tr><td>英文切塊大小</td><td>每段 400 詞，重疊 40 詞</td><td>用於非 Q&amp;A 格式文件</td></tr>
           <tr><td>登入 Token 有效期</td><td>24 小時</td><td>逾期需重新登入</td></tr>
-          <tr><td>AI 模型</td><td>claude-haiku-4-5</td><td>知識庫問答與 AI 救援問題判斷皆使用同一模型</td></tr>
+          <tr><td>AI 模型</td><td>claude-haiku-4-5</td><td>知識庫問答與 AI 救援問題判斷皆使用同一模型。<strong>知識庫問答（含語言保底翻譯）的模型可用環境變數切換</strong>：<span class="code">KB_MODEL</span>（預設 <span class="code">claude-haiku-4-5-20251001</span>，不設定就維持現狀）；改成 <span class="code">claude-haiku-5-5</span> 時會自動套用新世代模型的請求格式——不送 <span class="code">temperature</span>（新模型不接受）、<span class="code">max_tokens</span> 放寬到 4096（思考 token 也算在內）、思考努力程度由 <span class="code">KB_EFFORT</span> 控制（預設 <span class="code">low</span>）；回覆只取文字區塊，遇到拒答或被截斷（沒有文字）視為「無答案」照原本流程轉人工，token 仍記錄。實測 Haiku 5.5 偶爾會在答案後面夾帶 <span class="code">&lt;ip_reminder&gt;…&lt;/ip_reminder&gt;</span> 之類的內部提醒區塊，程式會把這類 reminder 標籤整段移除再回覆（Haiku 4.5 沒發生過，同樣套用不影響）；新模型的系統提示詞另外多兩條規則（只輸出答案本身、不得中英混用）——Haiku 4.5 的提示詞維持原樣不變。換模型前請先跑 <span class="code">backend/tools/compare_kb_models.py</span> 驗證規則（見下）；AI 救援的問題判斷、遊戲素材與 TADA 遊戲清單仍固定用 Haiku 4.5，不受 <span class="code">KB_MODEL</span> 影響。</td></tr>
+          <tr><td>模型比較腳本</td><td><span class="code">backend/tools/compare_kb_models.py</span></td><td>內建 14 題規則測試（假資料）：只回直接對應答案、清單逐項檢查、申請單視為提交資料、依問題語言回覆（簡／繁／英）、英文問題必須翻成英文、多語言版本只留目標語言、無答案只回固定字串、基本資訊模式只答素材。<span class="code">--dry-run</span> 只估算不呼叫 API；加 <span class="code">--kb</span>／<span class="code">--questions</span> 可用真實知識庫與問題比較兩個模型的回覆差異並輸出報告。費用單價是粗估，換模型後「使用量統計」的費用公式也要跟著改成新模型的定價。</td></tr>
           <tr><td>知識庫回覆 Token 上限</td><td>max_tokens = 1024</td><td>單次 AI 回答長度上限</td></tr>
           <tr><td>白名單請求判斷</td><td>需含後台關鍵字 + 至少一個 IPv4，且不含「API」排除字樣</td><td>否則不視為白名單請求</td></tr>
           <tr><td>白名單廠商驗證預設行為</td><td>關閉（不限制）</td><td>需手動至群組管理 Tab 開啟並設定允許前綴；未設定時任何廠商皆可加白</td></tr>

@@ -29,20 +29,21 @@ const PRESETS = [
 
 const COLORS = ['#1677ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2']
 
-// claude-haiku-4-5 定價（USD / 1M tokens）
-const PRICE = {
+// 費用預估單價預設值（claude-haiku-4-5，USD / 1M tokens）；實際由後端 /stats/pricing 依目前模型（KB_MODEL）提供，
+// 取不到時才用這份
+const DEFAULT_PRICE = {
   input: 0.80,
   output: 4.00,
   cache_write: 1.00,
   cache_read: 0.08,
 }
 
-function calcUSD(input, output, cacheRead, cacheWrite) {
+function calcUSD(price, input, output, cacheRead, cacheWrite) {
   return (
-    (input * PRICE.input +
-     output * PRICE.output +
-     cacheRead * PRICE.cache_read +
-     cacheWrite * PRICE.cache_write) / 1_000_000
+    (input * price.input +
+     output * price.output +
+     cacheRead * price.cache_read +
+     cacheWrite * price.cache_write) / 1_000_000
   )
 }
 
@@ -53,6 +54,7 @@ export default function StatsPage() {
   const [activePreset, setActivePreset] = useState('今日')
   const [recentQueries, setRecentQueries] = useState([])
   const [groupCosts, setGroupCosts] = useState([])
+  const [PRICE, setPrice] = useState(DEFAULT_PRICE)
 
   const buildParams = useCallback(() => {
     const [from, to] = dateRange
@@ -65,11 +67,13 @@ export default function StatsPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [statsRes, recentRes, groupCostRes] = await Promise.all([
+      const [statsRes, recentRes, groupCostRes, pricingRes] = await Promise.all([
         getStats(buildParams()),
         api.get('/stats/recent-queries', { params: { limit: 20 } }),
         api.get('/stats/cost-by-group', { params: { ...buildParams(), limit: 10 } }),
+        api.get('/stats/pricing').catch(() => null),
       ])
+      if (pricingRes?.data?.price) setPrice(pricingRes.data.price)
       setStats(statsRes.data)
       setRecentQueries(recentRes.data)
       setGroupCosts(groupCostRes.data)
@@ -314,7 +318,7 @@ export default function StatsPage() {
               <tbody>
                 {recentQueries.map((q, i) => {
                   const billed = q.input_tokens + q.output_tokens + Math.round(q.cache_read_tokens * 0.1) + Math.round(q.cache_write_tokens * 1.25)
-                  const usd = calcUSD(q.input_tokens, q.output_tokens, q.cache_read_tokens, q.cache_write_tokens)
+                  const usd = calcUSD(PRICE, q.input_tokens, q.output_tokens, q.cache_read_tokens, q.cache_write_tokens)
                   return (
                     <tr key={`${q.source}-${q.id}`} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                       <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: '#888', fontSize: 11 }}>
