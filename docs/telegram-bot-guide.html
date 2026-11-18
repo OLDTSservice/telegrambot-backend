@@ -425,6 +425,7 @@
             從訊息中比對出遊戲名稱（支援英/繁中/簡中，一則訊息可同時問多款），呼叫 API 取得 Google Drive 的 Icon／Material 連結並回覆廠商。
             訊息中獨立出現的純數字（如 <span class="code">109</span>）視為 Game ID，直接在本地清單做精確比對，不經 AI 猜測。
             比對前會先排除不是 Game ID 的數字：網址、日期、<strong>行首條列編號</strong>（<span class="code">1.</span>／<span class="code">2、</span>／<span class="code">3)</span>）、<strong>圖片尺寸</strong>（<span class="code">300*300</span>／<span class="code">300x300</span>／<span class="code">300px</span>／<span class="code">300像素</span>）、小數／版本號（<span class="code">1.5</span>、<span class="code">v2.0.1</span>）與百分比（<span class="code">50%</span>），避免把這些數字誤當成 Game ID 而回出不相干的遊戲素材。
+            <br><strong>發訊者自己貼出的「素材：網址」不算素材需求</strong>：判斷是否為素材查詢前，會先把「素材／Material／Asset／Icon／Logo／圖示／入口圖／海報／橫幅」後面接冒號與網址的整段拿掉（例如轉貼活動公告時附的「<span class="code">素材：https://…</span>」「<span class="code">Material: https://…</span>」「<span class="code">素材連結：https://…</span>」），拿掉後若訊息裡已沒有其他素材字眼就不會觸發；若同一則訊息另外還問「有素材嗎」之類，仍會照常處理。「基本資訊知識庫」的需求關鍵字閘門也套用同一條規則。
             找不到遊戲或查無資料時不會中斷，會改走一般知識庫查詢流程。
           </td></tr>
           <tr><td><strong>TADA遊戲素材查詢</strong> 開關</td><td>

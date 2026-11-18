@@ -64,9 +64,25 @@ def _strip_urls_and_dates(text: str) -> str:
     return text
 
 
+# 「素材：https://…」「Material: https://…」「素材連結：https://…」這種「標籤＋冒號＋網址」是發訊者自己
+# 貼出素材連結（例如轉貼活動公告，裡面附上素材與活動頁連結），不是在索取素材。實際發生過：廠商轉貼兩則
+# 活動公告問「請問接下來會有這兩個活動嗎？」，公告裡每個活動都有「素材：網址」一行，「素材」兩個字讓整則
+# 被當成素材需求，還把公告裡的「超级王牌 Mr.360」配到遊戲 Super Ace Mr.360 回了一串素材。
+# 判斷關鍵字前先把這種「標籤：網址」整段拿掉；訊息裡若還有其他素材字眼（例如另外問「有素材嗎」）仍會觸發。
+_PROVIDED_ASSET_LINK_RE = re.compile(
+    r'(?:素材|图示|圖示|圖標|图标|入口圖|入口图|海報|海报|橫幅|横幅|icons?|logos?|assets?|materials?|banners?|posters?)'
+    r'(?:連結|链接|網址|网址|links?|urls?)?\s*[:：]\s*https?://\S+',
+    re.IGNORECASE,
+)
+
+
+def _strip_provided_asset_links(text: str) -> str:
+    return _PROVIDED_ASSET_LINK_RE.sub(' ', text)
+
+
 def detect_game_asset_request(text: str) -> bool:
-    """訊息是否含遊戲素材查詢相關關鍵字"""
-    lower = text.lower()
+    """訊息是否含遊戲素材查詢相關關鍵字（發訊者自己貼出的「素材：網址」不算）"""
+    lower = _strip_provided_asset_links(text).lower()
     return any(kw.lower() in lower for kw in _GAME_ASSET_KEYWORDS)
 
 
@@ -132,6 +148,7 @@ _ASSET_KB_EN_RE = re.compile(r'\b(?:' + '|'.join(_ASSET_KB_EN_FRAGMENTS) + r')\b
 
 def detect_asset_kb_request(text: str) -> bool:
     """訊息是否像在索取遊戲素材或遊戲基本資料（見上方清單說明），用來決定要不要呼叫基本資訊知識庫 AI。"""
+    text = _strip_provided_asset_links(text)
     lower = text.lower()
     if any(kw in lower for kw in _ASSET_KB_CJK_KEYWORDS):
         return True
