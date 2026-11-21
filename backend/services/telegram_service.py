@@ -1089,6 +1089,8 @@ class BotManager:
                 return
 
         # 0.5. 後台白名單自動處理（優先於關鍵字/KB，管控模式下仍執行）
+        # 新群組（第一次收到訊息）先建立預設設定：AI基本資訊、找不到答案時靜默，見 _ensure_new_group_defaults。
+        _ensure_new_group_defaults(bot_id, chat_id, chat_name, chat_type, db)
         # 預先讀取群組設定（廠商驗證 + 群組層級管控模式皆從此讀取）
         _group_setting = db.query(models.TelegramGroupSetting).filter(
             models.TelegramGroupSetting.bot_id == bot_id,
@@ -1649,6 +1651,45 @@ def _refresh_chat_name(bot_id: int, chat_id: str, chat_name: str, db):
             db.commit()
         except Exception:
             db.rollback()
+
+
+def _ensure_new_group_defaults(bot_id: int, chat_id: str, chat_name: str, chat_type: str, db):
+    """新群組的預設設定：AI 問答關閉、AI基本資訊開啟、找不到答案時靜默。
+
+    「新群組」＝該機器人在這個群組既沒有群組設定、也從來沒有任何統計紀錄（沒回覆過）。已經有紀錄的
+    既有群組（含從沒被手動調整過設定、沿用舊預設 AI 問答開啟／固定回覆的群組）完全不受影響。
+    只處理 group／supergroup，私訊不套用。同時補一筆 0 回覆的今日統計，讓新群組一進來就會出現在
+    「群組管理」清單（清單是以統計紀錄列出群組；否則群組要等到機器人第一次回覆才會出現，而 AI基本資訊
+    只在命中素材需求時才回覆，新群組可能很久都看不到）。0 回覆不影響任何回覆數統計的合計。
+    任何失敗都只記 log，不可影響訊息處理。"""
+    if chat_type not in ("group", "supergroup"):
+        return
+    import models
+    from timezone_utils import taipei_today
+    try:
+        has_setting = db.query(models.TelegramGroupSetting.id).filter(
+            models.TelegramGroupSetting.bot_id == bot_id,
+            models.TelegramGroupSetting.chat_id == chat_id,
+        ).first()
+        has_stat = db.query(models.TelegramGroupStat.id).filter(
+            models.TelegramGroupStat.bot_id == bot_id,
+            models.TelegramGroupStat.chat_id == chat_id,
+        ).first()
+        if has_setting or has_stat:
+            return
+        db.add(models.TelegramGroupSetting(
+            bot_id=bot_id, chat_id=chat_id,
+            ai_enabled=False, ai_material_enabled=True, silent_no_answer=True,
+        ))
+        db.add(models.TelegramGroupStat(
+            bot_id=bot_id, chat_id=chat_id, chat_name=chat_name,
+            chat_type=chat_type, date=taipei_today().isoformat(), reply_count=0,
+        ))
+        db.commit()
+        logger.info(f"Bot {bot_id} 新群組 {chat_id}（{chat_name}）已套用預設設定：AI基本資訊、找不到答案時靜默")
+    except Exception as e:
+        logger.error(f"Bot {bot_id} 建立新群組預設設定失敗：{e}")
+        db.rollback()
 
 
 def _record_group_stat(bot_id: int, chat_id: str, chat_name: str, chat_type: str, db):

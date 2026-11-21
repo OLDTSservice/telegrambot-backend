@@ -462,7 +462,7 @@
         <tbody>
           <tr><td>選擇機器人（下拉選單）</td><td>先選機器人才會載入其群組清單。</td></tr>
           <tr><td>搜尋群組名稱</td><td>依群組名稱關鍵字篩選。</td></tr>
-          <tr><td><strong>AI 問答</strong> 開關</td><td>此開關直接對應 <span class="code">TelegramGroupSetting.ai_enabled</span>（預設為開啟）。關閉後，該群組的訊息不會查詢一般知識庫，其餘前置功能（關鍵字規則、白名單、遊戲素材查詢、查輸贏回覆等）仍會作用；另外命中「跳過知識庫」關鍵字的訊息，不論 AI 問答開或關，都會照常收到轉人工的固定回覆（或靜默）。此設定也是觸發「AI 救援」與「AI基本資訊」的先決條件，詳見 <a href="#flow-group-ai">訊息流程 — 群組 AI 開關</a>。</td></tr>
+          <tr><td><strong>AI 問答</strong> 開關</td><td>此開關直接對應 <span class="code">TelegramGroupSetting.ai_enabled</span>（<strong>新群組預設為關閉</strong>：機器人第一次在某個群組收到訊息時，會自動建立該群組的設定——<strong>AI 問答關閉、AI基本資訊開啟、找不到答案時靜默</strong>，並補一筆 0 回覆的今日統計讓新群組立刻出現在群組管理清單；「新群組」指該機器人在此群組既沒有設定、也從沒有任何統計紀錄，只處理 group／supergroup，私訊不套用。<strong>既有群組不受影響</strong>：已有統計紀錄但沒被手動調整過設定的群組，仍沿用舊預設——AI 問答開啟、找不到答案時固定回覆）。關閉後，該群組的訊息不會查詢一般知識庫，其餘前置功能（關鍵字規則、白名單、遊戲素材查詢、查輸贏回覆等）仍會作用；另外命中「跳過知識庫」關鍵字的訊息，不論 AI 問答開或關，都會照常收到轉人工的固定回覆（或靜默）。此設定也是觸發「AI 救援」與「AI基本資訊」的先決條件，詳見 <a href="#flow-group-ai">訊息流程 — 群組 AI 開關</a>。</td></tr>
           <tr><td><strong>AI基本資訊</strong> 開關</td><td>對應 <span class="code">TelegramGroupSetting.ai_material_enabled</span>（預設關閉）。<strong>可以隨時切換</strong>，但與「AI 問答」互斥，由後端維持「<strong>AI 問答開著時，AI基本資訊一定是關閉</strong>」：在 AI 問答開著時開啟 AI基本資訊，會<strong>同時關閉 AI 問答</strong>（畫面會先跳出確認視窗，因為該群組會從一般知識庫回覆改成基本資訊知識庫）；開啟 AI 問答時則會自動把 AI基本資訊關掉；兩個都關閉也是合法狀態（該群組完全不需要知識庫協助）。同一次請求兩個都要開會被後端拒絕（400）。開啟 AI基本資訊後，該群組的訊息改查「<a href="#asset-kb">基本資訊知識庫</a>」，只回答遊戲素材與基本資料需求，不會查一般知識庫。詳見 <a href="#asset-kb">基本資訊知識庫（AI基本資訊）</a>。</td></tr>
           <tr><td>群組類型標籤</td><td>私聊 / 群組 / 超級群組 / 頻道，取自 Telegram 原生 <span class="code">chat.type</span>。</td></tr>
           <tr><td><strong>即時對話管控</strong> 開關</td><td>
